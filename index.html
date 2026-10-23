@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>学径 · A-Level 新生学术规划测试</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232dd4bf'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23041014' font-family='serif'%3E%E5%BE%84%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <!-- ============ 顶栏 ============ -->
+  <header class="topbar" id="topbar">
+    <a class="brand" href="#home">
+      <div class="brand-mark">径</div>
+      <div class="brand-text">
+        <strong>学径</strong>
+        <small>Pathwise Academic Planner</small>
+      </div>
+    </a>
+    <nav class="steps" id="steps" aria-label="流程进度">
+      <div class="step" data-step="info"><i>1</i><span>基本信息</span></div>
+      <div class="step" data-step="academic"><i>2</i><span>学术能力</span></div>
+      <div class="step" data-step="plan"><i>3</i><span>专业规划</span></div>
+      <div class="step" data-step="mbti"><i>4</i><span>性格测试</span></div>
+      <div class="step" data-step="report"><i>5</i><span>规划报告</span></div>
+    </nav>
+  </header>
+
+  <main id="app">
+
+    <!-- ============ 首页 ============ -->
+    <section class="screen hero" id="screen-home" style="display:grid">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="dot"></span> For Grade 8–10 · A-Level</div>
+        <h1>找到属于你的<br /><em>A-Level 路径</em></h1>
+        <p class="lede">
+          用约 25 分钟的互动测试，看清自己的学科强项、适合的专业方向与性格特质。
+          完成后自动生成一份属于你的学术规划报告。
+        </p>
+        <div class="hero-actions">
+          <button class="btn primary lg" id="startBtn">开始探索 <span class="arrow">→</span></button>
+          <button class="btn ghost lg" id="resumeBtn" hidden>继续上次进度</button>
+        </div>
+        <div class="hero-stats">
+          <div><b>3</b><span>互动模块</span></div>
+          <div><b>14</b><span>可选专业方向</span></div>
+          <div><b>PDF</b><span>一键导出报告</span></div>
+        </div>
+      </div>
+      <div class="hero-cards">
+        <article class="mini-card c1">
+          <div class="mini-icon">📐</div>
+          <h3>学术能力测试</h3>
+          <p>英语 · 数学 · 物理 · 化学，附错题解析</p>
+          <div class="mini-bar"><span style="width: 78%"></span></div>
+        </article>
+        <article class="mini-card c2">
+          <div class="mini-icon">🧭</div>
+          <h3>专业规划测试</h3>
+          <p>兴趣 · 学科 · 职业 · 留学国家</p>
+          <div class="chips"><span>STEM</span><span>商科</span><span>人文</span><span>创意</span></div>
+        </article>
+        <article class="mini-card c3">
+          <div class="mini-icon">🧠</div>
+          <h3>简版 MBTI</h3>
+          <p>4 个维度 · 24 道题 · 16 型解析</p>
+          <div class="mbti-dots"><span>INTJ</span><span>ENFP</span><span>ISTP</span></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ 基本信息 ============ -->
+    <section class="screen" id="screen-info">
+      <div class="wrap narrow">
+        <div class="page-head">
+          <span class="kicker">Step 1 / 5</span>
+          <h2>先认识一下你</h2>
+          <p>信息只保存在你的浏览器中，用于生成报告封面。</p>
+        </div>
+        <form class="card form-card" id="infoForm" autocomplete="off">
+          <label class="field">
+            <span>你的姓名 <em>*</em></span>
+            <input type="text" id="inName" placeholder="例如：李明" maxlength="24" required />
+            <small>将显示在报告封面</small>
+          </label>
+          <label class="field">
+            <span>当前年级 <em>*</em></span>
+            <div class="segmented" id="inGrade" role="radiogroup"></div>
+          </label>
+          <label class="field">
+            <span>目标 A-Level 入学时间 <em>*</em></span>
+            <div class="segmented" id="inYear" role="radiogroup"></div>
+            <small>用于判断你的规划窗口</small>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn ghost" data-goto="home">返回</button>
+            <button type="submit" class="btn primary">下一步 <span class="arrow">→</span></button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ============ 测试通用容器（学术 / 规划 / MBTI 共用） ============ -->
+    <section class="screen" id="screen-test">
+      <div class="test-shell">
+        <div class="test-head">
+          <button class="icon-btn" id="testBack" title="上一题">←</button>
+          <div class="test-title">
+            <h2 id="testTitle">学术能力测试</h2>
+            <p id="testSub">英语 · 数学 · 物理 · 化学</p>
+          </div>
+          <div class="test-meta" id="testMeta"></div>
+        </div>
+        <div class="progress"><span id="testProgress"></span></div>
+        <div class="test-body" id="testBody"></div>
+        <div class="test-foot">
+          <div class="foot-tip" id="testTip"></div>
+          <div class="foot-actions">
+            <button class="btn ghost" id="testSkip">跳过</button>
+            <button class="btn primary" id="testNext">下一题 <span class="arrow">→</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 过渡 / 生成中 ============ -->
+    <section class="screen" id="screen-generating">
+      <div class="gen-wrap">
+        <div class="gen-ring"><div class="gen-core">径</div></div>
+        <h2>正在为你生成学术规划报告…</h2>
+        <ul class="gen-steps">
+          <li data-g="0">分析学科能力与薄弱知识点</li>
+          <li data-g="1">匹配专业方向与国家路径</li>
+          <li data-g="2">生成 A-Level 选科建议</li>
+          <li data-g="3">整合 MBTI 性格解析</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ 报告 ============ -->
+    <section class="screen" id="screen-report">
+      <div class="report-toolbar no-print">
+        <button class="icon-btn" data-goto="home" title="返回首页">←</button>
+        <div class="toolbar-title">学术规划报告 <small id="reportId"></small></div>
+        <div class="toolbar-actions">
+          <button class="btn ghost sm" id="restartBtn">重新测试</button>
+          <button class="btn primary sm" id="pdfBtn">导出 PDF</button>
+        </div>
+      </div>
+      <div id="reportRoot" class="report"></div>
+    </section>
+  </main>
+
+  <!-- 未作答提示 -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- 打印专用封面 -->
+  <div id="printCover" class="print-cover"></div>
+
+  <script src="js/bank.js"></script>
+  <script src="js/mbti.js"></script>
+  <script src="js/majors.js"></script>
+  <script src="js/plan.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/report-view.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

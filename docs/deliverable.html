@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>学径 Pathwise · 交付说明</title>
+<style>
+  :root {
+    --bg: #0b1120; --panel: #111a2e; --panel-2: #16213a; --line: #25324d;
+    --text: #e6edf7; --text-2: #a9b6cc; --text-3: #77849b;
+    --brand: #2dd4bf; --brand-2: #38bdf8; --amber: #fbbf24; --violet: #a78bfa;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f8fb; --panel: #ffffff; --panel-2: #eef2f7; --line: #dde4ee;
+      --text: #14202f; --text-2: #46566e; --text-3: #6b7b91; --brand: #0d9488; --brand-2: #0284c7; --amber: #b45309; --violet: #7c3aed; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    line-height: 1.7; font-size: 15px;
+  }
+  .page { max-width: 980px; margin: 0 auto; padding: 48px 24px 80px; }
+  header.hero { margin-bottom: 40px; }
+  .eyebrow { color: var(--brand); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; font-weight: 600; }
+  h1 { font-size: 34px; line-height: 1.25; margin: 10px 0 12px; letter-spacing: -.01em; }
+  h1 em { font-style: normal; background: linear-gradient(90deg, var(--brand), var(--brand-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { color: var(--text-2); max-width: 720px; margin: 0; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .pill { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; color: var(--text-2); }
+  .pill b { color: var(--text); font-weight: 600; }
+  h2 { font-size: 22px; margin: 48px 0 6px; padding-top: 8px; display: flex; align-items: baseline; gap: 12px; }
+  h2 .no { font-size: 13px; color: var(--brand); font-weight: 700; letter-spacing: .1em; }
+  .sub { color: var(--text-3); margin: 0 0 20px; font-size: 14px; }
+  h3 { font-size: 16px; margin: 24px 0 8px; }
+  p { margin: 8px 0; }
+  code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+  pre code { background: none; border: 0; padding: 0; }
+
+  /* 流程图 */
+  .flow { display: grid; gap: 12px; }
+  .flow-note {
+    border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px; color: var(--text-2); font-size: 13.5px;
+  }
+  .flow-note b { color: var(--text); }
+  .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .node {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; position: relative;
+  }
+  .node .tag { font-size: 11px; letter-spacing: .1em; color: var(--text-3); font-weight: 600; }
+  .node h4 { margin: 4px 0 6px; font-size: 15px; }
+  .node p { margin: 0; font-size: 12.8px; color: var(--text-2); line-height: 1.55; }
+  .node::after { content: "→"; position: absolute; right: -11px; top: 50%; transform: translateY(-50%); color: var(--brand); font-weight: 700; }
+  .node:last-child::after { display: none; }
+  .node.branch { border-color: rgba(45,212,191,.5); }
+  .branches { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .branches .node::after { display: none; }
+  .arrow-down { text-align: center; color: var(--brand); font-weight: 700; margin: -4px 0; }
+
+  /* 页面结构树 */
+  .tree { list-style: none; padding: 0; margin: 0; }
+  .tree > li { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; }
+  .tree > li > .t-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .t-id { font-family: ui-monospace, monospace; font-size: 12px; color: var(--brand); background: rgba(45,212,191,.1); border-radius: 6px; padding: 1px 8px; }
+  .t-name { font-weight: 600; }
+  .t-desc { color: var(--text-3); font-size: 13px; }
+  .tree ul { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13.5px; }
+  .tree ul li { margin: 4px 0; }
+  .tree ul li b { color: var(--text); font-weight: 600; }
+
+  /* 规则映射表 */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--text-3); font-weight: 600; font-size: 12.5px; letter-spacing: .05em; }
+  td b { color: var(--brand); font-weight: 600; }
+  .table-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px 8px; overflow-x: auto; }
+
+  /* 路线图 */
+  .roadmap { display: grid; gap: 12px; }
+  .phase { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; grid-template-columns: 120px 1fr; gap: 16px; }
+  .phase .p-label { font-weight: 700; color: var(--text); }
+  .phase .p-label small { display: block; color: var(--text-3); font-weight: 500; font-size: 12px; margin-top: 2px; }
+  .phase ul { margin: 0; padding-left: 18px; color: var(--text-2); }
+  .phase li { margin: 4px 0; }
+  .phase li b { color: var(--text); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .card h4 { margin: 0 0 6px; font-size: 15px; }
+  .card p, .card ul { margin: 0; color: var(--text-2); font-size: 13.5px; }
+  .card ul { padding-left: 18px; }
+  .card.warn { border-color: rgba(251,191,36,.4); }
+
+  footer { margin-top: 56px; color: var(--text-3); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 18px; }
+
+  @media (max-width: 760px) {
+    .page { padding: 28px 16px 60px; }
+    h1 { font-size: 26px; }
+    .row { grid-template-columns: 1fr; }
+    .node::after { content: "↓"; right: 50%; top: auto; bottom: -13px; transform: translateX(50%); }
+    .branches { grid-template-columns: 1fr; }
+    .grid2 { grid-template-columns: 1fr; }
+    .phase { grid-template-columns: 1fr; gap: 6px; }
+  }
+  @media print {
+    body { background: #fff; color: #111; }
+    .page { max-width: none; padding: 0; }
+    .node, .tree > li, .card, .phase, .table-wrap { break-inside: avoid; border-color: #ccc; background: #fff; }
+    h2 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">Pathwise · Deliverable Brief</div>
+    <h1>学径 <em>A-Level 学术规划互动测试网站</em><br/>交互流程 · 页面结构 · 下一步建议</h1>
+    <p class="lede">
+      面向 8–10 年级 A-Level 体系新生：三大互动测试（学术能力 / 专业规划 / 简版 MBTI）→ 规则引擎自动生成个性化学术规划报告 → 一键导出 PDF。
+      本文档对应已完成的 <b>可直接运行的原型</b>（纯静态网页，无需构建、无需服务器）。
+    </p>
+    <div class="meta">
+      <span class="pill"><b>30</b> 道学术题（英语 / 数学 / 物理 / 化学）</span>
+      <span class="pill"><b>14</b> 道规划题</span>
+      <span class="pill"><b>24</b> 道 MBTI 题</span>
+      <span class="pill"><b>14</b> 个专业方向</span>
+      <span class="pill"><b>8</b> 页 A4 PDF</span>
+      <span class="pill">本地存储 · 可断点续答</span>
+    </div>
+  </header>
+
+  <!-- ============ 1 用户交互流程 ============ -->
+  <h2><span class="no">01</span>用户交互流程（User Flow）</h2>
+  <p class="sub">主路径约 20–25 分钟；任何一步刷新或关闭浏览器，下次打开都能从上次的位置继续。</p>
+
+  <div class="flow">
+    <div class="row">
+      <div class="node">
+        <div class="tag">ENTRY</div>
+        <h4>首页</h4>
+        <p>价值主张 + 三个模块预览 + 预计时长。主按钮「开始探索」；有进度时额外出现「继续上次进度」。</p>
+      </div>
+      <div class="node">
+        <div class="tag">STEP 1</div>
+        <h4>基本信息</h4>
+        <p>姓名、当前年级（8–11 年级）、目标 A-Level 入学年份。仅存于浏览器，用于报告封面与规划窗口。</p>
+      </div>
+      <div class="node">
+        <div class="tag">STEP 2</div>
+        <h4>学术能力测试</h4>
+        <p>30 题：英语 10 题（英文原题）/ 数学 10 / 物理 5 / 化学 5。数学与理科题均带中文翻译，数值题支持输入或选择。</p>
+      </div>
+      <div class="node">
+        <div class="tag">STEP 3</div>
+        <h4>专业规划测试</h4>
+        <p>14 题：当前与擅长学科、兴趣领域、社团经历、留学偏好、职业愿景等，单选题 + 多选标签（可自定义补充）混合。</p>
+      </div>
+      <div class="node">
+        <div class="tag">STEP 4</div>
+        <h4>简版 MBTI</h4>
+        <p>24 题 5 级量表（E/I、S/N、T/F、J/P 各 6 题），实时进度条，逐题自动进入下一题。</p>
+      </div>
+    </div>
+
+    <div class="flow-note">
+      <b>答题中的通用交互：</b>顶部五步导航始终可见；每题显示 <code>n / N</code> 与进度条；可「上一题」修改、「跳过」（按未作答计）；未选择时点「下一题」会提示；每选一次即自动保存。
+    </div>
+
+    <div class="arrow-down">↓ 三个模块全部完成后 ↓</div>
+
+    <div class="row" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="node branch">
+        <div class="tag">TRANSITION</div>
+        <h4>生成中</h4>
+        <p>约 2.5 秒的分步动画：分析学科能力 → 匹配专业与国家 → 生成选科建议 → 整合 MBTI（规则引擎同步计算）。</p>
+      </div>
+      <div class="node branch">
+        <div class="tag">OUTPUT</div>
+        <h4>学术规划报告</h4>
+        <p>封面 + 核心结论 + 三大部分（学科能力分析 / 升学路径规划 / 性格解析）+ 错题回顾附录。</p>
+      </div>
+      <div class="node branch">
+        <div class="tag">EXIT</div>
+        <h4>导出 / 再测</h4>
+        <p>「导出 PDF」进入浏览器打印面板（A4、保留配色，可另存为 PDF 或直接打印）；「重新测试」清空后回到首页。</p>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top: 6px;">
+      <div class="card">
+        <h4>回访与断点续答</h4>
+        <ul>
+          <li>刷新 / 关闭页面后重新打开 → 首页出现「继续上次进度」。</li>
+          <li>在测试中刷新 → 直接回到同一模块的<b>同一道题</b>。</li>
+          <li>报告页刷新 → 直接回到报告。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>先看报告、后补测试（快速通道）</h4>
+        <ul>
+          <li>填写姓名等基本信息后，信息页出现「直接生成 / 更新报告」。</li>
+          <li>适合顾问先给学生看一版初稿，学生再逐题完善，报告随之更新。</li>
+          <li>姓名会实时同步到报告封面，无需重新提交表单。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2 核心页面结构 ============ -->
+  <h2><span class="no">02</span>核心页面结构</h2>
+  <p class="sub">单页应用（SPA），通过切换 <code>.screen.active</code> 显示不同页面；三个测试模块共用一个测试容器，按模块注入题库。</p>
+
+  <ul class="tree">
+    <li>
+      <div class="t-head"><span class="t-id">screen-home</span><span class="t-name">首页</span><span class="t-desc">Hero 文案 · 开始探索 / 继续上次进度 · 三个模块简介卡片 · 数据标签（3 模块 / 14 方向 / PDF）</span></div>
+    </li>
+    <li>
+      <div class="t-head"><span class="t-id">screen-info</span><span class="t-name">基本信息</span><span class="t-desc">表单卡片</span></div>
+      <ul>
+        <li><b>姓名</b>（必填，显示在封面）</li>
+        <li><b>当前年级</b>：8 年级 / 9 年级 / 10 年级 / 11 年级·预科 —— 分段选择</li>
+        <li><b>目标入学时间</b>：2027–2030 秋季 —— 决定规划窗口时间线</li>
+        <li>操作：返回 · 直接生成/更新报告（已有姓名时出现）· 下一步</li>
+      </ul>
+    </li>
+    <li>
+      <div class="t-head"><span class="t-id">screen-test</span><span class="t-name">教学测试容器（三模块共用）</span><span class="t-desc">左上返回 · 模块标题 · n/N · 进度条 · 题卡 · 底部提示 + 跳过 / 下一题</span></div>
+      <ul>
+        <li><b>题型：</b>学科单选题（选项卡片）· 数值题（输入或选项）· 规划单选题 · 多选标签（tag-card，可选数量上限）· MBTI 5 级量表（likert）</li>
+        <li><b>标签：</b>科目（英语 / 数学 / 物理 / 化学）、知识点、题型</li>
+        <li><b>中英对照：</b>数学 / 物理 / 化学题同时展示中文翻译</li>
+      </ul>
+    </li>
+    <li>
+      <div class="t-head"><span class="t-id">screen-generating</span><span class="t-name">生成中</span><span class="t-desc">品牌环 · 四步进度文案</span></div>
+    </li>
+    <li>
+      <div class="t-head"><span class="t-id">screen-report</span><span class="t-name">报告页</span><span class="t-desc">吸顶工具栏（返回 / 报告编号 / 重新测试 / 导出 PDF）+ 纸质报告中轴</span></div>
+      <ul>
+        <li><b>封面：</b>姓名 + 学术规划报告 · 四个关键结论（推荐专业 / 性格类型 / 优势学科 / 首选地区）· 日期 · 报告编号</li>
+        <li><b>核心结论一览：</b>学业诊断 · 专业方向 · 性格特质 三张卡片</li>
+        <li><b>Part 1 学科能力分析：</b>四科得分条 · 优势与薄弱知识点 · 选科建议 · 下一步行动时间线</li>
+        <li><b>附录 逐题回顾与解析：</b>错题 + 正确答案 + 中文解析</li>
+        <li><b>Part 2 未来升学路径规划：</b>推荐专业 Top4 与匹配度 · 备选方向 · 首选地区与备选地区 · 目标院校分档（冲刺 / 匹配 / 保底）· A-Level 选科方案 · 规划时间线</li>
+        <li><b>Part 3 性格特点解析：</b>MBTI 四维条形 · 类型画像（优势 / 注意点）· 学习方式建议 · 适配专业与职业 · 选科相关性</li>
+        <li><b>免责声明</b></li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>规则引擎：数据 → 报告的映射</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width: 22%">报告部分</th><th style="width: 30%">输入</th><th>规则</th></tr></thead>
+      <tbody>
+        <tr><td><b>学科能力分析</b></td><td>学术题答题记录（含知识点标签）+ 年级</td><td>按科目与知识点统计正确率 → 0–100 能力分 → 等级（起点高 / 良好 / 待加强）；结合年级给出起点说明与选科建议</td></tr>
+        <tr><td><b>推荐专业</b></td><td>规划题偏好 + 学科得分 + MBTI 维度</td><td>每个专业方向对「学科权重 + 兴趣标签 + 性格匹配」加权打分 → 取 Top4，并计算匹配度百分比</td></tr>
+        <tr><td><b>留学地区</b></td><td>国家偏好题 + 专业方向</td><td>首选地区 + 1–2 个备选地区；按专业方向给出地区特点说明</td></tr>
+        <tr><td><b>目标院校</b></td><td>专业方向 + 地区 + 当前能力</td><td>从院校库中按专业 / 地区筛选，按冲刺 / 匹配 / 保底三档输出</td></tr>
+        <tr><td><b>A-Level 选科</b></td><td>推荐专业 + 优势学科 + 年级</td><td>读取专业的选科要求（如物理必选 / 化学推荐），再用学生强项补齐第 3–4 门</td></tr>
+        <tr><td><b>性格解析</b></td><td>24 题 MBTI 量表</td><td>四个维度分别计分 → 16 型 → 画像、学习方式、适配专业与职业</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ 3 下一步 ============ -->
+  <h2><span class="no">03</span>下一步开发执行建议</h2>
+  <p class="sub">按「先让老师/顾问能上手用 → 再扩内容 → 最后数据与 AI」的顺序推进，每一步都能独立上线。</p>
+
+  <div class="roadmap">
+    <div class="phase">
+      <div class="p-label">P0 · 即刻<small>1–3 天 · 可用</small></div>
+      <ul>
+        <li><b>部署：</b>整个目录是纯静态文件，上传到任意静态托管（对象存储 / CDN / 学校服务器）即可；无需数据库。</li>
+        <li><b>试用收集：</b>找 5–10 名学生真实作答，重点观察各题正确率分布、报告阅读时长、是否中途放弃。</li>
+        <li><b>内容审校：</b>由学科老师逐题核对题目与中文翻译、误差范围、解析表述。</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="p-label">P1 · 题库与规则<small>2–3 周</small></div>
+      <ul>
+        <li><b>题库扩充：</b>每个科目按难度分层（基础 / 中等 / 进阶），从 30 题扩到 45–60 题，每年更新一次并标注版本号。</li>
+        <li><b>院校库结构化：</b>把院校、专业要求、录取概况做成独立数据文件（JSON / 后台表单），避免硬编码在脚本里；每年申请季前复核。</li>
+        <li><b>报告可编辑：</b>允许顾问在生成后修改部分建议文案，并保留修改记录。</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="p-label">P2 · 后台与留存<small>3–6 周</small></div>
+      <ul>
+        <li><b>顾问 / 教师后台：</b>用链接或学生编号查看已提交报告列表、导出汇总表（Excel），方便分批约面谈。</li>
+        <li><b>账号与云端保存：</b>学生登录后报告跨设备可见；未登录仍可用本地模式。</li>
+        <li><b>分享链接：</b>生成只读的家长分享版（可隐藏逐题回顾），家长与顾问可在同一报告上留批注。</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="p-label">P3 · 智能化<small>持续</small></div>
+      <ul>
+        <li><b>AI 文案增强：</b>规则引擎继续给出结构与数值（保证稳定、可解释），再用大模型把建议改写成更贴近学生的个性化语气；AI 不可用时自动回退到模板文案。</li>
+        <li><b>数据看板：</b>汇总匿名化的学科正确率、专业分布、地区偏好，用于课程与招生决策。</li>
+        <li><b>A/B 与校准：</b>对比「规则报告」与「AI 润色报告」的完成率、分享率；用真实后续成绩回头校准能力等级阈值。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>需要注意的几个点</h3>
+  <div class="grid2">
+    <div class="card warn">
+      <h4>合规与隐私</h4>
+      <p>当前版本数据只存在学生自己的浏览器里，不联网、不上传。接入云端后需补充：未成年人监护人同意、数据删除入口、报告仅供参考的免责声明（报告中已包含）。</p>
+    </div>
+    <div class="card warn">
+      <h4>内容的时效性</h4>
+      <p>院校、专业选科要求与录取趋势每年会变。建议在报告页显示「数据版本 / 参考年份」，并设置每年一次的复核清单。</p>
+    </div>
+    <div class="card">
+      <h4>报告可信度</h4>
+      <p>规则引擎的结论要能被解释：「为什么推荐这个专业」应能追溯到具体题目与得分，而不是一句结论。当前报告中的匹配度、知识点与错题回顾就是为此设计的。</p>
+    </div>
+    <div class="card">
+      <h4>移动端优先</h4>
+      <p>学生大概率用手机作答：测试题卡、选项触控区域、顶部步骤导航、报告工具栏均已单独适配；PDF 导出建议在电脑上完成效果最佳。</p>
+    </div>
+  </div>
+
+  <h3>已交付的原型如何运行</h3>
+  <pre><code># 方式一：直接双击打开
+index.html
+
+# 方式二：本地起一个静态服务（推荐，PDF 与存储行为更稳定）
+cd /home/bill/academic-planner
+python3 -m http.server 8765
+# 浏览器访问 http://localhost:8765/</code></pre>
+  <p class="sub" style="margin-top: 8px;">
+    目录：<code>index.html</code>（页面骨架）· <code>css/style.css</code>（视觉与打印样式）· <code>js/bank.js</code>（学术题库）· <code>js/plan.js</code>（规划题）· <code>js/mbti.js</code>（性格量表）· <code>js/majors.js</code>（专业 / 院校库）· <code>js/report.js</code>（规则引擎）· <code>js/report-view.js</code>（报告渲染）· <code>js/app.js</code>（交互与状态保存）。
+  </p>
+
+  <footer>学径 · Pathwise Academic Planner — 交付说明 · 2026 年 10 月</footer>
+</div>
+</body>
+</html>
