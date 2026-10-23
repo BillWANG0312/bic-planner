@@ -11,7 +11,7 @@
     const m = r.mbti;
     return `<section class="cover">
       <div class="cover-top">
-        <div class="cover-brand"><div class="brand-mark">径</div>学径 · Pathwise</div>
+        <div class="cover-brand"><img src="img/bic-logo-white.png" alt="BIC" class="cover-logo" /><span>BIC 学业规划系统 · BIC Academic Planner</span></div>
         <div class="cover-date">生成日期 ${esc(r.meta.date)}<br/>报告编号 ${esc(r.meta.batchId)}</div>
       </div>
       <h1>${esc(r.meta.name)} 的<br/><span>学术规划报告</span></h1>
@@ -292,7 +292,7 @@
     return `<section class="paper-section">
       <h3>说明与免责</h3>
       <p class="disclaimer">
-        本报告由「学径」系统根据测试作答自动生成，用于帮助学生认识自身优势与方向，不构成升学决策的唯一依据。
+        本报告由「BIC 学业规划系统」根据测试作答自动生成，用于帮助学生认识自身优势与方向，不构成升学决策的唯一依据。
         院校录取要求基于 ${esc(r.meta.refYear)} 前后的公开信息整理，每年可能调整，请以各校官网为准。
         MBTI 为简版人格测评，仅供性格参考，非专业心理诊断。
         建议结合学校升学指导老师的意见，共同制定最终规划。
