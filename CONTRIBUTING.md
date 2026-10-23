@@ -1,4 +1,4 @@
-# 学径 Pathwise · 协作与更新说明
+# BIC 学业规划系统（BIC Academic Planner）· 协作与更新说明
 
 > 给同事和 AI 助手看的操作手册。修改本网站前请先读一遍。
 
