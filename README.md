@@ -1,4 +1,6 @@
-academic-planner 是一个纯静态的 A-Level 学术规划互动测试网站，面向 8–10 年级 A-Level 体系新生。
+**BIC 学业规划系统**（BIC Academic Planner）是一个纯静态的 A-Level 学术规划互动测试网站，面向 8–10 年级 A-Level 体系新生。
+
+在线访问：[https://tlwl-bic.com/academic-planner/](https://tlwl-bic.com/academic-planner/)　也可从 BIC 网站进入：[http://192.168.100.66:8086/apps/academic-planner/](http://192.168.100.66:8086/apps/academic-planner/)
 
 三大互动模块：
 
