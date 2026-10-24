@@ -578,6 +578,60 @@ body.in-test .test-shell { margin: 16px auto 0; min-height: calc(100vh - 100px);
 .uni-note a { color: #2563eb; text-decoration: underline; }
 .btn:focus-visible, .report-editor input:focus-visible, .report-editor select:focus-visible, .report-editor textarea:focus-visible { outline: 3px solid #3b82f6; outline-offset: 3px; }
 
+/* 本机报告库与现有测评共用蓝色按钮、深色卡片。 */
+.library-wrap { max-width: 1064px; padding-top: 36px; }
+.library-heading, .library-record-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.library-heading h2 { margin: 6px 0 0; font-size: 30px; }
+.library-privacy { margin: 20px 0; padding: 16px 18px; color: #c4d9f5; border-left: 3px solid var(--brand); background: rgba(59,130,246,.09); border-radius: 0 10px 10px 0; line-height: 1.8; font-size: 14px; }
+.library-tools, .library-import-actions, .library-record-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.library-help { color: var(--text-2); font-size: 12.5px; line-height: 1.8; }
+.library-file-button { position: relative; overflow: hidden; }
+.library-file-button input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.library-file-button:focus-within { outline: 3px solid #3b82f6; outline-offset: 3px; }
+.library-file-button.is-disabled { opacity: .5; cursor: not-allowed; }
+.library-status { min-height: 24px; color: #93c5fd; font-size: 14px; overflow-wrap: anywhere; }
+.library-status.is-error, .library-inline-status.is-error { color: #fecaca; }
+.library-inline-status { max-width: 972px; margin: 12px auto; padding: 0 14px; font-size: 13px; color: #93c5fd; overflow-wrap: anywhere; }
+.library-import { padding: 20px; background: var(--surface); border: 1px solid #416592; border-radius: var(--radius-sm); margin: 16px 0 24px; }
+.library-import h3 { margin: 0 0 10px; font-size: 18px; }
+.library-import p { overflow-wrap: anywhere; font-size: 14px; }
+.library-replace { display: flex; align-items: flex-start; gap: 10px; color: #e4ecf8; font-size: 14px; }
+.library-replace input { margin: 4px 0 0; width: 17px; height: 17px; flex: none; accent-color: var(--brand); }
+.library-search-row { display: flex; align-items: flex-end; gap: 20px; justify-content: space-between; margin: 24px 0 18px; }
+.library-search { flex: 1; max-width: 470px; font-size: 13px; color: var(--text-2); }
+.library-search input { display: block; margin-top: 8px; width: 100%; min-width: 0; padding: 11px 13px; background: var(--bg-2); border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text); font: inherit; }
+.library-search input:focus-visible, .library-replace input:focus-visible { outline: 3px solid #3b82f6; outline-offset: 3px; }
+#libraryCount { margin: 0 0 10px; color: var(--text-2); font-size: 13px; }
+.library-list { display: grid; gap: 16px; }
+.library-empty { margin: 0; padding: 28px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); color: var(--text-2); font-size: 14px; }
+.library-record { min-width: 0; padding: 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); overflow-wrap: anywhere; }
+.library-record-name { min-width: 0; font-size: 19px; margin: 0; font-weight: 600; }
+.library-badge { padding: 3px 9px; border: 1px solid rgba(147,197,253,.22); border-radius: 7px; background: rgba(59,130,246,.1); color: #bfdbfe; font-size: 12px; flex: none; }
+.library-record-id { color: var(--text-2); font-size: 12px; margin: 7px 0 14px; }
+.library-record-details { display: grid; grid-template-columns: 68px 1fr 68px 1fr; gap: 6px 14px; font-size: 13px; margin: 0 0 16px; }
+.library-record-details dt { color: var(--text-3); }
+.library-record-details dd { margin: 0; min-width: 0; color: var(--text-2); }
+.library-completion { color: #c5d6ed; font-size: 13px; margin: 0 0 8px; }
+.library-major { font-size: 13px; color: var(--text-2); margin: 0 0 16px; }
+.library-version { color: #fcd34d; font-size: 12px; }
+.library-record-actions { justify-content: flex-end; }
+@media (max-width: 640px) {
+  .library-wrap { padding-top: 24px; }
+  .library-heading h2 { font-size: 25px; }
+  .library-privacy { padding: 12px 14px; font-size: 13px; }
+  .library-tools { gap: 8px; }
+  .library-tools .btn { padding: 9px 12px; }
+  .library-search-row { align-items: stretch; flex-direction: column; gap: 10px; }
+  .library-search { max-width: none; }
+  #libraryCount { margin: 0; }
+  .library-record { padding: 18px; }
+  .library-record-heading { align-items: flex-start; gap: 10px; }
+  .library-record-details { grid-template-columns: 64px minmax(0,1fr); gap: 7px 12px; }
+  .library-import { padding: 16px; }
+  .library-record-actions { justify-content: flex-start; }
+  .library-inline-status { margin: 12px; padding: 0; }
+}
+
 /* 打印 */
 .print-cover { display: none; }
 @media print {

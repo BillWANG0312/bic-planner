@@ -45,6 +45,7 @@
         <div class="hero-actions">
           <button class="btn primary lg" id="startBtn">开始探索 <span class="arrow">→</span></button>
           <button class="btn ghost lg" id="resumeBtn" hidden>继续上次进度</button>
+          <button class="btn ghost lg" id="libraryBtn">本机报告库</button>
         </div>
         <div class="hero-stats">
           <div><b>3</b><span>互动模块</span></div>
@@ -149,12 +150,56 @@
         <div class="toolbar-title">学术规划报告 <small id="reportId"></small></div>
         <div class="toolbar-actions">
           <button class="btn ghost sm" id="editReportBtn" aria-expanded="false" aria-controls="reportEditor">编辑建议</button>
+          <button class="btn ghost sm" id="archiveReportBtn">归档报告</button>
+          <button class="btn ghost sm" id="openLibraryBtn">本机报告库</button>
           <button class="btn ghost sm" id="restartBtn">重新测试</button>
           <button class="btn primary sm" id="pdfBtn">导出 PDF</button>
         </div>
       </div>
+      <p id="archiveReportStatus" class="library-inline-status no-print" role="status" hidden></p>
       <aside id="reportEditor" class="report-editor no-print" aria-label="顾问报告编辑" hidden></aside>
       <div id="reportRoot" class="report"></div>
+    </section>
+
+    <!-- ============ 本机报告库 ============ -->
+    <section class="screen no-print" id="screen-library" aria-labelledby="libraryHeading">
+      <div class="wrap library-wrap">
+        <div class="library-heading">
+          <div>
+            <span class="kicker">Local reports</span>
+            <h2 id="libraryHeading" tabindex="-1">本机报告库</h2>
+          </div>
+          <button class="btn ghost" id="libraryBackBtn">返回</button>
+        </div>
+        <p class="library-privacy">归档仅保存在当前设备的此浏览器中，不会上传学生资料，也不会在设备间同步。清除浏览器数据可能丢失归档，请定期导出 JSON 备份并妥善保管含学生资料的文件。</p>
+        <div class="library-tools">
+          <button class="btn ghost sm" id="libraryExportBtn">导出 JSON 备份</button>
+          <button class="btn ghost sm" id="libraryCsvBtn">导出 CSV 汇总</button>
+          <label class="btn ghost sm library-file-button" for="libraryImportFile">导入 JSON 备份
+            <input id="libraryImportFile" type="file" accept=".json,application/json" />
+          </label>
+          <button class="btn ghost sm" id="libraryRawBackupBtn" hidden>下载原始数据备份</button>
+        </div>
+        <p class="library-help">JSON 只备份已归档报告的作答及顾问修改，请先归档当前报告；可在本系统导入恢复。CSV 仅供查看汇总。导入前会校验并预览，归档编号或报告编号重复时默认跳过。</p>
+        <p id="libraryStatus" class="library-status" role="status" aria-live="polite"></p>
+        <section id="libraryImportPreview" class="library-import" aria-labelledby="libraryImportHeading" hidden>
+          <h3 id="libraryImportHeading" tabindex="-1">确认导入内容</h3>
+          <p id="libraryImportSummary"></p>
+          <label class="library-replace"><input id="libraryImportReplace" type="checkbox" />明确替换所有编号重复的归档（旧归档将被覆盖）</label>
+          <p class="library-help">替换前建议先导出当前 JSON 备份。尚未点击确认导入时，本机归档不会改变。</p>
+          <div class="library-import-actions">
+            <button class="btn primary sm" id="libraryImportCommitBtn">确认导入</button>
+            <button class="btn ghost sm" id="libraryImportCancelBtn">取消</button>
+          </div>
+        </section>
+        <div class="library-search-row">
+          <label class="library-search" for="librarySearch">搜索姓名或报告编号
+            <input type="search" id="librarySearch" maxlength="120" placeholder="输入姓名或报告编号" autocomplete="off" />
+          </label>
+          <p id="libraryCount" aria-live="polite"></p>
+        </div>
+        <div id="libraryList" class="library-list"></div>
+      </div>
     </section>
   </main>
 
@@ -173,6 +218,8 @@
   <script src="js/report-editing.js"></script>
   <script src="js/report-print.js"></script>
   <script src="js/report-view.js"></script>
+  <script src="js/report-store.js"></script>
+  <script src="js/report-library.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

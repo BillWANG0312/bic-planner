@@ -19,6 +19,7 @@
     report: null
   });
   let S = blank();
+  let reportLibrary = null;
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const TEST_MODES = ['academic', 'plan', 'mbti'];
 
@@ -33,7 +34,7 @@
       ['name', 'grade', 'year'].forEach(key => { if (typeof restored.info[key] !== 'string') restored.info[key] = ''; });
       restored.info.name = restored.info.name.slice(0, 24);
       restored.ui = Object.assign(blank().ui, isObject(saved.ui) ? saved.ui : {});
-      if (!['home', 'info', 'test', 'generating', 'report', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
+      if (!['home', 'info', 'test', 'generating', 'report', 'library', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
       if (!TEST_MODES.includes(restored.ui.resumeScreen)) restored.ui.resumeScreen = TEST_MODES.includes(restored.ui.screen) ? restored.ui.screen : 'academic';
       restored.ui.idx = Number.isInteger(restored.ui.idx) && restored.ui.idx >= 0 ? restored.ui.idx : 0;
       restored.academic = blank().academic;
@@ -50,7 +51,11 @@
         const valid = (q.type === 'single' ? q.options() : q.source()).map(o => o.id);
         if (q.type === 'single') {
           if (valid.includes(value)) restored.plan.answers[q.key] = value;
-        } else restored.plan.answers[q.key] = Array.isArray(value) ? [...new Set(value.filter(v => valid.includes(v)))].slice(0, q.max || valid.length) : [];
+        } else {
+          const values = Array.isArray(value) ? value.filter(v => typeof v === 'string'
+            && (valid.includes(v) || q.multiFree && v.trim() !== '' && v.length <= 80)) : [];
+          restored.plan.answers[q.key] = [...new Set(values)].slice(0, q.max || (q.multiFree ? 30 : valid.length));
+        }
       });
       const grade = [restored.info.grade, restored.plan.answers.grade].find(value => window.PLAN_CONFIG.grade.some(g => g.id === value)) || '';
       restored.info.grade = grade;
@@ -91,7 +96,8 @@
 
   function hasProgress() {
     return Object.keys(S.academic.answers).length > 0 || S.mbti.answers.some(v => v != null)
-      || Object.values(S.plan.answers).some(v => Array.isArray(v) && v.length) || !!S.info.name;
+      || Object.values(S.plan.answers).some(v => Array.isArray(v) ? v.length > 0 : v != null && v !== '')
+      || Object.values(S.info).some(v => typeof v === 'string' && v.trim() !== '') || !!S.report;
   }
 
   /* ---------------- 通用 ---------------- */
@@ -489,19 +495,36 @@
           setScreen('home');
           return;
         }
-        renderReport();
+        renderReport(false);
       }
     }, 420);
   }
 
-  function renderReport() {
-    const r = S.report;
-    if (!r) return;
+  function renderReport(refresh = true) {
+    const previous = S.report;
+    if (!previous) return;
+    let r = previous;
+    if (refresh) {
+      // 基本资料/作答可能已在其他页面更新；展示与归档必须使用同一份最新结果。
+      r = window.generateReport(S);
+      const material = report => JSON.stringify({ name: report.meta.name, grade: report.meta.gradeId, year: report.meta.year,
+        academic: report.academic, plan: report.plan, mbti: report.mbti, next: report.next });
+      const changed = material(previous) !== material(r);
+      r.meta.batchId = previous.meta.batchId || r.meta.batchId;
+      r.meta.date = previous.meta.date || r.meta.date;
+      window.reportEditing?.carryEdits(previous, r);
+      if (r.advisor) {
+        if (previous.advisor?.carriedFrom) r.advisor.carriedFrom = previous.advisor.carriedFrom;
+        else if (!changed) delete r.advisor.carriedFrom;
+      }
+      S.report = r;
+    }
     $('#reportRoot').innerHTML = window.renderReport(r);
     $('#reportId').textContent = r.meta.batchId;
     setScreen('report');
     window.animateReport($('#reportRoot'));
-    window.reportEditing?.mount(r, () => { const persisted = flush(); renderReport(); return persisted; });
+    reportLibrary?.onReportRendered(r);
+    window.reportEditing?.mount(r, () => { const persisted = flush(); renderReport(false); return persisted; });
   }
 
   $('#pdfBtn').onclick = () => {
@@ -541,14 +564,7 @@
   /* ---------------- 启动 ---------------- */
   function boot() {
     load();
-    // 报告是可重算的快照；只信任已校验的作答，避免损坏或旧版快照阻止启动。
-    if (S.report) {
-      const previousReport = S.report;
-      S.report = window.generateReport(S);
-      S.report.meta.batchId = previousReport.meta.batchId || S.report.meta.batchId;
-      S.report.meta.date = previousReport.meta.date || S.report.meta.date;
-      window.reportEditing?.carryEdits(previousReport, S.report);
-    }
+    // 报告在 renderReport 中按已校验作答重算，保留原编号、日期和顾问来源。
     const s = S.ui.screen;
     setScreen('home', true);
     renderInfo();
@@ -557,8 +573,38 @@
     else if (s === 'info') { setScreen('info'); renderInfo(); }
     else if (s === 'test' || TEST_MODES.includes(s)) startTest(s === 'test' ? S.ui.resumeScreen : s);
     else if (s === 'generating') generate();
+    else if (s === 'library') setScreen('library');
   }
   boot();
+
+  /* ---------------- 本机报告库 ---------------- */
+  let libraryReturnScreen = 'home';
+  reportLibrary = window.ReportLibrary?.init({
+    getState: () => S,
+    hasProgress,
+    showLibrary() {
+      if (S.ui.screen !== 'library') libraryReturnScreen = S.ui.screen;
+      setScreen('library');
+    },
+    closeLibrary() {
+      if (libraryReturnScreen === 'report' && S.report) renderReport();
+      else if (libraryReturnScreen === 'info') { setScreen('info'); renderInfo(); }
+      else setScreen('home');
+    },
+    openState(next) {
+      const previous = S;
+      // 成功写入后才切换界面；配额/权限异常时保留当前学生的内存和磁盘进度。
+      S = next;
+      if (!flush()) {
+        S = previous;
+        throw new Error('无法保存打开的报告，当前作答未替换。请先导出备份并释放本地空间。');
+      }
+      renderInfo();
+      renderReport(false);
+      return true;
+    }
+  });
+  if (S.ui.screen === 'library') reportLibrary?.render();
 
   // 暴露给调试
   window.__pathwise = { get state() { return S; }, generate, startTest, reset() { S = blank(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true; } };
