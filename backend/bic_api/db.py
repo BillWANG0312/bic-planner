@@ -17,7 +17,7 @@ class StorageError(Exception):
         self.code = code
 
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 _APPLICATION_ID = 0x42494331
 _WEB_ROOT = Path(__file__).resolve().parents[2]
 _MAX_REPORTS = 100
@@ -102,7 +102,23 @@ _COMMENT_SCHEMA = {
     "parent_grants_recipient_idx": "CREATE INDEX parent_grants_recipient_idx ON parent_grants(recipient_id, created_at DESC, id)",
     "parent_comments_thread_idx": "CREATE INDEX parent_comments_thread_idx ON parent_comments(grant_id, sequence)",
 }
-_SCHEMA = {**_SCHEMA_V2, **_COMMENT_SCHEMA}
+_SCHEMA_V3 = {**_SCHEMA_V2, **_COMMENT_SCHEMA}
+_TEACHER_SCHEMA = {
+    "teacher_grants": """CREATE TABLE teacher_grants (
+        id TEXT PRIMARY KEY NOT NULL,
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+        report_revision INTEGER NOT NULL CHECK (report_revision > 0),
+        recipient_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL CHECK (expires_at > created_at),
+        revoked_at INTEGER,
+        CHECK (recipient_id <> owner_id)
+    )""",
+    "teacher_grants_owner_report_idx": "CREATE INDEX teacher_grants_owner_report_idx ON teacher_grants(owner_id, report_id, created_at DESC, id)",
+    "teacher_grants_recipient_idx": "CREATE INDEX teacher_grants_recipient_idx ON teacher_grants(recipient_id, created_at DESC, id)",
+}
+_SCHEMA = {**_SCHEMA_V3, **_TEACHER_SCHEMA}
 
 
 def _normalized_sql(sql):
@@ -159,11 +175,11 @@ class Database:
             if version == 0 and application == 0 and not objects:
                 for declaration in _SCHEMA.values():
                     connection.execute(declaration)
-                connection.execute("PRAGMA user_version = 3")
+                connection.execute("PRAGMA user_version = 4")
                 connection.execute("PRAGMA application_id = 1112097585")
                 return
             actual = {row["name"]: row["sql"] for row in objects}
-            expected = {1: _SCHEMA_V1, 2: _SCHEMA_V2, _SCHEMA_VERSION: _SCHEMA}.get(version)
+            expected = {1: _SCHEMA_V1, 2: _SCHEMA_V2, 3: _SCHEMA_V3, _SCHEMA_VERSION: _SCHEMA}.get(version)
             if (
                 expected is None
                 or application != _APPLICATION_ID
@@ -182,7 +198,13 @@ class Database:
                 # transaction. Existing v1/v2 rows and declarations are not rebuilt.
                 for declaration in _COMMENT_SCHEMA.values():
                     connection.execute(declaration)
-                connection.execute("PRAGMA user_version = 3")
+            if version in (1, 2, 3):
+                # Authorizations add no copies of private answer sheets. All
+                # legacy rows and DDL survive unchanged, or this whole chain
+                # rolls back to the exact prior version on any failure.
+                for declaration in _TEACHER_SCHEMA.values():
+                    connection.execute(declaration)
+                connection.execute("PRAGMA user_version = 4")
 
     @staticmethod
     def _public_user(row):

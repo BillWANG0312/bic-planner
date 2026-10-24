@@ -40,6 +40,10 @@ def create_dev_app(settings: Settings):
         return FileResponse(_PUBLIC_ROOT / 'family.html', media_type='text/html',
                             headers={'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow, noarchive'})
 
+    @app.get('/teacher.html', include_in_schema=False)
+    def teacher_portal():
+        return FileResponse(_PUBLIC_ROOT / 'teacher.html', media_type='text/html')
+
     # This route precedes the /js mount. Only this explicit local preview turns
     # on the UI configuration; it does not edit the deployable static file.
     @app.get('/js/cloud-config.js', include_in_schema=False)

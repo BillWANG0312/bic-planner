@@ -346,7 +346,7 @@ def test_known_legacy_migrations_preserve_original_rows_and_shares(tmp_path, ver
     original, snapshot = legacy_v2(path) if version == 2 else (legacy_database(path), None)
     Database(path)
     with sqlite3.connect(path) as connection:
-        assert connection.execute('PRAGMA user_version').fetchone()[0] == 3
+        assert connection.execute('PRAGMA user_version').fetchone()[0] == 4
         assert connection.execute('SELECT password_hash FROM users').fetchone()[0] == 'verbatim-private-hash'
         assert connection.execute('SELECT token_hash,csrf_token FROM sessions').fetchone() == ('a' * 64, 'b' * 43)
         assert connection.execute('SELECT revision,record_json FROM reports').fetchone() == (7, original)

@@ -445,10 +445,85 @@
       return result;
     }
 
+    function teacherMeta(value, expectedReport) {
+      if (!exactKeys(value, ['id', 'report_id', 'report_revision', 'report_name', 'report_ref', 'owner_username',
+        'recipient_username', 'scope', 'created_at', 'expires_at', 'revoked_at', 'status'])
+          || !identifier(value.id) || !identifier(value.report_id) || expectedReport && value.report_id !== expectedReport
+          || !revisionNumber(value.report_revision) || !boundedText(value.report_name, 24, true) || !boundedText(value.report_ref, 100, true)
+          || !username(value.owner_username) || !username(value.recipient_username) || value.owner_username === value.recipient_username
+          || value.scope !== 'full_report_read_only' || !Number.isSafeInteger(value.created_at) || value.created_at <= 0
+          || !Number.isSafeInteger(value.expires_at) || value.expires_at <= value.created_at
+          || value.revoked_at !== null && (!Number.isSafeInteger(value.revoked_at) || value.revoked_at <= 0)
+          || !['active', 'revoked', 'expired', 'unavailable', 'source_changed'].includes(value.status)
+          || (value.status === 'revoked') !== (value.revoked_at !== null)) throw protocolError();
+      return value;
+    }
+    function teacherList(value, expectedReport, recipient = false) {
+      if (!exactKeys(value, ['items']) || !Array.isArray(value.items) || value.items.length > 100) throw protocolError();
+      const seen = new Set();
+      value.items.forEach(item => {
+        teacherMeta(item, expectedReport);
+        if (seen.has(item.id) || (recipient ? item.recipient_username !== user.username || item.status !== 'active'
+          : item.owner_username !== user.username)) throw protocolError();
+        seen.add(item.id);
+      });
+      return value;
+    }
+    function requireAdvisor() {
+      requireConnection(true);
+      if (user.role !== 'advisor') throw new CloudError('FORBIDDEN', '此入口需要学校开通的顾问账号和明确报告授权。', 403);
+    }
+    async function createTeacherAccess(id, expectedRevision, recipient, ttlHours) {
+      requireConnection(true);
+      const endpoint = 'reports/' + reportId(id) + '/teacher-access';
+      revision(expectedRevision);
+      if (typeof recipient !== 'string' || !username(recipient.toLowerCase()) || ![24, 72, 168].includes(ttlHours)) {
+        throw new CloudError('VALIDATION', '请填写既有顾问账号并选择24、72或168小时期限。', 422);
+      }
+      const name = recipient.toLowerCase();
+      const value = teacherMeta(await request(endpoint, { method: 'POST', body: { revision: expectedRevision,
+        recipient_username: name, ttl_hours: ttlHours, scope: 'full_report_read_only' }, authenticated: true }), id);
+      if (value.report_revision !== expectedRevision || value.owner_username !== user.username
+          || value.recipient_username !== name || value.status !== 'active') throw protocolError();
+      return value;
+    }
+    async function listTeacherAccess(id) {
+      requireConnection(true);
+      return teacherList(await request('reports/' + reportId(id) + '/teacher-access', { authenticated: true }), id);
+    }
+    async function revokeTeacherAccess(id, grantId) {
+      requireConnection(true);
+      return request('reports/' + reportId(id) + '/teacher-access/' + reportId(grantId), { method: 'DELETE', authenticated: true });
+    }
+    async function listTeacherReports() {
+      requireAdvisor();
+      return teacherList(await request('teacher-access', { authenticated: true }), null, true);
+    }
+    async function readTeacherReport(grantId) {
+      requireAdvisor();
+      const result = await request('teacher-access/' + reportId(grantId), { authenticated: true });
+      if (!exactKeys(result, ['grant', 'report'])) throw protocolError();
+      const grant = teacherMeta(result.grant);
+      const full = result.report;
+      if (grant.id !== grantId || grant.status !== 'active' || grant.recipient_username !== user.username
+          || !exactKeys(full, ['id', 'revision', 'created_at', 'updated_at', 'record'])
+          || full.id !== grant.report_id || full.revision !== grant.report_revision
+          || !boundedText(full.created_at, 40, true) || !Number.isFinite(Date.parse(full.created_at))
+          || !boundedText(full.updated_at, 40, true) || !Number.isFinite(Date.parse(full.updated_at))
+          || full.record?.state?.info?.name !== grant.report_name || full.record?.reportMeta?.batchId !== grant.report_ref) throw protocolError();
+      try {
+        let raw = null;
+        const memory = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
+        memory.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records: [full.record] }));
+      } catch (_) { throw protocolError(); }
+      return result;
+    }
+
     return { connect, login, list, get, create: createReport, update, remove, logout, disconnect,
       createShare, listShares, revokeShare,
       createParentAccess, listParentAccess, revokeParentAccess, listFamilyAccess, familyThread, addFamilyComment,
       createAdviceDraft, applyAdviceDraft,
+      createTeacherAccess, listTeacherAccess, revokeTeacherAccess, listTeacherReports, readTeacherReport,
       get user() { return user ? copy(user) : null; }, get connected() { return connected; } };
   }
 

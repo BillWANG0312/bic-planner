@@ -20,6 +20,7 @@ from .comment_models import CommentText, RequestId
 from .comments import CommentService
 from .draft_models import DraftContext, DraftSections
 from .drafts import AdviceDraftService
+from .teacher_access import TeacherAccessService
 from .share_models import plain_text
 
 
@@ -53,6 +54,13 @@ class CreateParentAccessBody(CreateShareBody):
 class AddCommentBody(StrictBody):
     body: CommentText
     client_request_id: RequestId
+
+
+class CreateTeacherAccessBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+    recipient_username: Annotated[StrictStr, Field(min_length=3, max_length=64)]
+    ttl_hours: Literal[24, 72, 168]
+    scope: Literal['full_report_read_only']
 
 
 class CreateAdviceDraftBody(StrictBody):
@@ -156,6 +164,8 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     app.state.comments = comments
     advice_drafts = AdviceDraftService(db, mode=settings.draft_mode, provider=draft_provider, clock=clock)
     app.state.advice_drafts = advice_drafts
+    teachers = TeacherAccessService(db, clock=clock)
+    app.state.teachers = teachers
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -296,6 +306,27 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     @app.post('/api/reports/{report_id}/advice-drafts/{draft_id}/apply')
     def apply_advice_draft(report_id: str, draft_id: str, body: ApplyAdviceDraftBody, session=Depends(writable_session)):
         return advice_drafts.apply(session['user']['id'], report_id, draft_id, body.sections, body.reviewer)
+
+    @app.post('/api/reports/{report_id}/teacher-access', status_code=201)
+    def create_teacher_access(report_id: str, body: CreateTeacherAccessBody, session=Depends(writable_session)):
+        return teachers.create_grant(session['user']['id'], report_id, body.revision, body.recipient_username, body.ttl_hours)
+
+    @app.get('/api/reports/{report_id}/teacher-access')
+    def owner_teacher_access(report_id: str, session=Depends(current_session)):
+        return teachers.list_for_report(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/teacher-access/{grant_id}', status_code=204)
+    def revoke_teacher_access(report_id: str, grant_id: str, session=Depends(writable_session)):
+        teachers.revoke(session['user']['id'], report_id, grant_id)
+        return Response(status_code=204)
+
+    @app.get('/api/teacher-access')
+    def teacher_reports(session=Depends(current_session)):
+        return teachers.list_for_user(session['user']['id'])
+
+    @app.get('/api/teacher-access/{grant_id}')
+    def read_teacher_report(grant_id: str, session=Depends(current_session)):
+        return teachers.read(session['user']['id'], grant_id)
 
     return app
 

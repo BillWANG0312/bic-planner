@@ -1,0 +1,26 @@
+/* Independent read-only portal. Report styles are shared, account controls are not printed. */
+[hidden] { display: none !important; }
+.teacher-brand { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 18px max(16px, calc((100% - 1180px)/2)); border-bottom: 1px solid var(--border); }
+.teacher-brand img { width: 100px; height: auto; }
+.teacher-brand a { margin-left: auto; color: var(--text-2); }
+main.teacher-wrap { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 64px; }
+.teacher-intro, .teacher-note, .teacher-disclaimer { color: var(--text-2); font-size: 14px; }
+.teacher-panel, .teacher-grant { padding: 18px; margin: 14px 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-wrap: anywhere; }
+.teacher-login { display: grid; gap: 14px; max-width: 500px; }
+.teacher-login label { display: grid; gap: 6px; }
+.teacher-login input { width: 100%; min-width: 0; padding: 10px; font: inherit; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-2); color: var(--text); }
+.teacher-account, .teacher-actions, .teacher-grant { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.teacher-grant > div { flex: 1 1 260px; min-width: 0; }
+.teacher-grant h3, .teacher-grant p { margin: 5px 0; }
+.teacher-grant p { font-size: 13px; color: var(--text-2); }
+.teacher-status { color: var(--text-2); min-height: 1.5em; font-size: 14px; }
+.teacher-status.is-error { color: var(--red); }
+#teacherHeading { overflow-wrap: anywhere; }
+#teacherReport { min-width: 0; }
+#teacherHistory article { margin: 16px 0; border-top: 1px solid var(--border); padding-top: 12px; }
+#teacherHistory pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; }
+#teacherHistory small { color: var(--text-2); }
+#teacherHistoryPanel summary { cursor: pointer; }
+.teacher-disclaimer { border-top: 1px solid var(--border); margin-top: 30px; padding-top: 18px; font-size: 13px; }
+@media (max-width: 600px) { .teacher-brand { gap: 10px; font-size: 12px; } .teacher-brand img { width: 74px; } .teacher-panel, .teacher-grant { padding: 14px; } main.teacher-wrap { width: calc(100% - 24px); } }
+@media print { .teacher-brand, .teacher-wrap > h1, .teacher-intro, #teacherConnectPanel, #teacherDisconnectBtn, #teacherLoginForm, #teacherStatus, .teacher-account, #teacherListHeading, #teacherList, .teacher-disclaimer { display: none !important; } }
