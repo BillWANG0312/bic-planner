@@ -130,19 +130,31 @@ window.MBTI_TYPES = {
 
 /* 根据答案计算 MBTI 结果 */
 window.computeMBTI = function (answers /* [0..4] 与题目顺序对应，null 表示未答 */) {
+  answers = Array.isArray(answers) ? answers : [];
   const score = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
-  const dimLen = { EI: 0, SN: 0, TF: 0, JP: 0 };
+  const dimensions = {};
   window.MBTI_QUESTIONS.forEach((q, i) => {
-    if (answers[i] == null) return;
-    score[q.pole] += answers[i];
-    dimLen[q.dim] += 4;
+    const dim = dimensions[q.dim] || (dimensions[q.dim] = { answered: 0, total: 0, hasSignal: false });
+    dim.total += 1;
+    const answer = answers[i];
+    if (!Number.isInteger(answer) || answer < 0 || answer > 4) return;
+    score[q.pole] += answer;
+    dim.answered += 1;
   });
   const get = (a, b) => {
+    const coverage = dimensions[a + b];
     const total = score[a] + score[b];
     const pctA = total ? Math.round(score[a] / total * 100) : 50;
-    return { pole: pctA >= 50 ? a : b, a, b, pctA, pctB: 100 - pctA, other: pctA >= 50 ? b : a, otherPct: pctA >= 50 ? 100 - pctA : pctA };
+    return { ...coverage, hasSignal: score[a] !== score[b], complete: coverage.answered === coverage.total,
+      pole: pctA >= 50 ? a : b, a, b, pctA, pctB: 100 - pctA,
+      other: pctA >= 50 ? b : a, otherPct: pctA >= 50 ? 100 - pctA : pctA };
   };
   const EI = get('E', 'I'), SN = get('S', 'N'), TF = get('T', 'F'), JP = get('J', 'P');
-  const code = EI.pole + SN.pole + TF.pole + JP.pole;
-  return { code, EI, SN, TF, JP, type: window.MBTI_TYPES[code] };
+  const dims = [EI, SN, TF, JP];
+  const answered = dims.reduce((count, dim) => count + dim.answered, 0);
+  const total = window.MBTI_QUESTIONS.length;
+  const hasSignal = dims.some(dim => dim.hasSignal);
+  const code = answered && dims.every(dim => dim.hasSignal) ? EI.pole + SN.pole + TF.pole + JP.pole : null;
+  return { code, EI, SN, TF, JP, answered, total, complete: answered === total,
+    hasSignal, type: code ? window.MBTI_TYPES[code] : null };
 };
