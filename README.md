@@ -1,6 +1,6 @@
 # BIC 学业规划系统
 
-纯静态的 A-Level 学术规划互动测评，面向 8–11 年级学生。线上地址：[BIC Academic Planner](https://tlwl-bic.com/academic-planner/)。更新须通过 PR，由所有者合并；本地修改不代表线上已经更新。
+默认纯静态的 A-Level 学术规划互动测评，面向 8–11 年级学生。另提供可隔离运行的账号与报告 API，尚未连接页面或生产环境。线上地址：[BIC Academic Planner](https://tlwl-bic.com/academic-planner/)。更新须通过 PR，由所有者合并；本地修改不代表线上已经更新。
 
 ## 本地版功能
 
@@ -24,6 +24,8 @@ python -m http.server 8765
 ```
 
 然后访问 `http://localhost:8765/`。本地进度按浏览器和网址保存，直接打开文件与通过 HTTP 访问的进度不共享。请在原来的网址和浏览器续答。
+
+可选后端使用 Python 3.12、FastAPI、SQLite 与 Argon2，支持操作员创建账号、会话、按账号隔离的报告 CRUD、修订冲突和配额保护；服务默认仅监听回环地址，数据库强制放在网站目录外。当前静态页面不会登录或上传。安装、API 与明确的上线依赖见 [后端说明](docs/backend.md)。
 
 ## 院校数据
 
@@ -57,7 +59,8 @@ pnpm test
 | `js/report-print.js` | 打印展开与恢复 |
 | `js/app.js` | 流程与本地持久化 |
 | `tests/` | Node 与真实浏览器回归测试 |
+| `backend/` | 可选的独立账号/报告 API、锁定依赖及 Python 回归测试 |
 | `docs/local-release-plan.md` | 本次范围与验收 |
 | `CONTRIBUTING.md` | 原仓库协作与部署流程 |
 
-云端账号、跨设备保存、多学生教师后台、在线家长分享、批注与 AI 服务尚未接入。
+账号与服务端保存 API 已完成本地验证；前端云端连接、正式部署、教师跨用户授权、在线家长分享、批注与 AI 服务尚未接入。
