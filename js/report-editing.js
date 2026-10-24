@@ -11,7 +11,7 @@
       ? '每周复盘一次错题与课堂笔记，记录仍有疑问的知识点，再与老师调整学习计划。'
       : '请先完成学术测评，再制定针对性的学习计划。'),
     plan: r => r.plan.top.major.grad,
-    personality: r => r.mbti.complete && r.mbti.type ? r.mbti.type.study : '请先完成性格测评，结合实际学习体验选择适合自己的学习方式。'
+    personality: r => r.mbti.complete ? (r.mbti.type?.study || `你的优势特质是 ${(r.mbti.top || []).map(t => t.label).join("、")}，可以围绕这些特质选择学习方式与课外项目。`) : '请先完成性格测评，结合实际学习体验选择适合自己的学习方式。'
   };
   function getText(report, section) {
     if (!Object.hasOwn(sections, section)) throw new Error('未知的建议部分');

@@ -32,6 +32,40 @@
     return value;
   }
 
+  // 小游戏答案：分格卡片 / 靶环 / 团队竞速
+  function normalizeGame(q, answer) {
+    const cfg = window.GAME_CONFIG;
+    if (q.game === 'campus' || q.game === 'planet') {
+      const board = cfg[q.game];
+      if (!object(answer) || Object.keys(answer).some(key => !board.lanes.some(lane => lane.id === key))) return null;
+      const allowed = new Set((q.game === 'campus' ? board.items : board.majors).map(item => item.id || item));
+      const out = {};
+      board.lanes.forEach(lane => {
+        const list = answer[lane.id] === undefined ? [] : answer[lane.id];
+        if (!Array.isArray(list) || list.length > board.capacity || new Set(list).size !== list.length
+          || list.some(id => typeof id !== 'string' || !allowed.has(id))) { out.bad = true; return; }
+        out[lane.id] = list.slice();
+      });
+      return out.bad ? null : out;
+    }
+    if (q.game === 'dart') {
+      const rings = cfg.dart.rings.map(ring => ring.id);
+      if (!Array.isArray(answer) || answer.length > cfg.dart.max || new Set(answer).size !== answer.length
+        || answer.some(id => !rings.includes(id))) return null;
+      return answer.slice();
+    }
+    if (q.game === 'race') {
+      if (!object(answer)) return null;
+      const out = {};
+      if (answer.pace !== undefined) { if (!cfg.race.pace.some(p => p.id === answer.pace)) return null; out.pace = answer.pace; }
+      if (answer.partner !== undefined) { if (!cfg.race.partners.some(p => p.id === answer.partner)) return null; out.partner = answer.partner; }
+      return out;
+    }
+    return null;
+  }
+
+  const LEGACY_PLAN_KEYS = ['schoolSubjects', 'weakSubjects'];
+
   function normalizeState(value) {
     shape(value, ['info', 'academic', 'plan', 'mbti'], '作答记录');
     shape(value.info, ['name', 'grade', 'year'], '学生资料');
@@ -57,10 +91,20 @@
       academic.answers[q.id] = answer;
     });
     shape(value.plan, ['answers'], '专业规划');
-    shape(value.plan.answers, window.PLAN_QUESTIONS.map(q => q.key), '规划答案');
+    // 这些字段不是 plan.js 的问答题，但星球排序会把专业意向写进 preferredMajor，
+    // 旧版存档还会带有 schoolSubjects / weakSubjects → 报告同样会读取，需要原样保留
+    const planKeys = [...window.PLAN_QUESTIONS.map(q => q.key), 'preferredMajor', ...LEGACY_PLAN_KEYS];
+    shape(value.plan.answers, planKeys, '规划答案');
     const plan = { answers: {} };
     window.PLAN_QUESTIONS.forEach(q => {
       const answer = value.plan.answers[q.key];
+      if (q.type === 'game') {
+        if (answer === undefined) { plan.answers[q.key] = q.game === 'race' ? {} : q.game === 'dart' ? [] : {}; return; }
+        const clean = normalizeGame(q, answer);
+        if (clean == null) fail(`规划题 ${q.key} 的答案类型或选项无效`);
+        plan.answers[q.key] = clean;
+        return;
+      }
       const options = (q.type === 'single' ? q.options() : q.source()).map(option => option.id);
       if (q.type === 'single') {
         if (answer === undefined) return;
@@ -74,18 +118,34 @@
         plan.answers[q.key] = answer.slice();
       }
     });
+    LEGACY_PLAN_KEYS.forEach(key => {
+      const list = value.plan.answers[key];
+      if (list === undefined) return;
+      if (!Array.isArray(list) || list.length > 30 || list.some(item => typeof item !== 'string' || !item.trim() || item.length > 80)) {
+        fail(`规划题 ${key} 的答案类型或数量无效`);
+      }
+      plan.answers[key] = list.slice();
+    });
+    if (value.plan.answers.preferredMajor !== undefined) {
+      const ids = window.INTEREST_OPTIONS.map(o => o.id).concat(window.MAJORS.map(m => m.id));
+      const value2 = value.plan.answers.preferredMajor;
+      if (!Array.isArray(value2) || value2.length > 8 || new Set(value2).size !== value2.length
+        || value2.some(id => typeof id !== 'string' || !ids.includes(id))) fail('规划题 preferredMajor 的答案类型、选项或数量无效');
+      plan.answers.preferredMajor = value2.slice();
+    }
     if (info.grade && plan.answers.grade && info.grade !== plan.answers.grade) fail('学生资料与规划答案的年级不一致');
     if (!info.grade && plan.answers.grade) info.grade = plan.answers.grade;
     if (info.grade) plan.answers.grade = info.grade;
-    shape(value.mbti, ['answers'], '性格测评');
-    if (!Array.isArray(value.mbti.answers) || value.mbti.answers.length > window.MBTI_QUESTIONS.length) fail('性格答案数量或类型无效');
-    const scale = window.MBTI_SCALE.map(option => option.value);
-    const mbti = { answers: Array.from({ length: window.MBTI_QUESTIONS.length }, (_, i) => {
+    shape(value.mbti, ['answers', 'legacy'], '性格测评');
+    if (!Array.isArray(value.mbti.answers) || value.mbti.answers.length > window.TRAIT_QUESTIONS.length) fail('性格答案数量或类型无效');
+    const scale = window.PERSONALITY_SCALE.map(option => option.value);
+    const mbti = { answers: Array.from({ length: window.TRAIT_QUESTIONS.length }, (_, i) => {
       const answer = value.mbti.answers[i];
       if (answer === undefined || answer === null) return null;
-      if (!scale.includes(answer)) fail(`性格题 ${i + 1} 的答案无效`);
-      return answer;
+      if (!object(answer) || !scale.includes(answer.value)) fail(`性格题 ${i + 1} 的答案无效`);
+      return { value: answer.value, ms: Number.isFinite(answer.ms) ? answer.ms : null };
     }) };
+    if (value.mbti.legacy === true) mbti.legacy = true;
     return { info, academic, plan, mbti };
   }
 
@@ -174,7 +234,8 @@
     function save(currentState, options = {}) {
       const records = read();
       if (!object(currentState) || !object(currentState.report) || !object(currentState.report.meta)) fail('请先生成当前学生的报告再归档');
-      const state = normalizeState({ info: currentState.info, academic: currentState.academic, plan: currentState.plan, mbti: currentState.mbti });
+      const state = normalizeState({ info: currentState.info, academic: currentState.academic, plan: currentState.plan,
+        mbti: { answers: currentState.mbti?.answers, ...(currentState.mbti?.legacy ? { legacy: true } : {}) } });
       const reportMeta = { batchId: currentState.report.meta.batchId, date: currentState.report.meta.date };
       const previous = records.find(record => record.reportMeta.batchId === reportMeta.batchId);
       if (previous && options.overwrite !== true) fail('此报告已归档，请明确选择更新已有归档', 'DUPLICATE');
@@ -197,6 +258,8 @@
       const record = read().find(item => item.id === id);
       if (!record) fail('找不到这份归档，可能已被删除', 'NOT_FOUND');
       const state = clone(record.state);
+      state.mbti = state.mbti || { answers: [] };
+      if (state.mbti.answers.length < window.TRAIT_QUESTIONS.length) state.mbti.answers.push(...new Array(window.TRAIT_QUESTIONS.length - state.mbti.answers.length).fill(null));
       const report = window.generateReport(state);
       report.meta.batchId = record.reportMeta.batchId;
       report.meta.date = record.reportMeta.date;
@@ -245,14 +308,14 @@
     function exportBackup() { return serialize(read()); }
     function exportCSV() {
       const records = read();
-      const rows = [['归档编号', '报告编号', '学生姓名', '年级', '目标入学时间', '报告日期', '报告状态', '学术已答', '学术总题', '数学百分比（完成后）', '英语百分比（完成后）', '物理百分比（完成后）', '化学百分比（完成后）', '首选探索专业', '性格倾向', '归档题库版本', '归档院校目录版本']];
+      const rows = [['归档编号', '报告编号', '学生姓名', '年级', '目标入学时间', '报告日期', '报告状态', '学术已答', '学术总题', '数学百分比（完成后）', '英语百分比（完成后）', '物理百分比（完成后）', '化学百分比（完成后）', '首选探索专业', '性格特质', '归档题库版本', '归档院校目录版本']];
       records.forEach(record => {
         const report = window.generateReport(record.state);
         const pct = key => { const subject = report.academic.subjects.find(item => item.key === key); return subject?.complete ? subject.pct : ''; };
         rows.push([record.id, record.reportMeta.batchId, record.state.info.name, report.meta.grade, record.state.info.year,
           record.reportMeta.date, report.meta.status === 'complete' ? '完成' : '草稿', report.academic.answered, report.academic.total,
           pct('maths'), pct('english'), pct('physics'), pct('chemistry'), report.plan.top.major.name,
-          report.mbti.complete ? report.mbti.code || '倾向均衡' : '待完成', record.bankVersion, record.catalogVersion || '未知']);
+          report.mbti.complete ? (report.mbti.top || []).slice(0, 2).map(t => t.label).join(' / ') || '倾向均衡' : '待完成', record.bankVersion, record.catalogVersion || '未知']);
       });
       const cell = value => {
         let result = String(value ?? '');

@@ -14,7 +14,7 @@
     info: { name: '', grade: '', year: '' },
     academic: { answers: {} },
     plan: { answers: { interests: [], schoolSubjects: [], weakSubjects: [], clubs: [], selfImage: [], preferredMajor: [], freeTime: [], career: [], countries: [] } },
-    mbti: { answers: new Array(window.MBTI_QUESTIONS.length).fill(null) },
+    mbti: { answers: new Array(window.TRAIT_QUESTIONS.length).fill(null) },
     ui: { screen: 'home', idx: 0 },
     report: null
   });
@@ -48,6 +48,26 @@
       const planAnswers = isObject(saved.plan?.answers) ? saved.plan.answers : {};
       window.PLAN_QUESTIONS.forEach(q => {
         const value = planAnswers[q.key];
+        if (q.type === 'game') {
+          if (q.game === 'campus' || q.game === 'planet') {
+            const cfg = window.GAME_CONFIG[q.game];
+            if (window.isBoardAnswer(value)) {
+              const board = {};
+              cfg.lanes.forEach(lane => { board[lane.id] = (value[lane.id] || []).filter(id => typeof id === 'string').slice(0, cfg.capacity); });
+              restored.plan.answers[q.key] = board;
+            }
+          } else if (q.game === 'dart') {
+            const allowed = window.GAME_CONFIG.dart.rings.map(r => r.id);
+            restored.plan.answers[q.key] = [...new Set(Array.isArray(value) ? value.filter(id => allowed.includes(id)) : [])].slice(0, window.GAME_CONFIG.dart.max);
+          } else if (q.game === 'race') {
+            const cfg = window.GAME_CONFIG.race;
+            restored.plan.answers[q.key] = isObject(value) ? {
+              ...(cfg.pace.some(p => p.id === value.pace) ? { pace: value.pace } : {}),
+              ...(cfg.partners.some(p => p.id === value.partner) ? { partner: value.partner } : {})
+            } : {};
+          }
+          return;
+        }
         const valid = (q.type === 'single' ? q.options() : q.source()).map(o => o.id);
         if (q.type === 'single') {
           if (valid.includes(value)) restored.plan.answers[q.key] = value;
@@ -57,19 +77,42 @@
           restored.plan.answers[q.key] = [...new Set(values)].slice(0, q.max || (q.multiFree ? 30 : valid.length));
         }
       });
+      // 星球排序 / 旧版存档带来的专业意向与自由填写的学科，不属于问答题但报告会读取，需要一并保留
+      const freeText = value => typeof value === 'string' && value.trim() !== '' && value.length <= 80;
+      ['schoolSubjects', 'weakSubjects'].forEach(key => {
+        const list = planAnswers[key];
+        if (Array.isArray(list)) restored.plan.answers[key] = [...new Set(list.filter(freeText))].slice(0, 30);
+      });
+      if (Array.isArray(planAnswers.preferredMajor)) {
+        restored.plan.answers.preferredMajor = [...new Set(planAnswers.preferredMajor.filter(id =>
+          window.INTEREST_OPTIONS.some(o => o.id === id) || window.MAJORS.some(m => m.id === id)))];
+      }
       const grade = [restored.info.grade, restored.plan.answers.grade].find(value => window.PLAN_CONFIG.grade.some(g => g.id === value)) || '';
       restored.info.grade = grade;
       if (grade) restored.plan.answers.grade = grade;
       restored.mbti = blank().mbti;
+      let legacyAnswers = null;
+      const scale = window.PERSONALITY_SCALE.map(o => o.value);
       if (Array.isArray(saved.mbti?.answers)) saved.mbti.answers.forEach((value, i) => {
-        if (i < restored.mbti.answers.length && window.MBTI_SCALE.some(s => s.value === value)) restored.mbti.answers[i] = value;
+        if (i >= restored.mbti.answers.length) return;
+        if (isObject(value) && scale.includes(value.value)) {
+          restored.mbti.answers[i] = { value: value.value, ms: Number.isFinite(value.ms) ? value.ms : null };
+        } else if (scale.includes(value)) {
+          // 旧版 0-4 量表：按顺序补成完整长度后逐项迁移，避免序号错位
+          if (!legacyAnswers) legacyAnswers = saved.mbti.answers.slice(0, 24);
+        }
       });
+      if (legacyAnswers) {
+        legacyAnswers.forEach((value, i) => { if (i < restored.mbti.answers.length && scale.includes(value)) restored.mbti.answers[i] = { value, ms: null }; });
+        restored.mbti.legacy = true;
+      }
       restored.report = isObject(saved.report) && ['meta', 'academic', 'plan', 'mbti'].every(key => isObject(saved.report[key])) ? saved.report : null;
       S = restored;
     } catch (e) { /* 损坏或禁用的存储不影响本次使用 */ }
   }
   let saveTimer = null;
   let autoAdvanceTimer = null;
+  let itemStartAt = 0;
   let generationTimer = null;
   function cancelAutoAdvance() { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
   function flush() {
@@ -94,9 +137,14 @@
   window.addEventListener('beforeunload', () => { clearTimeout(saveTimer); flush(); });
   window.addEventListener('pagehide', flush);
 
+  function isPlanAnswered(q, v) {
+    if (typeof q.isAnswered === 'function') return q.isAnswered(v);
+    return Array.isArray(v) ? v.length > 0 : v != null && v !== '';
+  }
+
   function hasProgress() {
     return Object.keys(S.academic.answers).length > 0 || S.mbti.answers.some(v => v != null)
-      || Object.values(S.plan.answers).some(v => Array.isArray(v) ? v.length > 0 : v != null && v !== '')
+      || window.PLAN_QUESTIONS.some(q => isPlanAnswered(q, S.plan.answers[q.key]))
       || Object.values(S.info).some(v => typeof v === 'string' && v.trim() !== '') || !!S.report;
   }
 
@@ -244,8 +292,8 @@
     },
 
     plan: {
-      title: '专业规划测试', sub: '兴趣 · 学科 · 职业 · 留学意向',
-      tip: '没有标准答案，跟着直觉选最像你的选项',
+      title: '专业规划测试', sub: '兴趣 · 学科 · 职业 · 留学意向 · 4 个互动小游戏',
+      tip: '没有标准答案，跟着直觉走；小游戏可以拖动卡片，也可以先点卡片再点格子',
       items() { return window.PLAN_QUESTIONS; },
       get(i) { return S.plan.answers[this.items()[i].key]; },
       set(i, v) {
@@ -253,12 +301,14 @@
         S.plan.answers[key] = v;
         if (key === 'grade') S.info.grade = v;
       },
-      isAnswered(i) { const v = this.get(i); return Array.isArray(v) ? v.length > 0 : !!v || this.items()[i].optional; },
+      isAnswered(i) { const q = this.items()[i]; return isPlanAnswered(q, this.get(i)); },
       canSkip: true,
       render(item) {
         const src = typeof item.source === 'function' ? item.source() : [];
         let body = '';
-        if (item.type === 'single') {
+        if (item.type === 'game') {
+          body = '<div class="game-mount" aria-live="polite"></div>';
+        } else if (item.type === 'single') {
           body = `<div class="options">${item.options().map((o, idx) => `
             <button class="option" data-v="${esc(o.id)}">
               <span class="key">${'ABCDEFG'[idx]}</span>
@@ -274,6 +324,7 @@
         }
         return `<div class="q-tag">
             <span class="pill violet">规划 · ${this.idx + 1}/${this.items().length}</span>
+            ${item.type === 'game' ? '<span class="pill green">🎮 互动游戏</span>' : ''}
             ${item.multi ? `<span class="pill gray">${item.max ? '最多选 ' + item.max + ' 项' : '可多选'}</span>` : ''}
             ${item.optional ? `<span class="pill gray">选填</span>` : ''}
           </div>
@@ -283,6 +334,15 @@
       },
       bind(item) {
         const body = $('#testBody');
+        if (item.type === 'game') {
+          const mount = $('.game-mount', body);
+          window.Games[item.game](mount, this.get(this.idx), (value) => {
+            this.set(this.idx, value);
+            window.mergeBoard(item.key, value)(S.plan.answers);
+            save(); updateFoot();
+          });
+          return;
+        }
         if (item.type === 'single') {
           $$('.option', body).forEach(btn => {
             btn.classList.toggle('selected', this.get(this.idx) === btn.dataset.v);
@@ -313,29 +373,37 @@
     },
 
     mbti: {
-      title: '简版性格测试', sub: 'MBTI · 4 个维度 · 24 道题',
-      tip: '请凭第一直觉作答，不必过度思考',
-      items() { return window.MBTI_QUESTIONS; },
+      title: '性格特质测评', sub: '10 项职业相关特质 · 30 道情境题',
+      tip: '没有好坏之分，请按你平时真实的样子作答',
+      items() { return window.TRAIT_QUESTIONS; },
       get(i) { return S.mbti.answers[i]; },
-      set(i, v) { S.mbti.answers[i] = v; },
-      isAnswered(i) { return S.mbti.answers[i] != null; },
+      set(i, v) {
+        S.mbti.answers[i] = v;
+        delete S.mbti.legacy;
+      },
+      isAnswered(i) { const a = S.mbti.answers[i]; return !!a && Number.isInteger(a.value); },
       canSkip: true,
       render(item) {
         const cur = this.get(this.idx);
+        const t = window.TRAITS.find(x => x.id === item.trait);
+        const dims = ['行事风格', '面对挑战', '与人相处'];
         return `<div class="q-tag">
-            <span class="pill pink">性格判断</span>
-            <span class="pill gray">${this.idx < 6 ? '能量来源 E/I' : this.idx < 12 ? '信息获取 S/N' : this.idx < 18 ? '决策方式 T/F' : '生活方式 J/P'}</span>
+            <span class="pill pink">性格特质</span>
+            <span class="pill gray">${item.reversed ? '换个角度' : '情境题'} · ${this.idx + 1}/${this.items().length}</span>
           </div>
           <p class="mbti-statement">${esc(item.text)}</p>
+          <div class="trait-scene" aria-hidden="true"><span>${esc(t ? t.icon : '🧩')}</span></div>
+          <p class="trait-sentence">「${esc(item.statement)}」<small>（这里的${dims[this.idx % 3]}没有对错）</small></p>
           <div class="likert" role="radiogroup">
-            ${window.MBTI_SCALE.map(s => `<button role="radio" data-v="${s.value}" aria-checked="${cur === s.value}"><span class="dot"></span>${esc(s.label)}</button>`).join('')}
+            ${window.PERSONALITY_SCALE.map(s => `<button role="radio" data-v="${s.value}" aria-checked="${cur && cur.value === s.value}"><span class="dot"></span>${esc(s.label)}</button>`).join('')}
           </div>`;
       },
       bind() {
         $$('.likert button').forEach(btn => {
           btn.onclick = () => {
             $$('.likert button').forEach(x => x.setAttribute('aria-checked', x === btn));
-            this.set(this.idx, Number(btn.dataset.v));
+            const started = performance.now();
+            this.set(this.idx, { value: Number(btn.dataset.v), ms: Math.round(started - itemStartAt) });
             save(); updateFoot();
             // 自动进入下一题；若期间用户改了选择则取消
             const pick = this.idx;
@@ -383,6 +451,7 @@
     const item = items()[e.idx];
     const body = $('#testBody');
     body.innerHTML = `<div class="question-enter">${e.render(item)}</div>`;
+    itemStartAt = performance.now();
     e.bind(item);
     $('#testMeta').innerHTML = `<b>${e.idx + 1}</b> / ${total()}`;
     $('#testProgress').style.width = ((e.idx) / total() * 100) + '%';
@@ -457,6 +526,8 @@
       if (mode === 'plan') {
         const item = items()[engine.plan.idx];
         if (item.type === 'single') { const b = $$('.option')[n - 1]; if (b) b.click(); return; }
+        if (item.type === 'game' && item.game === 'race') { const b = $$('.race-block')[n <= 4 ? 0 : 1]?.querySelectorAll('.race-item')[n <= 4 ? n - 1 : n - 5]; if (b) b.click(); return; }
+        if (item.type === 'game' && item.game === 'dart') { const b = $$('.dart-ring')[n - 1]; if (b) b.click(); return; }
       }
     }
     // 多选：按 A-K 字母也可选
@@ -466,7 +537,7 @@
     if (mode === 'plan' && letter >= 'A' && letter <= 'Z') {
       const idx = letter.charCodeAt(0) - 65;
       const item = items()[engine.plan.idx];
-      if (item.type !== 'single' && cards[idx]) cards[idx].click();
+      if ((item.type === 'tags' || !item.type) && cards[idx]) cards[idx].click();
     }
   });
 

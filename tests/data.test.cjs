@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
 function load() {
   const window = {};
   const context = vm.createContext({ window });
-  for (const file of ['js/bank.js', 'data/universities.js', 'js/majors.js', 'js/report.js']) {
+  for (const file of ['js/bank.js', 'data/universities.js', 'js/majors.js', 'js/plan.js', 'js/personality.js', 'js/games.js', 'js/report.js']) {
     if (fs.existsSync(path.join(root, file))) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
   return window;

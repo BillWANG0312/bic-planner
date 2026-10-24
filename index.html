@@ -25,7 +25,7 @@
       <div class="step" data-step="info"><i>1</i><span>基本信息</span></div>
       <div class="step" data-step="academic"><i>2</i><span>学术能力</span></div>
       <div class="step" data-step="plan"><i>3</i><span>专业规划</span></div>
-      <div class="step" data-step="mbti"><i>4</i><span>性格测试</span></div>
+      <div class="step" data-step="mbti"><i>4</i><span>性格特质</span></div>
       <div class="step" data-step="report"><i>5</i><span>规划报告</span></div>
     </nav>
   </header>
@@ -39,7 +39,7 @@
         <div class="eyebrow"><span class="dot"></span> For Grade 8–10 · A-Level</div>
         <h1>找到属于你的<br /><em>A-Level 路径</em></h1>
         <p class="lede">
-          用约 35–45 分钟完成三个互动模块，探索学科基础、专业方向与学习偏好。
+          用约 35–45 分钟完成三个互动模块（含 4 个拖拽 / 点击小游戏），探索学科基础、专业方向与性格特质。
           完成后自动生成一份属于你的学术规划报告。
         </p>
         <div class="hero-actions">
@@ -63,14 +63,14 @@
         <article class="mini-card c2">
           <div class="mini-icon">🧭</div>
           <h3>专业规划测试</h3>
-          <p>兴趣 · 学科 · 职业 · 留学国家</p>
-          <div class="chips"><span>STEM</span><span>商科</span><span>人文</span><span>创意</span></div>
+          <p>4 个互动小游戏 · 拖拽学科卡片、点击职业靶环</p>
+          <div class="chips"><span>🎮 拖拽</span><span>🎯 点击</span><span>🧩 直觉</span><span>⏱️ 3 分钟</span></div>
         </article>
         <article class="mini-card c3">
           <div class="mini-icon">🧠</div>
-          <h3>简版 MBTI</h3>
-          <p>4 个维度 · 24 道题 · 16 型解析</p>
-          <div class="mbti-dots"><span>INTJ</span><span>ENFP</span><span>ISTP</span></div>
+          <h3>性格特质测评</h3>
+          <p>10 项职业特质 · 30 道情境题</p>
+          <div class="mbti-dots"><span>分析</span><span>创造</span><span>共情</span></div>
         </article>
       </div>
     </section>
@@ -106,7 +106,7 @@
       </div>
     </section>
 
-    <!-- ============ 测试通用容器（学术 / 规划 / MBTI 共用） ============ -->
+    <!-- ============ 测试通用容器（学术 / 规划 / 性格特质共用） ============ -->
     <section class="screen" id="screen-test">
       <div class="test-shell">
         <div class="test-head">
@@ -138,7 +138,7 @@
           <li data-g="0">分析学科能力与薄弱知识点</li>
           <li data-g="1">匹配专业方向与国家路径</li>
           <li data-g="2">生成 A-Level 选科建议</li>
-          <li data-g="3">整合 MBTI 性格解析</li>
+          <li data-g="3">整合性格特质与职业优势</li>
         </ul>
       </div>
     </section>
@@ -214,6 +214,8 @@
   <script src="data/universities.js"></script>
   <script src="js/majors.js"></script>
   <script src="js/plan.js"></script>
+  <script src="js/personality.js"></script>
+  <script src="js/games.js"></script>
   <script src="js/report.js"></script>
   <script src="js/report-editing.js"></script>
   <script src="js/report-print.js"></script>

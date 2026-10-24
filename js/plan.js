@@ -48,11 +48,38 @@ window.PLAN_CONFIG = {
     { id: 'unsure', label: '还没想好' }
   ],
   subjectPerf: ['很轻松 / 擅长', '还不错', '一般', '比较吃力'],
+  pace: [
+    { id: 'deep', label: '长时间深度沉浸', desc: '可以连续数小时投入一件事' },
+    { id: 'varied', label: '短时间内切换多样任务', desc: '不断有新内容刺激' },
+    { id: 'steady', label: '规律、稳定的日常节奏', desc: '固定计划，稳步推进' },
+    { id: 'deadline', label: '截止日期前的集中冲刺', desc: '在压力下爆发效率最高' }
+  ],
   preferredLength: [
     { id: 'short', label: '短学制，快速就业', desc: '如英国三年制本科' },
     { id: 'long',  label: '愿意为长期专业投入', desc: '如医学、建筑、读博' },
     { id: 'flex',  label: '希望路径灵活可调整', desc: '如美国四年制、可转专业' }
   ]
+};
+
+const SUM = values => (Array.isArray(values) ? values : []).reduce((n, v) => n + (Array.isArray(v) ? v.length : 0), 0);
+
+/* 卡片分格游戏（校园匹配 / 星球排序）的答案校验与合并 */
+window.isBoardAnswer = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+  && Object.values(value).every(v => Array.isArray(v) && v.every(id => typeof id === 'string'));
+
+window.mergeBoard = (key, board) => {
+  if (!window.isBoardAnswer(board)) return () => {};
+  const like = board.like || [], tryList = board.try || [], avoid = board.avoid || [];
+  return (answers) => {
+    if (key === 'subjectBoard') {
+      const known = new Set([...(answers.schoolSubjects || []), ...(answers.weakSubjects || [])]);
+      answers.schoolSubjects = [...new Set([...like, ...tryList])];
+      answers.weakSubjects = [...new Set([...avoid, ...(answers.weakSubjects || []).filter(s => known.has(s) && !answers.schoolSubjects.includes(s))])];
+    } else if (key === 'majorBoard') {
+      const majorOf = id => window.INTEREST_OPTIONS.find(o => o.major === id)?.id;
+      answers.preferredMajor = [...new Set([...like, ...tryList].map(majorOf).filter(Boolean))].slice(0, 6);
+    }
+  };
 };
 
 window.PLAN_QUESTIONS = [
@@ -67,16 +94,16 @@ window.PLAN_QUESTIONS = [
     source: () => window.INTEREST_POOL.map(o => ({ id: o.id, label: o.label, icon: o.icon }))
   },
   {
-    id: 'school', title: '你觉得自己在学校的哪些科目表现更突出？',
-    sub: '选择所有符合的（可多选）',
-    type: 'tags', key: 'schoolSubjects', multi: true, multiFree: true,
-    source: () => window.ALEVEL_SUBJECTS.map(s => ({ id: s, label: s }))
+    id: 'campus', title: '校园匹配 · 把学科卡片拖进格子',
+    sub: '哪些学科你喜欢、想试试，或者想避开？每格最多放 4 个',
+    type: 'game', game: 'campus', key: 'subjectBoard',
+    isAnswered: v => !!v && SUM(Object.values(v)) > 0
   },
   {
-    id: 'weak', title: '以下哪些科目你学起来比较吃力？',
-    sub: '选择所有符合的（这会帮助我们评估选科风险）',
-    type: 'tags', key: 'weakSubjects', multi: true, multiFree: true, optional: true,
-    source: () => window.ALEVEL_SUBJECTS.map(s => ({ id: s, label: s }))
+    id: 'dart', title: '职业飞镖 · 你会命中哪个方向？',
+    sub: '想象你站在人生靶盘前，点击最想命中的两个靶环',
+    type: 'game', game: 'dart', key: 'career', multi: true, max: 2,
+    isAnswered: v => Array.isArray(v) && v.length > 0
   },
   {
     id: 'club', title: '你在学校或课外参加过哪类社团 / 活动？',
@@ -98,12 +125,16 @@ window.PLAN_QUESTIONS = [
     ]
   },
   {
-    id: 'group', title: '你更喜欢怎样合作？',
-    type: 'single', key: 'groupSize', options: () => window.PLAN_CONFIG.groupSize
+    id: 'planet', title: '星球排序 · 把专业星球分到三边',
+    sub: '心动、观望、排除 —— 每边最多 3 个，凭第一直觉',
+    type: 'game', game: 'planet', key: 'majorBoard',
+    isAnswered: v => !!v && SUM(Object.values(v)) > 0
   },
   {
-    id: 'time', title: '你最适合哪种学习节奏？',
-    type: 'single', key: 'timeStyle', options: () => window.PLAN_CONFIG.timeStyle
+    id: 'race', title: '团队竞速 · 选你的节奏与搭档',
+    sub: '一场班级项目要开跑了，你希望怎么跑、和谁一起？',
+    type: 'game', game: 'race', key: 'team',
+    isAnswered: v => !!v && !!v.pace && !!v.partner
   },
   {
     id: 'mood', title: '以下哪几个最像"你"？',
@@ -112,22 +143,10 @@ window.PLAN_QUESTIONS = [
     source: () => window.PLAN_CONFIG.mood.map(o => ({ id: o.id, label: o.label, desc: o.desc }))
   },
   {
-    id: 'major', title: '如果现在就要选一个专业，你最想选？',
-    sub: '可以选"还不确定"，系统会结合你的兴趣给出方向',
-    type: 'tags', key: 'preferredMajor', multi: true, max: 2,
-    source: () => window.INTEREST_OPTIONS.map(o => ({ id: o.id, label: o.label, desc: o.desc }))
-  },
-  {
     id: 'free', title: '平时空闲时，你更喜欢做什么？',
     sub: '最多选 3 个',
     type: 'tags', key: 'freeTime', multi: true, max: 3,
     source: () => window.PLAN_CONFIG.freeTime.map(o => ({ id: o.id, label: o.label }))
-  },
-  {
-    id: 'career', title: '你希望未来的工作是什么样子？',
-    sub: '选择最吸引你的工作方向',
-    type: 'tags', key: 'career', multi: true, max: 2,
-    source: () => window.CAREER_PATHS.map(o => ({ id: o.id, label: o.label, desc: o.desc }))
   },
   {
     id: 'country', title: '你更想去哪个国家或地区读大学？',
@@ -143,5 +162,11 @@ window.PLAN_QUESTIONS = [
   {
     id: 'length', title: '关于学制，你的偏好是？',
     type: 'single', key: 'preferredLength', options: () => window.PLAN_CONFIG.preferredLength
+  },
+  {
+    id: 'weak', title: '以下哪些科目你学起来比较吃力？',
+    sub: '选择所有符合的（选填，这会帮助我们评估选科风险）',
+    type: 'tags', key: 'weakSubjects', multi: true, multiFree: true, optional: true,
+    source: () => window.ALEVEL_SUBJECTS.map(s => ({ id: s, label: s }))
   }
 ];
