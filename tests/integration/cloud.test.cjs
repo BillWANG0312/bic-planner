@@ -281,3 +281,93 @@ test('refreshing an old tab never displays the new cookie account under its prev
     assert.ok(!(await page.locator('#cloudList').textContent()).includes('另一个账号的私有学生'));
   } finally { await context.close(); }
 });
+
+test('owner previews a fixed snapshot, anonymous parent reads without cookies, and revocation clears access', async () => {
+  const { context, page } = await pageFor(0);
+  const parentContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  try {
+    await signIn(page, 0);
+    await page.locator('[data-cloud-read]').click();
+    await page.locator('#sharePreviewBtn').click();
+    await page.locator('#sharePreview').waitFor({ state: 'visible' });
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.locator('#shareCreateBtn').click();
+    assert.equal(await page.locator('#shareLink').inputValue(), '');
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#shareCreateBtn').click();
+    await page.waitForFunction(() => document.querySelector('#shareLink').value.includes('#share='));
+    const link = await page.locator('#shareLink').inputValue();
+    const token = new URL(link).hash.slice('#share='.length);
+    const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    const saved = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    const oldName = saved.record.state.info.name;
+    assert.equal((await (await context.request.get(origin + '/api/reports/' + id + '/shares')).json()).items.length, 1);
+    const storage = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
+    assert.ok(!storage.includes(token));
+    await parentContext.addCookies(await context.cookies()); // even an existing login Cookie must be omitted by the viewer
+    await parentContext.addInitScript(() => {
+      for (const key of ['localStorage', 'sessionStorage']) Object.defineProperty(window, key, { get() { throw new Error('Public viewer must not access ' + key); } });
+    });
+    const parent = await parentContext.newPage();
+    const reads = [], errors = [];
+    parent.on('request', request => { if (request.url().includes('/api/')) reads.push(request); });
+    parent.on('pageerror', error => errors.push(error.message));
+    await parent.goto(link);
+    assert.equal(reads.length, 0);
+    assert.ok(!parent.url().includes(token));
+    await parent.locator('#shareLoadBtn').click();
+    await parent.locator('#shareContent').waitFor({ state: 'visible' });
+    assert.match(await parent.locator('#shareContent').textContent(), new RegExp(oldName));
+    assert.equal(reads.length, 1);
+    assert.equal(reads[0].url(), origin + '/api/public/share');
+    assert.equal((await reads[0].allHeaders()).cookie, undefined);
+    assert.equal((await reads[0].allHeaders())['x-bic-share'], token);
+    assert.equal(await parent.locator('input,textarea,form,[contenteditable]').count(), 0);
+    assert.deepEqual(errors, []);
+    if (process.env.BIC_CAPTURE === '1') {
+      await parent.screenshot({ path: path.join(root, 'test-results/parent-share-desktop.png'), fullPage: true });
+      await parent.setViewportSize({ width: 375, height: 812 });
+      assert.ok(await parent.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await parent.screenshot({ path: path.join(root, 'test-results/parent-share-mobile.png'), fullPage: true });
+    }
+    saved.record.state.info.name = '更新后不应改变旧分享';
+    assert.equal((await context.request.put(origin + '/api/reports/' + id, { headers: await csrf(context), data: { record: saved.record, revision: saved.revision } })).status(), 200);
+    await parent.locator('#shareLoadBtn').click();
+    await parent.locator('#shareContent').waitFor({ state: 'visible' });
+    assert.match(await parent.locator('#shareContent').textContent(), new RegExp(oldName));
+    assert.ok(!(await parent.locator('#shareContent').textContent()).includes('更新后不应改变旧分享'));
+    await page.locator('#cloudBackBtn').click();
+    assert.equal(await page.locator('#shareLink').inputValue(), '', 'Leaving clears the one-time visible bearer link');
+    await page.locator('#openCloudBtn').click();
+    await page.locator('#cloudRefreshBtn').click();
+    await page.locator('[data-cloud-read]').click();
+    await page.locator('#shareListBtn').click();
+    await page.locator('[data-share-revoke]').waitFor();
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('[data-share-revoke]').click();
+    await page.waitForFunction(() => /已撤销/.test(document.querySelector('#cloudStatus').textContent));
+    await parent.locator('#shareLoadBtn').click();
+    await parent.waitForFunction(() => /失效|无法读取/.test(document.querySelector('#shareStatus').textContent));
+    assert.equal(await parent.locator('#shareContent').isVisible(), false);
+    assert.ok(!(await parent.locator('body').textContent()).includes(oldName));
+  } finally { await parentContext.close(); await context.close(); }
+});
+
+test('a changed source revision cannot create a share from an old preview', async () => {
+  const { context, page } = await pageFor(1);
+  try {
+    await signIn(page, 1);
+    await page.locator('[data-cloud-read]').click();
+    await page.locator('#sharePreviewBtn').click();
+    await page.locator('#sharePreview').waitFor({ state: 'visible' });
+    const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    const saved = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    saved.record.state.info.name = '新修订测试同学';
+    assert.equal((await context.request.put(origin + '/api/reports/' + id, { headers: await csrf(context), data: { record: saved.record, revision: saved.revision } })).status(), 200);
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#shareCreateBtn').click();
+    await page.waitForFunction(() => /变化|冲突|重新读取/.test(document.querySelector('#cloudStatus').textContent));
+    assert.equal(await page.locator('#shareLink').inputValue(), '');
+    assert.equal((await (await context.request.get(origin + '/api/reports/' + id + '/shares')).json()).items.length, 0);
+  } finally { await context.close(); }
+});

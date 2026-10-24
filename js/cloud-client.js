@@ -289,7 +289,38 @@
       }
     }
 
+    function shareMeta(value, reportId, includeToken = false) {
+      const keys = ['id', 'report_id', 'report_revision', 'created_at', 'expires_at', 'revoked_at', 'status', ...(includeToken ? ['token'] : [])];
+      if (!object(value) || Object.keys(value).some(key => !keys.includes(key))
+          || !identifier(value.id) || value.report_id !== reportId || !revisionNumber(value.report_revision)
+          || !Number.isSafeInteger(value.created_at) || value.created_at <= 0
+          || !Number.isSafeInteger(value.expires_at) || value.expires_at <= value.created_at
+          || value.revoked_at !== null && (!Number.isSafeInteger(value.revoked_at) || value.revoked_at <= 0)
+          || !['active', 'revoked', 'expired'].includes(value.status)
+          || includeToken && (typeof value.token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value.token))) throw protocolError();
+      return value;
+    }
+    async function createShare(id, expectedRevision, ttlHours, content) {
+      requireConnection(true);
+      const endpoint = 'reports/' + reportId(id) + '/shares';
+      revision(expectedRevision);
+      if (![24, 72, 168].includes(ttlHours) || !object(content)) throw new CloudError('VALIDATION', '请选择支持的分享期限并预览摘要。', 422);
+      return shareMeta(await request(endpoint, { method: 'POST', body: { revision: expectedRevision, ttl_hours: ttlHours, content }, authenticated: true }), id, true);
+    }
+    async function listShares(id) {
+      requireConnection(true);
+      const value = await request('reports/' + reportId(id) + '/shares', { authenticated: true });
+      if (!object(value) || !Array.isArray(value.items) || value.items.length > 100) throw protocolError();
+      value.items.forEach(item => shareMeta(item, id));
+      return value;
+    }
+    async function revokeShare(id, shareId) {
+      requireConnection(true);
+      return request('reports/' + reportId(id) + '/shares/' + reportId(shareId), { method: 'DELETE', authenticated: true });
+    }
+
     return { connect, login, list, get, create: createReport, update, remove, logout, disconnect,
+      createShare, listShares, revokeShare,
       get user() { return user ? copy(user) : null; }, get connected() { return connected; } };
   }
 

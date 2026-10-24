@@ -30,6 +30,11 @@ def create_dev_app(settings: Settings):
     def index():
         return FileResponse(_PUBLIC_ROOT / 'index.html', media_type='text/html')
 
+    @app.get('/share.html', include_in_schema=False)
+    def parent_share():
+        return FileResponse(_PUBLIC_ROOT / 'share.html', media_type='text/html',
+                            headers={'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow, noarchive'})
+
     # This route precedes the /js mount. Only this explicit local preview turns
     # on the UI configuration; it does not edit the deployable static file.
     @app.get('/js/cloud-config.js', include_in_schema=False)

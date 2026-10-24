@@ -2,7 +2,7 @@
 
 import sqlite3
 import time
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -14,6 +14,8 @@ from .db import Database, StorageError
 from .models import ArchiveRecord
 from .security import AuthError, AuthService
 from .settings import Settings
+from .share_models import ShareContent
+from .sharing import ShareService
 
 
 class StrictBody(BaseModel):
@@ -33,6 +35,12 @@ class UpdateReportBody(CreateReportBody):
     revision: Annotated[StrictInt, Field(ge=1)]
 
 
+class CreateShareBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1)]
+    ttl_hours: Literal[24, 72, 168]
+    content: ShareContent
+
+
 class ApiBoundary:
     """Validate the browser boundary and cap bytes before JSON parsing."""
 
@@ -49,6 +57,8 @@ class ApiBoundary:
                 headers = [(k, v) for k, v in message.get('headers', []) if k.lower() not in
                            (b'cache-control', b'x-content-type-options')]
                 headers.extend([(b'cache-control', b'no-store'), (b'x-content-type-options', b'nosniff')])
+                headers.extend([(b'referrer-policy', b'no-referrer'),
+                                (b'x-robots-tag', b'noindex, nofollow, noarchive')])
                 message = {**message, 'headers': headers}
             await send(message)
 
@@ -108,6 +118,8 @@ def create_app(settings: Settings, *, clock=time.time):
     db = Database(settings.database_path, clock=clock)
     auth = AuthService(db, session_ttl=settings.session_ttl, clock=clock)
     app.state.db, app.state.auth, app.state.settings = db, auth, settings
+    sharing = ShareService(db, clock=clock)
+    app.state.sharing = sharing
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -195,6 +207,24 @@ def create_app(settings: Settings, *, clock=time.time):
     def delete_report(report_id: str, revision: int = Query(ge=1), session=Depends(writable_session)):
         db.delete_report(session['user']['id'], report_id, revision)
         return Response(status_code=204)
+
+    @app.post('/api/reports/{report_id}/shares', status_code=201)
+    def create_share(report_id: str, body: CreateShareBody, session=Depends(writable_session)):
+        return sharing.create(session['user']['id'], report_id, body.revision, body.ttl_hours,
+                              body.content.model_dump(mode='json'))
+
+    @app.get('/api/reports/{report_id}/shares')
+    def list_shares(report_id: str, session=Depends(current_session)):
+        return sharing.list(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/shares/{share_id}', status_code=204)
+    def revoke_share(report_id: str, share_id: str, session=Depends(writable_session)):
+        sharing.revoke(session['user']['id'], report_id, share_id)
+        return Response(status_code=204)
+
+    @app.get('/api/public/share')
+    def read_share(request: Request):
+        return sharing.read(request.headers.get('X-BIC-Share'), request.client.host if request.client else 'unknown')
 
     return app
 

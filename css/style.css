@@ -704,6 +704,14 @@ body.in-test .test-shell { margin: 16px auto 0; min-height: calc(100vh - 100px);
   .two-col, .exec, .country-grid, .alt-majors, .persona, .cover-grid { break-inside: avoid; }
 }
 
+.owner-share { margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.16); }
+.owner-share select, .owner-share input { display: block; width: 100%; min-width: 0; max-width: 100%; margin: 8px 0 16px; }
+.owner-share .cloud-actions { margin: 12px 0; }
+.share-preview { margin: 16px 0; padding: 16px; background: rgba(13,25,43,.6); border-left: 3px solid #5797ff; overflow-wrap: anywhere; }
+.share-preview p { white-space: pre-wrap; }
+.owner-share-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; }
+.owner-share-row p { flex: 1 1 240px; overflow-wrap: anywhere; }
+
 /* ============ 响应式 ============ */
 @media (max-width: 980px) {
   .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 48px; }

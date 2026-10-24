@@ -17,12 +17,12 @@ class StorageError(Exception):
         self.code = code
 
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _APPLICATION_ID = 0x42494331
 _WEB_ROOT = Path(__file__).resolve().parents[2]
 _MAX_REPORTS = 100
 _MAX_UTF16_UNITS = 2_000_000
-_SCHEMA = {
+_SCHEMA_V1 = {
     "users": """CREATE TABLE users (
         id TEXT PRIMARY KEY NOT NULL,
         username TEXT NOT NULL UNIQUE,
@@ -57,6 +57,23 @@ _SCHEMA = {
     "sessions_user_idx": "CREATE INDEX sessions_user_idx ON sessions(user_id)",
     "reports_owner_time_idx": "CREATE INDEX reports_owner_time_idx ON reports(owner_id, created_at DESC, id)",
 }
+
+_SHARE_SCHEMA = {
+    "shares": """CREATE TABLE shares (
+        id TEXT PRIMARY KEY NOT NULL,
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+        report_revision INTEGER NOT NULL CHECK (report_revision > 0),
+        token_hash TEXT NOT NULL UNIQUE,
+        snapshot_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL CHECK (expires_at > created_at),
+        revoked_at INTEGER
+    )""",
+    "shares_owner_report_idx": "CREATE INDEX shares_owner_report_idx ON shares(owner_id, report_id, created_at DESC, id)",
+    "shares_report_idx": "CREATE INDEX shares_report_idx ON shares(report_id)",
+}
+_SCHEMA = {**_SCHEMA_V1, **_SHARE_SCHEMA}
 
 
 def _normalized_sql(sql):
@@ -108,23 +125,30 @@ class Database:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
             application = connection.execute("PRAGMA application_id").fetchone()[0]
             objects = connection.execute(
-                "SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"
+                "SELECT name, sql FROM sqlite_master WHERE name NOT GLOB 'sqlite_*'"
             ).fetchall()
             if version == 0 and application == 0 and not objects:
                 for declaration in _SCHEMA.values():
                     connection.execute(declaration)
-                connection.execute("PRAGMA user_version = 1")
+                connection.execute("PRAGMA user_version = 2")
                 connection.execute("PRAGMA application_id = 1112097585")
                 return
             actual = {row["name"]: row["sql"] for row in objects}
+            expected = _SCHEMA_V1 if version == 1 else _SCHEMA if version == _SCHEMA_VERSION else None
             if (
-                version != _SCHEMA_VERSION
+                expected is None
                 or application != _APPLICATION_ID
-                or set(actual) != set(_SCHEMA)
+                or set(actual) != set(expected)
                 or any(actual[name] is None or _normalized_sql(actual[name]) != _normalized_sql(sql)
-                       for name, sql in _SCHEMA.items() if name in actual)
+                       for name, sql in expected.items() if name in actual)
             ):
                 raise StorageError(500, "Unsupported database schema; preserve the original database and use an explicit migration.", "SCHEMA")
+            if version == 1:
+                # The original declarations and rows remain untouched. DDL and
+                # version advance share this transaction: failure preserves v1.
+                for declaration in _SHARE_SCHEMA.values():
+                    connection.execute(declaration)
+                connection.execute("PRAGMA user_version = 2")
 
     @staticmethod
     def _public_user(row):

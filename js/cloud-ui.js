@@ -18,6 +18,7 @@
     let originButton = null;
     let busy = false;
     let epoch = 0;
+    let shareOwner = null;
     const localOnly = window.location.protocol === 'file:';
 
     function active() { return options.isActive ? options.isActive() : screen.classList.contains('active'); }
@@ -91,6 +92,7 @@
       sourceAvailability();
     }
     function clearDetail() {
+      shareOwner?.clear();
       selected = null;
       $('#cloudDetail').hidden = true;
       $('#cloudDetailSummary').replaceChildren();
@@ -128,6 +130,7 @@
         $('#cloudUploadBtn').disabled = true;
         $('#cloudUpdateBtn').disabled = true;
       }
+      shareOwner?.setBusy(busy);
     }
     function handleError(error) {
       if (!client.user || error?.status === 401 || error?.status === 403) clearPrivate();
@@ -179,6 +182,7 @@
     function drawDetail() {
       const item = selected;
       if (!item) return clearDetail();
+      shareOwner?.setReport(item);
       $('#cloudDetailSummary').replaceChildren(
         node('p', '', `${item.record.state.info.name} · ${item.record.reportMeta.batchId}`),
         node('p', '', `报告日期 ${item.record.reportMeta.date} · 已读取修订 ${item.revision}`),
@@ -335,6 +339,7 @@
         if (live()) { client.disconnect(); clearPrivate(); }
       }
     });
+    shareOwner = window.ParentShareOwner?.init({ client, run, message });
     controls();
     return {
       onScreenLeft,
