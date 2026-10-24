@@ -19,6 +19,7 @@
     let busy = false;
     let epoch = 0;
     let shareOwner = null;
+    let commentOwner = null;
     const localOnly = window.location.protocol === 'file:';
 
     function active() { return options.isActive ? options.isActive() : screen.classList.contains('active'); }
@@ -93,6 +94,7 @@
     }
     function clearDetail() {
       shareOwner?.clear();
+      commentOwner?.clear();
       selected = null;
       $('#cloudDetail').hidden = true;
       $('#cloudDetailSummary').replaceChildren();
@@ -131,6 +133,7 @@
         $('#cloudUpdateBtn').disabled = true;
       }
       shareOwner?.setBusy(busy);
+      commentOwner?.setBusy(busy);
     }
     function handleError(error) {
       if (!client.user || error?.status === 401 || error?.status === 403) clearPrivate();
@@ -183,6 +186,7 @@
       const item = selected;
       if (!item) return clearDetail();
       shareOwner?.setReport(item);
+      commentOwner?.setReport(item);
       $('#cloudDetailSummary').replaceChildren(
         node('p', '', `${item.record.state.info.name} · ${item.record.reportMeta.batchId}`),
         node('p', '', `报告日期 ${item.record.reportMeta.date} · 已读取修订 ${item.revision}`),
@@ -212,7 +216,7 @@
       });
     }
     function deleteReport(record) {
-      if (busy || !window.confirm(`删除服务端的「${record.name}」报告 ${record.report_ref}（修订 ${record.revision}）吗？本机归档和当前作答会保留。`)) return;
+      if (busy || !window.confirm(`删除服务端的「${record.name}」报告 ${record.report_ref}（修订 ${record.revision}）吗？相关分享和批注邀请将失效，关联批注记录也会删除；本机归档和当前作答会保留。`)) return;
       return run('正在删除服务端报告…', async current => {
         await client.remove(record.id, record.revision);
         if (!current()) return;
@@ -340,6 +344,7 @@
       }
     });
     shareOwner = window.ParentShareOwner?.init({ client, run, message });
+    commentOwner = window.CommentOwner?.init({ client, run, message });
     controls();
     return {
       onScreenLeft,

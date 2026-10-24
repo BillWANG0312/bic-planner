@@ -319,8 +319,87 @@
       return request('reports/' + reportId(id) + '/shares/' + reportId(shareId), { method: 'DELETE', authenticated: true });
     }
 
+    function exactKeys(value, keys) {
+      return object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+    }
+    function boundedText(value, maximum, required = false) {
+      if (typeof value !== 'string' || value.length > maximum || required && !value.trim()) return false;
+      return Array.from(value).every(character => !(character.length === 1 && character.charCodeAt(0) >= 0xD800 && character.charCodeAt(0) <= 0xDFFF));
+    }
+    const requestId = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+    const username = value => typeof value === 'string' && /^[a-z0-9._@+-]{3,64}$/.test(value);
+    function accessMeta(value, expectedReport) {
+      if (!exactKeys(value, ['id', 'report_id', 'report_revision', 'report_name', 'report_ref', 'recipient_username', 'created_at', 'expires_at', 'revoked_at', 'status'])
+          || !identifier(value.id) || !identifier(value.report_id) || expectedReport && value.report_id !== expectedReport
+          || !revisionNumber(value.report_revision) || !boundedText(value.report_name, 24, true) || !boundedText(value.report_ref, 100, true)
+          || !username(value.recipient_username) || !Number.isSafeInteger(value.created_at) || value.created_at <= 0
+          || !Number.isSafeInteger(value.expires_at) || value.expires_at <= value.created_at
+          || value.revoked_at !== null && (!Number.isSafeInteger(value.revoked_at) || value.revoked_at <= 0)
+          || !['active', 'revoked', 'expired', 'unavailable'].includes(value.status)) throw protocolError();
+      return value;
+    }
+    function accessList(value, expectedReport) {
+      if (!exactKeys(value, ['items']) || !Array.isArray(value.items) || value.items.length > 100) throw protocolError();
+      const seen = new Set();
+      value.items.forEach(item => { accessMeta(item, expectedReport); if (seen.has(item.id)) throw protocolError(); seen.add(item.id); });
+      return value;
+    }
+    function familyComment(value) {
+      if (!exactKeys(value, ['id', 'author', 'body', 'created_at', 'client_request_id'])
+          || !identifier(value.id) || !['owner', 'recipient'].includes(value.author) || !boundedText(value.body, 1000, true)
+          || !Number.isSafeInteger(value.created_at) || value.created_at <= 0 || !requestId(value.client_request_id)) throw protocolError();
+      return value;
+    }
+    async function createParentAccess(id, expectedRevision, recipient, ttlHours, content) {
+      requireConnection(true);
+      const endpoint = 'reports/' + reportId(id) + '/parent-access';
+      revision(expectedRevision);
+      if (typeof recipient !== 'string' || !username(recipient.toLowerCase()) || ![24, 72, 168].includes(ttlHours) || !object(content)) {
+        throw new CloudError('VALIDATION', '请填写有效的受邀学校账号、期限，并预览摘要。', 422);
+      }
+      return accessMeta(await request(endpoint, { method: 'POST', body: { revision: expectedRevision,
+        recipient_username: recipient.toLowerCase(), ttl_hours: ttlHours, content }, authenticated: true }), id);
+    }
+    async function listParentAccess(id) {
+      requireConnection(true);
+      return accessList(await request('reports/' + reportId(id) + '/parent-access', { authenticated: true }), id);
+    }
+    async function revokeParentAccess(id, grantId) {
+      requireConnection(true);
+      return request('reports/' + reportId(id) + '/parent-access/' + reportId(grantId), { method: 'DELETE', authenticated: true });
+    }
+    async function listFamilyAccess() {
+      requireConnection(true);
+      return accessList(await request('parent-access', { authenticated: true }));
+    }
+    async function familyThread(grantId) {
+      requireConnection(true);
+      const result = await request('parent-access/' + reportId(grantId), { authenticated: true });
+      if (!exactKeys(result, ['grant', 'snapshot', 'comments', 'participant', 'can_comment']) || result.grant?.id !== grantId
+          || !Array.isArray(result.comments) || result.comments.length > 100 || typeof result.can_comment !== 'boolean'
+          || !['owner', 'recipient'].includes(result.participant)) throw protocolError();
+      accessMeta(result.grant);
+      if (result.can_comment && result.grant.status !== 'active') throw protocolError();
+      try { result.snapshot = window.ParentSummary.validate(result.snapshot); } catch (_) { throw protocolError(); }
+      if (result.snapshot.report.revision !== result.grant.report_revision || result.snapshot.report.name !== result.grant.report_name
+          || result.snapshot.report.batchId !== result.grant.report_ref || result.snapshot.shared_at !== result.grant.created_at
+          || result.snapshot.expires_at !== result.grant.expires_at) throw protocolError();
+      const seen = new Set();
+      result.comments.forEach(value => { familyComment(value); if (seen.has(value.id)) throw protocolError(); seen.add(value.id); });
+      return result;
+    }
+    async function addFamilyComment(grantId, body, clientRequestId) {
+      requireConnection(true);
+      const endpoint = 'parent-access/' + reportId(grantId) + '/comments';
+      if (!boundedText(body, 1000, true) || !requestId(clientRequestId)) throw new CloudError('VALIDATION', '批注需为 1–1000 字符的有效文字，请重新填写。', 422);
+      const result = familyComment(await request(endpoint, { method: 'POST', body: { body, client_request_id: clientRequestId }, authenticated: true }));
+      if (result.body !== body || result.client_request_id !== clientRequestId) throw protocolError();
+      return result;
+    }
+
     return { connect, login, list, get, create: createReport, update, remove, logout, disconnect,
       createShare, listShares, revokeShare,
+      createParentAccess, listParentAccess, revokeParentAccess, listFamilyAccess, familyThread, addFamilyComment,
       get user() { return user ? copy(user) : null; }, get connected() { return connected; } };
   }
 

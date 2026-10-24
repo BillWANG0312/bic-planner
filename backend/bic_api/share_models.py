@@ -107,3 +107,31 @@ class ParentSnapshot(PublicModel):
         if serialized_units(self.model_dump(mode='json')) > MAX_SNAPSHOT_UNITS:
             raise ValueError('public snapshot exceeds its serialized size limit')
         return self
+
+
+def build_parent_snapshot(record: dict, revision: int, shared_at: int,
+                          expires_at: int, content: dict) -> dict:
+    """Build one public snapshot from canonical saved metadata, never private state.
+
+    Both anonymous shares and account-bound invitations use this allowlist.
+    The caller supplies the authoritative database revision and lifecycle times;
+    aggregate/narrative content still passes the same public schema boundary.
+    """
+    try:
+        report = {
+            'name': record['state']['info']['name'],
+            'grade': record['state']['info']['grade'],
+            'year': record['state']['info']['year'],
+            'batchId': record['reportMeta']['batchId'],
+            'date': record['reportMeta']['date'],
+            'bankVersion': record['bankVersion'],
+            'catalogVersion': record.get('catalogVersion'),
+            'revision': revision,
+        }
+    except (KeyError, TypeError, AttributeError):
+        raise ValueError('stored report metadata cannot produce a public snapshot') from None
+    return ParentSnapshot.model_validate({
+        'format': 'bic-parent-summary', 'version': 1,
+        'shared_at': shared_at, 'expires_at': expires_at,
+        'report': report, 'content': content,
+    }).model_dump(mode='json')

@@ -371,3 +371,99 @@ test('a changed source revision cannot create a share from an old preview', asyn
     assert.equal((await (await context.request.get(origin + '/api/reports/' + id + '/shares')).json()).items.length, 0);
   } finally { await context.close(); }
 });
+
+async function connectFamily(page, index, existingCookie = false) {
+  await page.locator('#familyConnectBtn').click();
+  if (!existingCookie) {
+    await page.locator('#familyLoginForm').waitFor({ state: 'visible' });
+    await page.locator('#familyUsername').fill('browser.' + index);
+    await page.locator('#familyPassword').fill(password);
+    await page.locator('#familyLoginForm button[type=submit]').click();
+  }
+  await page.locator('#familyWorkspace').waitFor({ state: 'visible' });
+  await page.locator('#familyRefreshBtn:enabled').click();
+  await page.locator('[data-family-thread]').first().waitFor();
+}
+
+test('account-bound family comments preserve edited uncertain drafts, support owner replies, and close on revocation', async () => {
+  const { context, page } = await pageFor(0);
+  const parentContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  try {
+    await signIn(page, 0);
+    await page.locator('[data-cloud-read]').click();
+    const reportId = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    const original = await (await context.request.get(origin + '/api/reports/' + reportId)).json();
+    await page.locator('#accessRecipient').fill('browser.7');
+    await page.locator('#accessPreviewBtn').click();
+    await page.locator('#accessPreview').waitFor({ state: 'visible' });
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#accessCreateBtn').click();
+    await page.locator('[data-access-revoke]').waitFor();
+    const grantId = await page.locator('[data-access-revoke]').getAttribute('data-access-revoke');
+    const family = await parentContext.newPage();
+    const requests = [], pageErrors = [];
+    family.on('request', request => { if (request.url().startsWith(origin + '/api/')) requests.push(request); });
+    family.on('pageerror', error => pageErrors.push(error.message));
+    await family.addInitScript(() => {
+      for (const key of ['localStorage', 'sessionStorage']) Object.defineProperty(window, key, { get() { throw new Error('Family portal cannot access ' + key); } });
+    });
+    await family.goto(origin + '/family.html');
+    assert.equal(requests.length, 0);
+    await connectFamily(family, 7);
+    await family.locator(`[data-family-thread="${grantId}"]`).click();
+    await family.locator('#familyThread').waitFor({ state: 'visible' });
+    assert.equal((await parentContext.request.get(origin + '/api/reports/' + reportId)).status(), 404);
+    const threadPath = origin + '/api/parent-access/' + grantId;
+    const before = await (await parentContext.request.get(threadPath)).json();
+    assert.ok(!JSON.stringify(before).includes('answers') && !JSON.stringify(before).includes('history'));
+    const posted = [];
+    family.on('request', request => { if (request.method() === 'POST' && request.url() === threadPath + '/comments') posted.push(request.postDataJSON()); });
+    await family.route('**/api/parent-access/' + grantId + '/comments', async route => {
+      const written = await route.fetch();
+      assert.equal(written.status(), 201);
+      await route.abort('failed'); // the database saved A, but the browser does not receive its receipt
+    });
+    await family.locator('#familyBody').fill('<b>家长问题 A</b>');
+    await family.locator('#familySubmitBtn').click();
+    await family.waitForFunction(() => /尚未确认/.test(document.querySelector('#familyStatus').textContent));
+    assert.equal(await family.locator('#familyBody').inputValue(), '<b>家长问题 A</b>');
+    assert.equal(posted.length, 1);
+    await family.unroute('**/api/parent-access/' + grantId + '/comments');
+    await family.locator('#familyBody').fill('尚未提交的新问题 B');
+    await family.locator('#familyThreadRefreshBtn').click();
+    await family.waitForFunction(() => document.querySelectorAll('[data-family-comment]').length === 1);
+    assert.equal(await family.locator('#familyBody').inputValue(), '尚未提交的新问题 B', 'Acknowledging A must not discard a newer draft B');
+    assert.equal(await family.locator('#familyComments b').count(), 0, 'Comment markup is rendered as text');
+    await family.locator('#familySubmitBtn').click();
+    await family.waitForFunction(() => document.querySelectorAll('[data-family-comment]').length === 2);
+    assert.equal(posted.length, 2);
+    assert.notEqual(posted[0].client_request_id, posted[1].client_request_id);
+    const ownerFamily = await context.newPage();
+    await ownerFamily.goto(origin + '/family.html');
+    await connectFamily(ownerFamily, 0, true);
+    await ownerFamily.locator(`[data-family-thread="${grantId}"]`).click();
+    await ownerFamily.locator('#familyThread').waitFor({ state: 'visible' });
+    await ownerFamily.locator('#familyBody').fill('报告管理者回复：先完成测评再讨论。');
+    await ownerFamily.locator('#familySubmitBtn').click();
+    await ownerFamily.waitForFunction(() => document.querySelectorAll('[data-family-comment]').length === 3);
+    await family.locator('#familyThreadRefreshBtn').click();
+    await family.waitForFunction(() => document.querySelectorAll('[data-family-comment]').length === 3);
+    if (process.env.BIC_CAPTURE === '1') {
+      await family.screenshot({ path: path.join(root, 'test-results/family-desktop.png'), fullPage: true });
+      await family.setViewportSize({ width: 375, height: 812 });
+      assert.ok(await family.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await family.screenshot({ path: path.join(root, 'test-results/family-mobile.png'), fullPage: true });
+    }
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('[data-access-revoke]').click();
+    await page.waitForFunction(() => /已撤销/.test(document.querySelector('#cloudStatus').textContent));
+    await family.locator('#familyThreadRefreshBtn').click();
+    await family.locator('#familyThread').waitFor({ state: 'hidden' });
+    assert.equal((await parentContext.request.get(threadPath)).status(), 404);
+    await ownerFamily.locator('#familyThreadRefreshBtn').click();
+    await ownerFamily.waitForFunction(() => document.querySelector('#familyBody').disabled === true);
+    assert.equal(await ownerFamily.locator('[data-family-comment]').count(), 3, 'The owner retains closed history');
+    assert.deepEqual(await (await context.request.get(origin + '/api/reports/' + reportId)).json(), original);
+    assert.deepEqual(pageErrors, []);
+  } finally { await parentContext.close(); await context.close(); }
+});

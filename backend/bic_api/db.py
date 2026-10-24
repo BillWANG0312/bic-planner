@@ -17,7 +17,7 @@ class StorageError(Exception):
         self.code = code
 
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 _APPLICATION_ID = 0x42494331
 _WEB_ROOT = Path(__file__).resolve().parents[2]
 _MAX_REPORTS = 100
@@ -73,7 +73,36 @@ _SHARE_SCHEMA = {
     "shares_owner_report_idx": "CREATE INDEX shares_owner_report_idx ON shares(owner_id, report_id, created_at DESC, id)",
     "shares_report_idx": "CREATE INDEX shares_report_idx ON shares(report_id)",
 }
-_SCHEMA = {**_SCHEMA_V1, **_SHARE_SCHEMA}
+_SCHEMA_V2 = {**_SCHEMA_V1, **_SHARE_SCHEMA}
+_COMMENT_SCHEMA = {
+    "parent_grants": """CREATE TABLE parent_grants (
+        id TEXT PRIMARY KEY NOT NULL,
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+        report_revision INTEGER NOT NULL CHECK (report_revision > 0),
+        recipient_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        snapshot_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL CHECK (expires_at > created_at),
+        revoked_at INTEGER,
+        CHECK (recipient_id <> owner_id)
+    )""",
+    "parent_comments": """CREATE TABLE parent_comments (
+        id TEXT PRIMARY KEY NOT NULL,
+        grant_id TEXT NOT NULL REFERENCES parent_grants(id) ON DELETE CASCADE,
+        author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        sequence INTEGER NOT NULL CHECK (sequence > 0),
+        UNIQUE (grant_id, author_id, request_id),
+        UNIQUE (grant_id, sequence)
+    )""",
+    "parent_grants_owner_report_idx": "CREATE INDEX parent_grants_owner_report_idx ON parent_grants(owner_id, report_id, created_at DESC, id)",
+    "parent_grants_recipient_idx": "CREATE INDEX parent_grants_recipient_idx ON parent_grants(recipient_id, created_at DESC, id)",
+    "parent_comments_thread_idx": "CREATE INDEX parent_comments_thread_idx ON parent_comments(grant_id, sequence)",
+}
+_SCHEMA = {**_SCHEMA_V2, **_COMMENT_SCHEMA}
 
 
 def _normalized_sql(sql):
@@ -130,11 +159,11 @@ class Database:
             if version == 0 and application == 0 and not objects:
                 for declaration in _SCHEMA.values():
                     connection.execute(declaration)
-                connection.execute("PRAGMA user_version = 2")
+                connection.execute("PRAGMA user_version = 3")
                 connection.execute("PRAGMA application_id = 1112097585")
                 return
             actual = {row["name"]: row["sql"] for row in objects}
-            expected = _SCHEMA_V1 if version == 1 else _SCHEMA if version == _SCHEMA_VERSION else None
+            expected = {1: _SCHEMA_V1, 2: _SCHEMA_V2, _SCHEMA_VERSION: _SCHEMA}.get(version)
             if (
                 expected is None
                 or application != _APPLICATION_ID
@@ -148,7 +177,12 @@ class Database:
                 # version advance share this transaction: failure preserves v1.
                 for declaration in _SHARE_SCHEMA.values():
                     connection.execute(declaration)
-                connection.execute("PRAGMA user_version = 2")
+            if version in (1, 2):
+                # Append-only invitation/comment tables share the same migration
+                # transaction. Existing v1/v2 rows and declarations are not rebuilt.
+                for declaration in _COMMENT_SCHEMA.values():
+                    connection.execute(declaration)
+                connection.execute("PRAGMA user_version = 3")
 
     @staticmethod
     def _public_user(row):

@@ -304,7 +304,7 @@ def test_known_v1_migration_preserves_original_users_sessions_and_report_bytes(t
     source_json = legacy_database(path)
     Database(path)
     with sqlite3.connect(path) as connection:
-        assert connection.execute('PRAGMA user_version').fetchone()[0] == 2
+        assert connection.execute('PRAGMA user_version').fetchone()[0] == 3
         assert connection.execute('SELECT password_hash FROM users').fetchone()[0] == 'verbatim-private-hash'
         assert connection.execute('SELECT token_hash,csrf_token FROM sessions').fetchone() == ('a' * 64, 'b' * 43)
         assert connection.execute('SELECT revision,record_json,created_at,updated_at FROM reports').fetchone() == (7, source_json, 'created-verbatim', 'updated-verbatim')

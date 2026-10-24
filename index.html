@@ -277,6 +277,21 @@
               </div>
               <div id="ownerShareList"></div>
             </section>
+            <section class="owner-share" aria-labelledby="ownerAccessHeading">
+              <h3 id="ownerAccessHeading">邀请家长批注</h3>
+              <p class="cloud-help">需要学校已创建的账号。邀请只允许该账号读取这份固定摘要并追加批注，不授予答卷或报告修改权限；匿名只读链接不能写批注。</p>
+              <label for="accessRecipient">接收账号<input id="accessRecipient" type="text" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="填写学校提供的完整账号名" /></label>
+              <label for="accessTtl">授权有效期<select id="accessTtl"><option value="24">24 小时</option><option value="72">3 天</option><option value="168">7 天</option></select></label>
+              <div class="cloud-actions">
+                <button type="button" class="btn ghost sm" id="accessPreviewBtn">预览邀请摘要</button>
+                <button type="button" class="btn primary sm" id="accessCreateBtn" disabled>确认邀请账号</button>
+                <button type="button" class="btn ghost sm" id="accessListBtn">查看批注邀请</button>
+                <a class="btn ghost sm" href="family.html" target="_blank" rel="noopener noreferrer">打开家长批注页面</a>
+              </div>
+              <p class="cloud-help">批注与原报告分开保存。每报告最多 10 份邀请，每账号最多参与 100 份（含已撤销或过期的历史）。报告更新不改变已有邀请摘要；删除报告将同时删除相关批注。</p>
+              <div id="accessPreview" class="share-preview" hidden></div>
+              <div id="ownerAccessList"></div>
+            </section>
           </section>
         </section>
       </div>
@@ -304,6 +319,7 @@
   <script src="js/cloud-client.js"></script>
   <script src="js/share-summary.js"></script>
   <script src="js/share-owner.js"></script>
+  <script src="js/comment-owner.js"></script>
   <script src="js/cloud-ui.js"></script>
   <script src="js/app.js"></script>
 </body>

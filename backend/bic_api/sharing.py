@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from .db import StorageError
 from .security import AuthError
-from .share_models import ParentSnapshot, ShareContent
+from .share_models import ParentSnapshot, ShareContent, build_parent_snapshot
 
 
 _TOKEN = re.compile(r'[A-Za-z0-9_-]{43}\Z', re.ASCII)
@@ -70,14 +70,7 @@ class ShareService:
             except (ValueError, TypeError):
                 raise StorageError(503, 'The stored report is temporarily unavailable.', 'STORAGE') from None
             try:
-                snapshot = ParentSnapshot.model_validate({
-                    'format': 'bic-parent-summary', 'version': 1, 'shared_at': at, 'expires_at': expiry,
-                    'report': {'name': record['state']['info']['name'], 'grade': record['state']['info']['grade'],
-                               'year': record['state']['info']['year'], 'batchId': record['reportMeta']['batchId'],
-                               'date': record['reportMeta']['date'], 'bankVersion': record['bankVersion'],
-                               'catalogVersion': record.get('catalogVersion'), 'revision': current['revision']},
-                    'content': content,
-                }).model_dump(mode='json')
+                snapshot = build_parent_snapshot(record, current['revision'], at, expiry, content)
                 serialized = json.dumps(snapshot, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
                 serialized.encode('utf-8')
             except (ValidationError, ValueError, TypeError, KeyError, UnicodeError):

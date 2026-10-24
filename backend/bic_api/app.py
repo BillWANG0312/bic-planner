@@ -16,6 +16,8 @@ from .security import AuthError, AuthService
 from .settings import Settings
 from .share_models import ShareContent
 from .sharing import ShareService
+from .comment_models import CommentText, RequestId
+from .comments import CommentService
 
 
 class StrictBody(BaseModel):
@@ -39,6 +41,15 @@ class CreateShareBody(StrictBody):
     revision: Annotated[StrictInt, Field(ge=1)]
     ttl_hours: Literal[24, 72, 168]
     content: ShareContent
+
+
+class CreateParentAccessBody(CreateShareBody):
+    recipient_username: Annotated[StrictStr, Field(min_length=3, max_length=64)]
+
+
+class AddCommentBody(StrictBody):
+    body: CommentText
+    client_request_id: RequestId
 
 
 class ApiBoundary:
@@ -120,6 +131,8 @@ def create_app(settings: Settings, *, clock=time.time):
     app.state.db, app.state.auth, app.state.settings = db, auth, settings
     sharing = ShareService(db, clock=clock)
     app.state.sharing = sharing
+    comments = CommentService(db, clock=clock)
+    app.state.comments = comments
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -225,6 +238,32 @@ def create_app(settings: Settings, *, clock=time.time):
     @app.get('/api/public/share')
     def read_share(request: Request):
         return sharing.read(request.headers.get('X-BIC-Share'), request.client.host if request.client else 'unknown')
+
+    @app.post('/api/reports/{report_id}/parent-access', status_code=201)
+    def create_parent_access(report_id: str, body: CreateParentAccessBody, session=Depends(writable_session)):
+        return comments.create_grant(session['user']['id'], report_id, body.revision,
+                                     body.recipient_username, body.ttl_hours, body.content.model_dump(mode='json'))
+
+    @app.get('/api/reports/{report_id}/parent-access')
+    def report_parent_access(report_id: str, session=Depends(current_session)):
+        return comments.list_for_report(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/parent-access/{grant_id}', status_code=204)
+    def revoke_parent_access(report_id: str, grant_id: str, session=Depends(writable_session)):
+        comments.revoke(session['user']['id'], report_id, grant_id)
+        return Response(status_code=204)
+
+    @app.get('/api/parent-access')
+    def family_access(session=Depends(current_session)):
+        return comments.list_for_user(session['user']['id'])
+
+    @app.get('/api/parent-access/{grant_id}')
+    def family_thread(grant_id: str, session=Depends(current_session)):
+        return comments.thread(session['user']['id'], grant_id)
+
+    @app.post('/api/parent-access/{grant_id}/comments', status_code=201)
+    def add_family_comment(grant_id: str, body: AddCommentBody, session=Depends(writable_session)):
+        return comments.add_comment(session['user']['id'], grant_id, body.body, body.client_request_id)
 
     return app
 

@@ -40,7 +40,7 @@ $env:BIC_PORT = '9001'
 
 访问 `http://127.0.0.1:9001/`。此入口临时返回启用配置，未修改磁盘默认配置；仅公开 index.html 与 css/js/img/data，不公开后端、文档、Git 或数据库。没有开发标志或非回环来源则拒绝启动。正式环境仍使用 API 入口 `python -m backend.bic_api` 和独立 HTTPS 静态服务器/反代，本地演示不等于上线。
 
-student/advisor 均只管理自己的记录；已有 [家长只读摘要分享](parent-sharing.md)，教师跨用户分配、批注、公开注册和改密找回尚未实现。
+student/advisor 均只管理自己的原始记录；另有 [家长只读摘要分享](parent-sharing.md) 和 [既有账号的单报告批注](family-comments.md)，邀请不授予原始答卷权限。教师跨用户分配、公开注册和改密找回尚未实现。
 
 ## 测试
 
