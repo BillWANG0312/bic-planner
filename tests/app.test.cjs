@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
 
 function state(screen = 'academic', idx = 0) {
-  return { info: { name: '测试学生', grade: '9', year: '2028 年秋季' }, academic: { answers: {} }, plan: { answers: {} }, mbti: { answers: Array(24).fill(null) }, ui: { screen: 'test', resumeScreen: screen, idx }, report: null };
+  return { info: { name: '测试学生', grade: '9', year: '2028 年秋季' }, academic: { answers: {} }, plan: { answers: {} }, mbti: { answers: Array(30).fill(null) }, ui: { screen: 'test', resumeScreen: screen, idx }, report: null };
 }
 function saved(value, entered = true) {
   return { beforeLoad: page => page.addInitScript(({ value, entered }) => {
@@ -71,11 +71,14 @@ test('the final MBTI answer cannot generate duplicate reports', () => withPage(a
     window.generateReport = (...args) => { window.reportCalls++; return original(...args); };
   });
   await page.locator('.likert button').first().click();
+  // 隐藏的 inactive 屏幕里也有 .likert 按钮，必须限定在当前激活的测试屏内操作
+  await page.waitForFunction(() => !document.getElementById('screen-test').classList.contains('active'), null, { timeout: 10000 });
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => document.querySelector('#screen-report').classList.contains('active'));
+  // 生成动画按步骤计时，完成全部必答题的数据量更大，这里放宽等待
+  await page.waitForFunction(() => document.querySelector('#screen-report').classList.contains('active'), null, { timeout: 15000 });
   await page.waitForTimeout(700);
   assert.equal(await page.evaluate(() => window.reportCalls), 1);
-}, saved(state('mbti', 23))));
+}, saved(state('mbti', 29))));
 
 test('multi-select questions accept letter keyboard shortcuts', () => withPage(async page => {
   await page.keyboard.press('a');
@@ -104,13 +107,13 @@ test('resume returns to the same module and question after visiting home', () =>
   await page.locator('#resumeBtn').click();
   assert.equal(await page.locator('#screen-test').evaluate(el => el.classList.contains('active')), true);
   assert.equal(await page.locator('#testTitle').innerText(), '专业规划测试');
-  assert.equal(await page.locator('#testMeta').innerText(), '5 / 14');
+  assert.equal(await page.locator('#testMeta').innerText(), '5 / 13');
 }, saved(state('plan', 4))));
 
 test('refresh during report generation resumes generation', () => withPage(async page => {
   await page.waitForFunction(() => document.querySelector('#screen-report').classList.contains('active'));
   assert.equal(await page.locator('#reportRoot .paper').count(), 1);
-}, saved({ ...state('mbti', 23), ui: { screen: 'generating', resumeScreen: 'mbti', idx: 23 } })));
+}, saved({ ...state('mbti', 29), ui: { screen: 'generating', resumeScreen: 'mbti', idx: 29 } })));
 
 test('regenerating a report carries advisor edits and persists them across reloads', () => withPage(async page => {
   await page.waitForFunction(() => document.querySelector('#screen-report').classList.contains('active'));

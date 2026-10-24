@@ -108,7 +108,7 @@ test('partial academic reports count actual answers and distinguish unasked ques
 test('complete neutral personality results describe balanced preferences without ESTJ', () => {
   const w = loadReportScripts();
   const s = state(w, true);
-  s.mbti.answers = Array(24).fill(2);
+  s.mbti.answers = w.TRAIT_QUESTIONS.map(() => ({ value: 2, ms: 800 }));
   const html = w.renderReport(w.generateReport(s));
   assert.match(html, /倾向均衡/);
   assert.doesNotMatch(html, /ESTJ|待完成性格测评/);

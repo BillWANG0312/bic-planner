@@ -48,8 +48,8 @@ test('report library archives a draft and searches escaped student names and rep
   assert.equal(await page.locator('#libraryList img').count(), 0);
   assert.match(await page.locator('#libraryList').innerText(), /探索草稿/);
   assert.match(await page.locator('#libraryList').innerText(), /学术 0\/60/);
-  assert.match(await page.locator('#libraryList').innerText(), /规划 2\/14/);
-  assert.match(await page.locator('#libraryList').innerText(), /性格 0\/24/);
+  assert.match(await page.locator('#libraryList').innerText(), /规划 1\/12/);
+  assert.match(await page.locator('#libraryList').innerText(), /性格 0\/30/);
   assert.match(await page.locator('#libraryList').innerText(), /专业方向/);
   await page.locator('#librarySearch').fill('AP-LIBRARY-01');
   assert.equal(await page.locator('[data-library-open]').count(), 1);

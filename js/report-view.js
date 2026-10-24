@@ -10,10 +10,14 @@
   const editedMark = (r, section) => edited(r, section) ? '<span class="advisor-label">顾问已编辑</span>' : '';
   const advice = (r, section, fallback) => window.reportEditing ? window.reportEditing.getText(r, section) : fallback;
   const adviceHtml = (r, section, fallback) => `<p class="advice-text">${esc(advice(r, section, fallback))}</p>${editedMark(r, section)}`;
-  const hasPersonality = r => r.mbti.complete && r.mbti.code && r.mbti.type;
+  const personalityTraits = r => (r.mbti.traits || []).filter(t => t.pct != null).sort((a, b) => b.pct - a.pct);
+  const hasPersonality = r => r.mbti.complete && personalityTraits(r).length >= 3;
   const mAnswered = r => r.mbti.answered || 0;
-  const personalityLabel = r => hasPersonality(r) ? `${r.mbti.code} · ${r.mbti.type.title}`
+  const personalityLabel = r => balanced(r) ? '倾向均衡' : hasPersonality(r)
+    ? (r.mbti.top || personalityTraits(r)).slice(0, 2).map(t => t.label).join(' · ')
     : r.mbti.complete ? '倾向均衡' : '待完成性格测评';
+  // 各特质得分接近时不下「XX 型」结论，只描述均衡
+  const balanced = r => { const pcts = (r.mbti.traits || []).filter(t => t.pct != null).map(t => t.pct); return !!r.mbti.complete && pcts.length > 1 && Math.max(...pcts) - Math.min(...pcts) <= 6; };
   const isCompleteSubject = s => s.complete === true || s.answered != null && s.total > 0 && s.answered === s.total;
   const secureUrl = value => typeof value === 'string' && /^https:\/\/[a-z0-9.-]+(?::\d+)?(?:[/?#][^\s]*)?$/i.test(value) ? value : null;
   function academicCoverage(r) {
@@ -22,7 +26,7 @@
   function coverageText(r) {
     const coverage = r.meta.coverage || { academic: academicCoverage(r),
       plan: { answered: 0, total: window.PLAN_QUESTIONS.length },
-      mbti: { answered: r.mbti.answered || 0, total: r.mbti.total || window.MBTI_QUESTIONS.length } };
+      mbti: { answered: r.mbti.answered || 0, total: r.mbti.total || window.TRAIT_QUESTIONS.length } };
     return `学术 ${coverage.academic.answered}/${coverage.academic.total} · 规划 ${coverage.plan.answered}/${coverage.plan.total} · 性格 ${coverage.mbti.answered}/${coverage.mbti.total}`;
   }
 
@@ -41,7 +45,7 @@
       <p class="cover-sub">A-Level Academic &amp; Career Planning Report · ${esc(r.meta.grade)}${r.meta.status === 'complete' ? '' : ' · 探索草稿'}</p>
       <div class="cover-grid">
         <div class="cover-cell"><small>${r.meta.status === 'complete' ? '推荐专业方向' : '待讨论的探索方向'}</small><b>${esc(top.name)}</b></div>
-        <div class="cover-cell"><small>性格类型</small><b>${esc(personalityLabel(r))}</b></div>
+        <div class="cover-cell"><small>优势特质</small><b>${esc(personalityLabel(r))}</b></div>
         <div class="cover-cell"><small>优势学科</small><b>${strengths.length ? strengths.slice(0, 2).map(s => esc(s.name)).join(' / ') : completeSubjects.length ? '待结合兴趣讨论' : '待完成学术测评'}</b></div>
         <div class="cover-cell"><small>首选留学地区</small><b>${esc(r.plan.countries[0] ? r.plan.countries[0].label : '待定')}</b></div>
       </div>
@@ -77,7 +81,7 @@
         <div class="exec-card">
           <div class="t">性格特质</div>
           <div class="big">${esc(personalityLabel(r))}</div>
-          <div class="s">${hasPersonality(r) ? esc(r.mbti.type.tag) : r.mbti.complete ? '本次回答未呈现清晰的性格类型偏向，可结合实际学习体验继续观察。' : `已作答 ${mAnswered(r)}/${r.mbti.total || window.MBTI_QUESTIONS.length} 题，完成后再讨论性格偏好。`}</div>
+          <div class="s">${hasPersonality(r) ? esc(r.mbti.type ? `优势特质：${r.mbti.top.map(t => t.label).join('、')}，可支撑 ${r.mbti.top[0].careers.slice(0, 2).join('、')} 等方向` : '各特质较为均衡，可结合兴趣选择方向') : r.mbti.complete ? '本次回答未呈现清晰的性格类型偏向，可结合实际学习体验继续观察。' : `已作答 ${mAnswered(r)}/${r.mbti.total || window.TRAIT_QUESTIONS.length} 题，完成后再讨论性格偏好。`}</div>
         </div>
       </div>
     </section>`;
@@ -278,70 +282,71 @@
 
   function renderMBTI(r) {
     const m = r.mbti;
+    const total = m.total || window.TRAIT_QUESTIONS.length;
+    const traits = (m.traits || []).filter(t => t.pct != null).sort((a, b) => b.pct - a.pct);
     const t = m.type;
-    const dims = [
-      { code: 'EI', l: '外向 E', r: '内向 I', val: m.EI },
-      { code: 'SN', l: '实感 S', r: '直觉 N', val: m.SN },
-      { code: 'TF', l: '思考 T', r: '情感 F', val: m.TF },
-      { code: 'JP', l: '判断 J', r: '知觉 P', val: m.JP }
-    ];
-    const dimHtml = dims.map(d => {
-      const v = d.val;
-      const winL = v.pctA > 50;
-      const winR = v.pctB > 50;
-      const finished = v.complete;
+    const hint = m.hint || {};
+    const hintRows = (window.MBTI_HINT_LABEL ? Object.keys(window.MBTI_HINT_LABEL) : []).map(dim => {
+      const h = hint[dim];
+      if (!h) return '';
+      const sides = { EI: ['外向 E', '内向 I'], SN: ['实感 S', '直觉 N'], TF: ['思考 T', '情感 F'], JP: ['判断 J', '知觉 P'] }[dim];
       return `<div class="dim">
-        <div class="l ${finished && winL ? 'win' : ''}">${d.l} ${finished && winL ? bounded(v.pctA) + '%' : ''}</div>
-        <div class="bar"><div class="a" style="width:${finished ? bounded(v.pctA) : 50}%"></div><div class="b" style="width:${finished ? bounded(v.pctB) : 50}%"></div></div>
-        <div class="r ${finished && winR ? 'win' : ''}">${finished && winR ? bounded(v.pctB) + '%' : ''} ${d.r}</div>
-        <p class="muted">${finished ? v.pctA === 50 ? '倾向均衡' : '已完成此维度' : '待完成'} · 已作答 ${v.answered || 0}/${v.total || 6}</p>
+        <div class="l ${h.pole === h.a ? 'win' : ''}">${sides[0]} ${h.pa}%</div>
+        <div class="bar"><div class="a" style="width:${bounded(h.pa)}%"></div><div class="b" style="width:${bounded(h.pb)}%"></div></div>
+        <div class="r ${h.pole === h.b ? 'win' : ''}">${sides[1]} ${h.pb}%</div>
+        <p class="muted">${h.label}${h.pole ? '' : ' · 倾向不明显，不作判断'}</p>
       </div>`;
     }).join('');
+    const bars = m.traits.map(tr => `<div class="trait-bar ${tr.level}" data-level="${tr.level}">
+        <span class="trait-icon" aria-hidden="true">${tr.icon}</span>
+        <span class="trait-name">${esc(tr.label)}</span>
+        <span class="trait-track"><span class="trait-fill" style="width:${tr.pct == null ? 0 : bounded(tr.pct)}%"></span></span>
+        <span class="trait-pct">${tr.pct == null ? '—' : bounded(tr.pct)}</span>
+      </div>`).join('');
+    const gameBits = [];
+    if (r.games?.careerDart?.label) gameBits.push(`职业飞镖命中「${r.games.careerDart.label}」`);
+    if (r.games?.teamRace?.pace) gameBits.push(`团队竞速选择「${r.games.teamRace.pace}」节奏 + 「${r.games.teamRace.partner}」搭档`);
 
-    if (!hasPersonality(r)) {
+    if (!traits.length) {
       return `<section class="paper-section" id="sec-mbti">
-        <div class="sec-kicker">Part 3 · Personality</div><h2>性格特点解析</h2>
+        <div class="sec-kicker">Part 3 · Personality</div><h2>性格特质与职业潜力</h2>
         <h3>${esc(personalityLabel(r))}</h3>
-        <p>已作答 ${mAnswered(r)}/${m.total || window.MBTI_QUESTIONS.length} 道性格题。${m.complete ? '本次回答未呈现清晰的类型偏向，可结合实际学习体验继续观察，不强行指定人格类型。' : '请完成量表后再讨论性格偏好；少量回答不能确定人格类型。'}</p>
-        <div class="mbti-scale">${dimHtml}</div>
+        <p>已作答 ${mAnswered(r)}/${total} 道情境题。请完成测评后再讨论性格特质；少量回答不能判断特质水平。</p>
         ${edited(r, 'personality') ? adviceHtml(r, 'personality', '') : '<p>可尝试独立学习、小组讨论和实践项目，记录在哪些环境下更专注、更舒适，再与老师交流。</p>'}
       </section>`;
     }
 
-    const codeHtml = m.code.split('').map((c, i) => `<span style="${i % 2 === 0 ? 'color:var(--paper-brand)' : ''}">${c}</span>`).join('');
+    const topList = (m.top || []).map((tr, i) => `<div class="trait-card">
+        <div class="trait-rank">0${i + 1}</div>
+        <div class="trait-card-body">
+          <h3>${tr.icon} ${esc(tr.label)} <small>${bounded(tr.pct)}</small></h3>
+          <p>${esc(tr.desc)}</p>
+          <p class="muted">适合方向：${tr.careers.map(c => esc(c)).join('、')}</p>
+        </div>
+      </div>`).join('');
+    const growthList = (m.growth || []).map(tr => `<li><b>${esc(tr.label)}</b>（${bounded(tr.pct)}）${esc(tr.watch[0] || '')}</li>`).join('');
 
     return `<section class="paper-section" id="sec-mbti">
       <div class="sec-kicker">Part 3 · Personality</div>
-      <h2>性格特点解析</h2>
-      <div class="mbti-hero">
-        <div>
-          <div class="mbti-code">${codeHtml}</div>
-          <div class="mbti-title">${esc(t.title)} · ${esc(t.tag)}</div>
-        </div>
+      <h2>性格特质与职业潜力</h2>
+      ${m.complete ? '' : `<p class="report-coverage">已作答 ${mAnswered(r)}/${total} 题，以下为当前作答呈现的倾向；完成全部题目后结论会更稳定。</p>`}
+      <div class="trait-profile">
+        <div class="trait-headline">${balanced(r) ? '各特质发展较为均衡，暂时没有单一突出的<b>优势特质组合</b>' : t ? `你的优势特质组合：<b>${esc(t.title)}</b>` : (traits.length ? `优势特质：<b>${esc(traits[0].label)}</b>` : '性格倾向均衡')}</div>
+        <div class="trait-bars">${bars}</div>
       </div>
-      <p>${esc(t.desc)}</p>
-
-      <div class="mbti-scale">${dimHtml}</div>
-
-      <div class="persona">
-        <div class="panel cool">
-          <h3>✨ 性格优势</h3>
-          <ul>${t.strengths.map(s => `<li>${esc(s)}</li>`).join('')}</ul>
-        </div>
-        <div class="panel warm">
-          <h3>🌱 成长建议</h3>
-          <ul>${t.watch.map(s => `<li>${esc(s)}</li>`).join('')}</ul>
-        </div>
-      </div>
-
+      <div class="persona">${topList}</div>
+      ${growthList ? `<div class="panel warm" style="margin-top:18px"><h3>🌱 可以继续培养的特质</h3><ul>${growthList}</ul></div>` : ''}
+      ${gameBits.length ? `<p class="muted">互动游戏中的选择也单独反映了你的偏好：${gameBits.map(b => esc(b)).join('；')}。</p>` : ''}
       <div class="panel" style="margin-top:18px">
-        <h3>📖 与你匹配的学习策略</h3>
-        ${adviceHtml(r, 'personality', t.study)}
+        <h3>📖 与你匹配的学习与选课策略</h3>
+        ${adviceHtml(r, 'personality', t ? t.study : '围绕你的优势特质选择科目与课外项目，并在需要换一种思路的任务上预留更多时间。')}
       </div>
-
-      <div class="quote">
-        性格类型没有优劣之分。它帮助你理解自己"在什么环境下最能发挥"，而不是给自己设限。A-Level 阶段同样需要注意：${m.JP.pole === 'P' ? '你会倾向于灵活安排时间，建议建立一个最低限度的固定学习节奏（如每天固定一小时），否则容易拖到考前突击。' : m.JP.pole === 'J' ? '你习惯按计划执行，这非常有利于 A-Level 学习，但也要允许自己在遇到新方向时调整计划。' : ''}
-      </div>
+      ${hintRows ? `<details class="mbti-hint">
+        <summary>参考：MBTI 四维倾向（仅作对照，不作为结论）</summary>
+        <p class="muted">这些维度由你的特质得分推算而来，只用于和熟悉的 MBTI 框架对照；你的规划应以上面的特质画像为准。</p>
+        <div class="mbti-scale">${hintRows}</div>
+      </details>` : ''}
+      <div class="quote">性格特质没有优劣之分。它帮助你理解自己“在什么环境下最能发挥”，而不是给自己设限。</div>
     </section>`;
   }
 
@@ -351,7 +356,7 @@
       <p class="disclaimer">
         本报告由「BIC 学业规划系统」根据测试作答自动生成，用于帮助学生认识自身优势与方向，不构成升学决策的唯一依据。
         院校记录逐条区分具体课程与招生政策，并标注公布的入学年份、申请周期、核验日期和官网来源；未指定入学年的政策不等于某个入学年的完整课程要求。标注「历史参考 · 待复核」的内容不作为当前录取要求。请以目标课程官网为准。
-        MBTI 为简版人格测评，仅供性格参考，非专业心理诊断。
+        性格特质测评基于自陈情境题，结果受作答当下状态影响，仅供自我认知参考，非专业心理诊断；MBTI 倾向仅作对照展示。
         建议结合学校升学指导老师的意见，共同制定最终规划。
       </p>
       <p class="disclaimer" style="margin-top:10px">报告编号 ${esc(r.meta.batchId)} · 生成于 ${esc(r.meta.date)} · ${esc(r.meta.refYear)}</p>

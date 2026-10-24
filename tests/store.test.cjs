@@ -116,12 +116,12 @@ test('archive validates actual answer domains and retains zero and free subject 
   const value = f.current();
   const numeric = f.w.QUESTION_BANK.find(q => q.type === 'numeric');
   value.academic.answers[numeric.id] = '0';
-  value.plan.answers.schoolSubjects = ['数学', '设计技术'];
-  value.mbti.answers[0] = 0;
+  value.plan.answers.weakSubjects = ['数学', '设计技术'];
+  value.mbti.answers[0] = { value: 0, ms: 800 };
   const record = f.store.save(value).record;
   assert.equal(record.state.academic.answers[numeric.id], '0');
-  assert.deepEqual(plain(record.state.plan.answers.schoolSubjects), ['数学', '设计技术']);
-  assert.equal(record.state.mbti.answers[0], 0);
+  assert.deepEqual(plain(record.state.plan.answers.weakSubjects), ['数学', '设计技术']);
+  assert.equal(record.state.mbti.answers[0].value, 0);
 });
 
 test('invalid current responses, missing names and malformed advisor data cannot be archived', () => {

@@ -1,6 +1,6 @@
 /* ============================================================
  * 报告生成引擎（规则驱动，无 AI 依赖）
- * 输入：state.academic / state.plan / state.mbti
+ * 输入：state.academic / state.plan / state.personality
  * 输出：结构化对象，由 report-view 渲染
  * ============================================================ */
 (function () {
@@ -49,13 +49,70 @@
     return window.ALEVEL_BANDS.find(b => pct >= b.min) || window.ALEVEL_BANDS[window.ALEVEL_BANDS.length - 1];
   }
 
+  /* ---------- 性格特质 → 专业匹配 ---------- */
+  // 每个专业最受益的性格特质；特质 pct 高于 50 时提供正向加分。
+  const MAJOR_TRAITS = {
+    cs: ['analyze', 'execute', 'curiosity'], math: ['analyze', 'numbers', 'rules'],
+    phys: ['curiosity', 'analyze', 'resilience'], eng: ['execute', 'analyze', 'create'],
+    chem: ['curiosity', 'rules', 'execute'], med: ['empathy', 'resilience', 'rules'],
+    bio: ['curiosity', 'analyze', 'execute'], econ: ['numbers', 'analyze', 'persuade'],
+    biz: ['organize', 'persuade', 'numbers'], law: ['persuade', 'analyze', 'rules'],
+    psych: ['empathy', 'curiosity', 'analyze'], design: ['create', 'empathy', 'execute'],
+    media: ['create', 'persuade', 'curiosity'], intl: ['persuade', 'curiosity', 'empathy']
+  };
+  // 只在相关特质都测过（每项至少 3 题）时求均值：零散回答不足以推断优势，
+  // 避免“只答了一道分析题就认定分析型”的以偏概全。
+  function traitScoreFor(majorId, personality) {
+    const ids = MAJOR_TRAITS[majorId] || [];
+    const traits = ids.map(id => personality.byId?.[id]);
+    if (!traits.length || !traits.every(t => t && t.answered >= 3 && t.pct != null)) return null;
+    const values = traits;
+    return values.reduce((sum, t) => sum + t.pct, 0) / values.length;
+  }
+
+  // 小游戏结果合并进规划答案：分格卡片写入 schoolSubjects / weakSubjects / preferredMajor。
+  // 同时兼容旧版仅有的 schoolSubjects / weakSubjects / preferredMajor 存档。
+  function mergeBoards(plan) {
+    const answers = { ...plan };
+    // 旧版存档直接把专业 id（cs）写进 preferredMajor，新版这里是兴趣选项 id（tech）
+    if (Array.isArray(answers.preferredMajor)) {
+      const opts = window.INTEREST_OPTIONS;
+      answers.preferredMajor = [...new Set(answers.preferredMajor.flatMap(id => {
+        const opt = opts.find(o => o.id === id);
+        const asOpt = opt || opts.find(o => o.major === id);
+        if (!asOpt) return [];
+        if (asOpt.major) return [asOpt.id];
+        return opts.filter(o => o.major).map(o => o.id); // 「还没想好」不限制专业意向
+      }))];
+    }
+    if (answers.career !== undefined && !Array.isArray(answers.career) && window.CAREER_PATHS.some(o => o.majorIds.includes(answers.career))) {
+      answers.career = [answers.career]; // 旧版单选的职业方向
+    }
+    const board = answers.subjectBoard;
+    if (window.isBoardAnswer && window.isBoardAnswer(board)) {
+      const likes = [...(board.like || []), ...(board.try || [])];
+      const avoid = board.avoid || [];
+      answers.schoolSubjects = likes.length ? [...new Set(likes)] : (answers.schoolSubjects || []);
+      answers.weakSubjects = [...new Set([...(answers.weakSubjects || []), ...avoid])];
+    }
+    const major = answers.majorBoard;
+    if (window.isBoardAnswer && window.isBoardAnswer(major)) {
+      // 星球排序里「心动 + 观望」的专业直接进入专业意向列表
+      const ids = [...(major.heart || []), ...(major.watch || [])].filter(id => window.MAJORS.some(m => m.id === id));
+      if (ids.length) answers.preferredMajor = [...new Set([...ids, ...(answers.preferredMajor || [])])];
+    }
+    return answers;
+  }
+
   /* ---------- 专业匹配 ---------- */
-  function scoreMajors(plan, academic, mbti) {
+  function scoreMajors(plan, academic, personality) {
     const interests = window.INTEREST_POOL.filter(o => (plan.interests || []).includes(o.id));
     const clubs = plan.clubs || [];
     const free = window.PLAN_CONFIG.freeTime.filter(o => (plan.freeTime || []).includes(o.id));
     const self = plan.selfImage || [];
-    const prefMajor = (plan.preferredMajor || []).map(id => window.INTEREST_OPTIONS.find(o => o.id === id)?.major).filter(Boolean);
+    // 专业意向同时接受兴趣选项 id（tech）和专业 id（cs）
+    const prefMajor = [...new Set((plan.preferredMajor || []).map(id =>
+      window.INTEREST_OPTIONS.find(o => o.id === id)?.major || (window.MAJORS.some(m => m.id === id) ? id : null)).filter(Boolean))];
     const careers = window.CAREER_PATHS.filter(o => (plan.career || []).includes(o.id));
     const school = plan.schoolSubjects || [];
     const weak = plan.weakSubjects || [];
@@ -116,14 +173,20 @@
       // 学业能力适配（占比较大）
       const subjScore = subjectScores[m.id] ?? 50;
       score += (subjScore - 50) * 0.35;
-      // MBTI 倾向（轻量）
-      const tVal = mbti.TF.complete ? mbti.TF.pctA : 50;
-      const nVal = mbti.SN.complete ? mbti.SN.pctB : 50;
-      if (['cs', 'math', 'phys', 'eng', 'econ', 'intl', 'psych'].includes(m.id)) score += (tVal - 50) * 0.06;
-      if (['chem', 'bio', 'med', 'law', 'media', 'design', 'intl'].includes(m.id)) score += (nVal - 50) * 0.04;
+      // 性格特质与专业收益的匹配（轻量加权，避免盖过兴趣与能力）
+      const traitScore = traitScoreFor(m.id, personality);
+      if (traitScore != null) {
+        // 特质加分随「这组特质有多契合」缩放：分析/数字强 → 计算机加分，共情/rules 强时不加分甚至略扣
+        const ids = MAJOR_TRAITS[m.id] || [];
+        const fitOf = id => Math.max(0, ((personality.byId?.[id]?.pct ?? 50) - 50) / 50);
+        const fit = ids.reduce((sum, id) => sum + fitOf(id), 0) / ids.length;
+        score += (traitScore - 50) * 0.2 * fit;
+        const hit = ids.filter(id => personality.byId?.[id]?.answered >= 3 && personality.byId[id].pct >= 65);
+        if (hit.length && fit >= 0.3) reasons.push(`你的性格特质（${hit.map(id => window.TRAITS.find(t => t.id === id)?.label).filter(Boolean).join('、')}）在这个方向能长期发挥优势`);
+      }
       // 不同专业自身的集群偏好权重
       score += m.clusterBonus || 0;
-      return { major: m, score, reasons, subjScore };
+      return { major: m, score, subjScore, reasons };
     }).sort((a, b) => b.score - a.score);
 
     return results;
@@ -194,7 +257,10 @@
     raw = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
     window.PLAN_QUESTIONS.forEach(q => {
       const value = raw[q.key];
-      if (q.type === 'single') {
+      if (q.type === 'game') {
+        const normalized = normalizeGame(q, value);
+        if (normalized != null) plan[q.key] = normalized;
+      } else if (q.type === 'single') {
         if (q.options().some(option => option.id === value)) plan[q.key] = value;
       } else if (Array.isArray(value)) {
         const options = q.source().map(option => option.id);
@@ -203,30 +269,117 @@
           .slice(0, q.max || Infinity);
       }
     });
+    // 旧版存档 / 显式意向：preferredMajor 不是 PLAN_QUESTIONS 的字段，但报告仍会使用
+    if (Array.isArray(raw.preferredMajor)) {
+      plan.preferredMajor = [...new Set(raw.preferredMajor.filter(id => typeof id === 'string'
+        && (window.INTEREST_OPTIONS.some(o => o.id === id) || window.MAJORS.some(m => m.id === id))))];
+    }
     const grade = String(info.grade || '');
     if (window.PLAN_CONFIG.grade.some(option => option.id === grade)) plan.grade = grade;
     return plan;
   }
 
+  // 校验并保留小游戏答案：分格卡片 / 职业靶环 / 团队竞速
+  function normalizeGame(q, value) {
+    if (q.game === 'campus' || q.game === 'planet') {
+      if (!window.isBoardAnswer || !window.isBoardAnswer(value)) return null;
+      const cfg = window.GAME_CONFIG[q.game];
+      const allowed = new Set((q.game === 'campus' ? cfg.items : cfg.majors).map(x => x.id || x));
+      const board = {};
+      cfg.lanes.forEach(lane => {
+        board[lane.id] = (value[lane.id] || []).filter(id => allowed.has(id)).slice(0, cfg.capacity);
+      });
+      return board;
+    }
+    if (q.game === 'dart') {
+      const allowed = window.GAME_CONFIG.dart.rings.map(r => r.id);
+      if (!Array.isArray(value)) return null;
+      return [...new Set(value.filter(id => allowed.includes(id)))].slice(0, window.GAME_CONFIG.dart.max);
+    }
+    if (q.game === 'race') {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      const cfg = window.GAME_CONFIG.race;
+      const out = {};
+      if (cfg.pace.some(p => p.id === value.pace)) out.pace = value.pace;
+      if (cfg.partners.some(p => p.id === value.partner)) out.partner = value.partner;
+      return Object.keys(out).length === 2 ? out : null;
+    }
+    return null;
+  }
+
+  function isPlanAnswered(q, value) {
+    if (typeof q.isAnswered === 'function') return q.isAnswered(value);
+    return Array.isArray(value) ? value.length > 0 : value != null && value !== '';
+  }
+
+  // 选填题不计入完成度；answered 与 total 都只统计必答题目
   function planCoverage(plan) {
-    const answered = window.PLAN_QUESTIONS.filter(q => {
-      const value = plan[q.key];
-      return Array.isArray(value) ? value.length > 0 || q.optional : value != null && value !== '';
-    }).length;
-    const complete = window.PLAN_QUESTIONS.every(q => {
-      const value = plan[q.key];
-      return q.optional || (Array.isArray(value) ? value.length > 0 : value != null && value !== '');
-    });
-    return { answered, total: window.PLAN_QUESTIONS.length, complete };
+    const required = window.PLAN_QUESTIONS.filter(q => !q.optional);
+    const answered = required.filter(q => isPlanAnswered(q, plan[q.key])).length;
+    const complete = answered === required.length;
+    return { answered, total: required.length, complete };
+  }
+
+  // 小游戏 → 性格特质信号（飞镖、竞速）与专业方向信号（星球）
+  function gameSignals(rawPlan) {
+    const dart = window.GAME_CONFIG.dart.rings.find(r => r.id === (rawPlan.career || [])[0]);
+    const race = rawPlan.team || {};
+    const traits = new Set();
+    (rawPlan.career || []).forEach(id => (window.GAME_CONFIG.dart.rings.find(r => r.id === id)?.traits || []).forEach(t => traits.add(t)));
+    const pace = window.GAME_CONFIG.race.pace.find(p => p.id === race.pace);
+    const partner = window.GAME_CONFIG.race.partners.find(p => p.id === race.partner);
+    (pace?.traits || []).forEach(t => traits.add(t));
+    (partner?.traits || []).forEach(t => traits.add(t));
+    const majorBoard = window.isBoardAnswer && window.isBoardAnswer(rawPlan.majorBoard) ? rawPlan.majorBoard : null;
+    const heart = majorBoard ? [...(majorBoard.heart || []), ...(majorBoard.watch || [])] : [];
+    return {
+      careerDart: { traits: [...new Set((rawPlan.career || []).flatMap(id => window.GAME_CONFIG.dart.rings.find(r => r.id === id)?.traits || []))], label: dart?.label || '' },
+      teamRace: { traits: [...traits], pace: pace?.label || '', partner: partner?.label || '' },
+      campusMatch: { answers: heart },
+      traits: [...traits]
+    };
+  }
+
+  // 报告里的性格对象：保留旧版 mbti 字段（answered/total/complete/code/type），额外附带特质画像
+  function personalityForReport(personality) {
+    const top = personality.top[0];
+    const hint = personality.hint;
+    const mbtiHint = hint.code ? { code: hint.code } : null;
+    const type = top && top.level !== 'low' ? personalityTypeOf(personality) : null;
+    return {
+      ...personality,
+      code: mbtiHint ? mbtiHint.code : null,
+      type,
+      top: personality.top,
+      growth: personality.growth
+    };
+  }
+  // 用特质组合生成一句职业取向画像（不套用十六型人格标签）
+  function personalityTypeOf(personality) {
+    const top = personality.top[0];
+    if (!top) return null;
+    const second = personality.top[1];
+    const watch = [...(top.watch || []), ...(second?.watch || [])].slice(0, 2);
+    return {
+      title: `${top.label}型`,
+      tag: top.careers.slice(0, 3).join(' · '),
+      desc: `${top.desc}${second ? `同时你的${second.label}也很突出，` : ''}这类特质在学习和工作中最直接的作用是：${top.strengths}。`,
+      strengths: [top.strengths],
+      watch,
+      study: `选课时优先考虑能让「${top.label}」发挥作用的科目与项目；遇到需要你${watch[0] ? watch[0].replace(/^注意|^留意/, '') : '换方式思考'}的任务时，提前预留更多时间。`
+    };
   }
 
   /* ---------- 主入口 ---------- */
   function generateReport(state = {}) {
     const info = state.info || {};
     const academic = gradeAcademic(state.academic);
-    const mbti = window.computeMBTI(state.mbti && state.mbti.answers);
-    const plan = normalizePlan(state.plan && state.plan.answers, info);
+    const rawPlan = state.plan && state.plan.answers;
+    const games = gameSignals(rawPlan && typeof rawPlan === 'object' ? rawPlan : {});
+    const mbti = personalityForReport(window.computePersonality(state.mbti && state.mbti.answers, games));
+    const plan = mergeBoards(normalizePlan(rawPlan, info));
     const planning = planCoverage(plan);
+    plan.preferredMajor = (plan.preferredMajor || []).slice(0, 6);
     const coverage = {
       academic: { answered: academic.answered, total: academic.total },
       plan: { answered: planning.answered, total: planning.total },
@@ -286,6 +439,7 @@
       academic: { subjects: subjectList, sci, strengths, weakTopics, review, answered: academic.answered, total: academic.total },
       plan: { top, second, majors: majors.slice(0, 4), recSubjects, countries, unis, fit, fit2, subjects: plan, prefer: plan.preferredMajor },
       mbti,
+      games,
       next
     };
   }
