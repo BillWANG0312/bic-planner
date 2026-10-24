@@ -1,10 +1,11 @@
 {
   "name": "bic-academic-planner",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "BIC static academic assessment and local advisor reports",
   "scripts": {
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "test:cloud": "node --test tests/integration/cloud.test.cjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"

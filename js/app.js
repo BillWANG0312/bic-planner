@@ -20,6 +20,7 @@
   });
   let S = blank();
   let reportLibrary = null;
+  let cloudReports = null;
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const TEST_MODES = ['academic', 'plan', 'mbti'];
 
@@ -34,7 +35,7 @@
       ['name', 'grade', 'year'].forEach(key => { if (typeof restored.info[key] !== 'string') restored.info[key] = ''; });
       restored.info.name = restored.info.name.slice(0, 24);
       restored.ui = Object.assign(blank().ui, isObject(saved.ui) ? saved.ui : {});
-      if (!['home', 'info', 'test', 'generating', 'report', 'library', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
+      if (!['home', 'info', 'test', 'generating', 'report', 'library', 'cloud', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
       if (!TEST_MODES.includes(restored.ui.resumeScreen)) restored.ui.resumeScreen = TEST_MODES.includes(restored.ui.screen) ? restored.ui.screen : 'academic';
       restored.ui.idx = Number.isInteger(restored.ui.idx) && restored.ui.idx >= 0 ? restored.ui.idx : 0;
       restored.academic = blank().academic;
@@ -113,6 +114,7 @@
   const STEP_ORDER = ['info', 'academic', 'plan', 'mbti', 'report'];
   function setScreen(name, resume) {
     cancelAutoAdvance();
+    if (S.ui.screen === 'cloud' && name !== 'cloud') cloudReports?.onScreenLeft();
     if (name !== 'generating' && generationTimer !== null) { clearInterval(generationTimer); generationTimer = null; }
     S.ui.screen = name;
     // 临时查看基本信息或首页时，保留原测试模块及题号。
@@ -500,11 +502,11 @@
     }, 420);
   }
 
-  function renderReport(refresh = true) {
+  function refreshCurrentReport() {
     const previous = S.report;
     if (!previous) return;
     let r = previous;
-    if (refresh) {
+    {
       // 基本资料/作答可能已在其他页面更新；展示与归档必须使用同一份最新结果。
       r = window.generateReport(S);
       const material = report => JSON.stringify({ name: report.meta.name, grade: report.meta.gradeId, year: report.meta.year,
@@ -519,11 +521,18 @@
       }
       S.report = r;
     }
+    return r;
+  }
+
+  function renderReport(refresh = true) {
+    const r = refresh ? refreshCurrentReport() : S.report;
+    if (!r) return;
     $('#reportRoot').innerHTML = window.renderReport(r);
     $('#reportId').textContent = r.meta.batchId;
     setScreen('report');
     window.animateReport($('#reportRoot'));
     reportLibrary?.onReportRendered(r);
+    cloudReports?.onReportRendered(r);
     window.reportEditing?.mount(r, () => { const persisted = flush(); renderReport(false); return persisted; });
   }
 
@@ -574,6 +583,7 @@
     else if (s === 'test' || TEST_MODES.includes(s)) startTest(s === 'test' ? S.ui.resumeScreen : s);
     else if (s === 'generating') generate();
     else if (s === 'library') setScreen('library');
+    else if (s === 'cloud') setScreen('cloud');
   }
   boot();
 
@@ -591,20 +601,54 @@
       else if (libraryReturnScreen === 'info') { setScreen('info'); renderInfo(); }
       else setScreen('home');
     },
-    openState(next) {
-      const previous = S;
-      // 成功写入后才切换界面；配额/权限异常时保留当前学生的内存和磁盘进度。
-      S = next;
-      if (!flush()) {
-        S = previous;
-        throw new Error('无法保存打开的报告，当前作答未替换。请先导出备份并释放本地空间。');
-      }
-      renderInfo();
-      renderReport(false);
-      return true;
-    }
+    openState: openReportState
   });
   if (S.ui.screen === 'library') reportLibrary?.render();
+
+  function openReportState(next) {
+    const previous = S;
+    // 写入失败时保留当前学生的内存和磁盘进度；云端读取也复用此边界。
+    S = next;
+    if (!flush()) {
+      S = previous;
+      throw new Error('无法保存打开的报告，当前作答未替换。请先导出备份并释放本地空间。');
+    }
+    if (previous.ui.screen === 'cloud') cloudReports?.onScreenLeft();
+    renderInfo();
+    renderReport(false);
+    return true;
+  }
+
+  /* ---------------- 可选服务端报告 ---------------- */
+  let cloudReturnScreen = 'home';
+  if (window.CloudReports && window.CloudReportUI) {
+    const client = window.CloudReports.create({ config: window.BIC_CLOUD_CONFIG,
+      location: window.location, fetch: window.fetch.bind(window) });
+    cloudReports = window.CloudReportUI.init({
+      client,
+      getState: () => S,
+      getCurrentRecord() {
+        if (!S.report) throw new Error('请先生成当前学生的报告，或选择一份本机归档。');
+        refreshCurrentReport();
+        let raw = null;
+        const memory = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
+        return memory.save(S).record;
+      },
+      hasProgress,
+      openState: openReportState,
+      isActive: () => S.ui.screen === 'cloud',
+      showCloud() {
+        if (S.ui.screen !== 'cloud') cloudReturnScreen = S.ui.screen;
+        setScreen('cloud');
+      },
+      closeCloud() {
+        if (cloudReturnScreen === 'report' && S.report) renderReport();
+        else if (cloudReturnScreen === 'info') { setScreen('info'); renderInfo(); }
+        else if (cloudReturnScreen === 'library') { setScreen('library'); reportLibrary?.render(); }
+        else setScreen('home');
+      }
+    });
+  }
 
   // 暴露给调试
   window.__pathwise = { get state() { return S; }, generate, startTest, reset() { S = blank(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true; } };

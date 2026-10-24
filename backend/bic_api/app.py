@@ -93,7 +93,9 @@ class ApiBoundary:
         async def replay():
             nonlocal delivered
             if delivered:
-                return {'type': 'http.disconnect'}
+                # File responses listen for a real client disconnect while streaming.
+                # Fabricating one here would cancel the response before its body is sent.
+                return await receive()
             delivered = True
             return {'type': 'http.request', 'body': buffered, 'more_body': False}
 
@@ -101,7 +103,7 @@ class ApiBoundary:
 
 
 def create_app(settings: Settings, *, clock=time.time):
-    app = FastAPI(title='BIC private report API', version='1.0.0', docs_url=None,
+    app = FastAPI(title='BIC private report API', version='2.0.0', docs_url=None,
                   redoc_url=None, openapi_url='/api/openapi.json' if settings.development else None)
     db = Database(settings.database_path, clock=clock)
     auth = AuthService(db, session_ttl=settings.session_ttl, clock=clock)
@@ -128,7 +130,13 @@ def create_app(settings: Settings, *, clock=time.time):
         return JSONResponse({'detail': 'Storage is temporarily unavailable.'}, status_code=503)
 
     def current_session(request: Request):
-        return auth.session(request.cookies.get('bic_session'))
+        session = auth.session(request.cookies.get('bic_session'))
+        # A different tab can replace this browser's shared Cookie. Bound reads
+        # must not return that new account's data under a stale page identity.
+        supplied = request.headers.get('X-CSRF-Token')
+        if supplied is not None and not auth.verify_csrf(session, supplied):
+            raise HTTPException(403, 'The page session changed; reconnect before continuing.')
+        return session
 
     def writable_session(request: Request, session=Depends(current_session)):
         if not auth.verify_csrf(session, request.headers.get('X-CSRF-Token')):
@@ -140,7 +148,7 @@ def create_app(settings: Settings, *, clock=time.time):
 
     @app.get('/api/health')
     def health():
-        return {'status': 'ok', 'api_version': '1'}
+        return {'status': 'ok', 'api_version': '2'}
 
     @app.post('/api/auth/login')
     def login(body: LoginBody, request: Request, response: Response):

@@ -1,0 +1,283 @@
+/* Actual browser -> same-origin development server -> SQLite; no external service. */
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const net = require('node:net');
+const { spawn, spawnSync } = require('node:child_process');
+const { launchBrowser } = require('../helpers/browser.cjs');
+const { loadReportScripts, state } = require('../helpers/report.cjs');
+
+const root = path.resolve(__dirname, '../..');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || 'D:/Codex/work/bic-cloud-browser-tests');
+const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+const password = 'cloud-browser-test-only-password';
+let directory, processHandle, browser, origin;
+let logs = '';
+
+async function stop() {
+  if (browser) { await browser.close(); browser = null; }
+  if (processHandle && processHandle.exitCode === null) {
+    const exited = new Promise(resolve => processHandle.once('exit', resolve));
+    processHandle.kill();
+    await exited;
+  }
+  if (directory) {
+    // Never recursively remove an unchecked computed path on Windows.
+    assert.equal(path.dirname(path.resolve(directory)), temporaryRoot);
+    await fs.rm(directory, { recursive: true, force: true });
+    directory = null;
+  }
+}
+
+before(async () => {
+  await fs.mkdir(temporaryRoot, { recursive: true });
+  directory = await fs.mkdtemp(path.join(temporaryRoot, 'run-'));
+  const reservation = net.createServer();
+  await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
+  const port = reservation.address().port;
+  await new Promise(resolve => reservation.close(resolve));
+  origin = `http://127.0.0.1:${port}`;
+  const env = { ...process.env, BIC_DEV: '1', BIC_PORT: String(port),
+    BIC_PUBLIC_ORIGIN: origin, BIC_DATABASE_PATH: path.join(directory, 'private.sqlite3'),
+    TEMP: directory, TMP: directory, TMPDIR: directory };
+  const bootstrap = `from pathlib import Path; import os; from backend.bic_api.db import Database; from backend.bic_api.security import AuthService; auth=AuthService(Database(Path(os.environ['BIC_DATABASE_PATH']))); [auth.create_user('browser.'+str(i),'${password}') for i in range(10)]`;
+  const seeded = spawnSync(python, ['-c', bootstrap], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(seeded.status, 0, 'Install backend/requirements-dev.txt and set BIC_TEST_PYTHON: ' + (seeded.stderr || seeded.error || ''));
+  processHandle = spawn(python, ['-m', 'backend.bic_api.dev'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  processHandle.stdout.on('data', value => { logs += value; });
+  processHandle.stderr.on('data', value => { logs += value; });
+  let ready = false;
+  for (let i = 0; i < 100; i++) {
+    if (processHandle.exitCode !== null) break;
+    try { const response = await fetch(origin + '/api/health'); if (response.ok) { ready = true; break; } } catch (_) { /* startup */ }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.ok(ready, 'Local development server must start: ' + logs);
+  browser = await launchBrowser();
+});
+after(stop);
+
+async function pageFor(index) {
+  const w = loadReportScripts();
+  const initial = state(w);
+  initial.info.name = '连接测试同学' + index;
+  initial.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
+  initial.report = w.generateReport(initial);
+  initial.report.meta.batchId = 'AP-CLOUD-' + index;
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(6000);
+  await page.addInitScript(initial => {
+    if (!localStorage.getItem('pathwise.state.v1')) localStorage.setItem('pathwise.state.v1', JSON.stringify(initial));
+  }, initial);
+  await page.goto(origin);
+  return { context, page };
+}
+
+async function signIn(page, index) {
+  if (!(await page.locator('#screen-cloud.active').count())) await page.locator('#openCloudBtn').click();
+  await page.locator('#cloudConnectBtn').click();
+  await page.locator('#cloudLoginForm').waitFor({ state: 'visible' });
+  await page.locator('#cloudUsername').fill('browser.' + index);
+  await page.locator('#cloudPassword').fill(password);
+  await page.locator('#cloudLoginForm button[type=submit]').click();
+  await page.locator('#cloudWorkspace').waitFor({ state: 'visible' });
+  await page.locator('#cloudRefreshBtn:enabled').waitFor();
+}
+
+async function upload(page) {
+  await page.locator('#cloudUploadSource').selectOption('current');
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#cloudUploadBtn').click();
+  await page.locator('[data-cloud-read]').first().waitFor();
+  await page.locator('#cloudRefreshBtn:enabled').waitFor();
+}
+
+async function csrf(context) {
+  const result = await context.request.get(origin + '/api/auth/session');
+  return { Origin: origin, 'X-CSRF-Token': (await result.json()).csrf_token };
+}
+
+test('explicit connection/upload uses the latest student, never auto-uploads, and stores no credentials', async () => {
+  const { context, page } = await pageFor(0);
+  try {
+    const requests = [];
+    page.on('request', request => { if (request.url().startsWith(origin + '/api/')) requests.push(request); });
+    await page.locator('.step[data-step=info]').click();
+    await page.locator('#inName').fill('资料已更新的同学');
+    await page.locator('[data-goto=home]').first().click();
+    await page.locator('#cloudBtn').click();
+    assert.equal(requests.length, 0, 'Opening the panel alone must not contact an account service');
+    await signIn(page, 0);
+    assert.equal((await (await context.request.get(origin + '/api/reports')).json()).total, 0);
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.locator('#cloudUploadBtn').click();
+    assert.equal((await (await context.request.get(origin + '/api/reports')).json()).total, 0);
+    await upload(page);
+    const list = await (await context.request.get(origin + '/api/reports')).json();
+    assert.equal(list.total, 1);
+    assert.equal(list.items[0].name, '资料已更新的同学');
+    assert.equal(requests.filter(r => r.method() === 'POST' && /\/reports$/.test(r.url())).length, 1);
+    assert.equal(await page.evaluate(() => window.ReportStore.create(localStorage).list().length), 0);
+    const session = await (await context.request.get(origin + '/api/auth/session')).json();
+    const storage = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
+    assert.ok(!storage.includes(password) && !storage.includes(session.csrf_token) && !storage.includes('bic_session'));
+    assert.equal(await page.locator('#cloudPassword').inputValue(), '');
+    if (process.env.BIC_CAPTURE === '1') {
+      await fs.mkdir(path.join(root, 'test-results'), { recursive: true });
+      await page.screenshot({ path: path.join(root, 'test-results/cloud-desktop.png'), fullPage: true });
+    }
+    await page.setViewportSize({ width: 375, height: 812 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Account reports fit a 375px screen');
+    if (process.env.BIC_CAPTURE === '1') await page.screenshot({ path: path.join(root, 'test-results/cloud-mobile.png'), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    requests.length = 0;
+    await page.reload();
+    await page.locator('#screen-cloud.active').waitFor();
+    assert.equal(requests.length, 0, 'Reload does not reconnect automatically');
+    assert.equal(await page.locator('[data-cloud-read]').count(), 0);
+    await page.locator('#cloudConnectBtn').click();
+    await page.locator('[data-cloud-read]').waitFor();
+  } finally { await context.close(); }
+});
+
+test('a stale cloud update preserves a change from another device without retrying', async () => {
+  const { context, page } = await pageFor(1);
+  try {
+    await signIn(page, 1);
+    await upload(page);
+    const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    await page.locator('[data-cloud-read]').click();
+    await page.locator('#cloudDetail').waitFor({ state: 'visible' });
+    const saved = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    saved.record.state.info.name = '另一设备保留的修改';
+    assert.equal((await context.request.put(origin + '/api/reports/' + id, { headers: await csrf(context), data: { record: saved.record, revision: 1 } })).status(), 200);
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#cloudUpdateBtn').click();
+    await page.waitForFunction(() => /变化|冲突|重新读取|刷新/.test(document.querySelector('#cloudStatus').textContent));
+    const after = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    assert.equal(after.revision, 2);
+    assert.equal(after.record.state.info.name, '另一设备保留的修改');
+  } finally { await context.close(); }
+});
+
+test('cancel and local quota errors while opening a server report preserve the active student', async () => {
+  const { context, page } = await pageFor(2);
+  try {
+    await signIn(page, 2);
+    const record = await page.evaluate(() => {
+      const value = JSON.parse(JSON.stringify(window.__pathwise.state));
+      value.info.name = '服务端另一个同学';
+      value.report = window.generateReport(value);
+      value.report.meta.batchId = 'AP-CLOUD-OTHER';
+      let raw = null;
+      return window.ReportStore.create({ getItem: () => raw, setItem: (_, data) => { raw = data; } }).save(value).record;
+    });
+    assert.equal((await context.request.post(origin + '/api/reports', { headers: await csrf(context), data: { record } })).status(), 201);
+    await page.locator('#cloudRefreshBtn').click();
+    await page.locator('[data-cloud-read]').click();
+    await page.locator('#cloudDetail').waitFor({ state: 'visible' });
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.locator('#cloudOpenBtn').click();
+    await page.locator('#cloudOpenBtn:enabled').waitFor();
+    assert.equal(await page.evaluate(() => window.__pathwise.state.info.name), '连接测试同学2');
+    const persisted = await page.evaluate(() => localStorage.getItem('pathwise.state.v1'));
+    await page.evaluate(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'pathwise.state.v1') throw new DOMException('full', 'QuotaExceededError');
+        return set.call(this, key, value);
+      };
+    });
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#cloudOpenBtn').click();
+    await page.waitForFunction(() => /未替换|无法保存/.test(document.querySelector('#cloudStatus').textContent));
+    assert.equal(await page.evaluate(() => window.__pathwise.state.info.name), '连接测试同学2');
+    assert.equal(await page.evaluate(() => localStorage.getItem('pathwise.state.v1')), persisted);
+    assert.match(await page.locator('#cloudStatus').textContent(), /未替换|无法保存/);
+  } finally { await context.close(); }
+});
+
+test('logout clears report names and switching accounts cannot read the previous account', async () => {
+  const { context, page } = await pageFor(3);
+  try {
+    await signIn(page, 3);
+    await upload(page);
+    const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    await page.locator('#cloudLogoutBtn').click();
+    await page.locator('#cloudConnectBtn').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('[data-cloud-read]').count(), 0);
+    assert.equal((await context.request.get(origin + '/api/auth/session')).status(), 401);
+    await signIn(page, 4);
+    assert.equal(await page.locator('[data-cloud-read]').count(), 0);
+    assert.equal((await context.request.get(origin + '/api/reports/' + id)).status(), 404);
+  } finally { await context.close(); }
+});
+
+test('an interrupted upload is not called successful or automatically retried', async () => {
+  const { context, page } = await pageFor(5);
+  try {
+    await signIn(page, 5);
+    let writes = 0;
+    await page.route('**/api/reports', route => {
+      if (route.request().method() === 'POST') { writes++; return route.abort('failed'); }
+      return route.continue();
+    });
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#cloudUploadBtn').click();
+    await page.waitForFunction(() => /连接|网络|未确认|失败/.test(document.querySelector('#cloudStatus').textContent));
+    assert.equal(writes, 1);
+    assert.equal((await (await context.request.get(origin + '/api/reports')).json()).total, 0);
+    assert.equal(await page.evaluate(() => window.__pathwise.state.info.name), '连接测试同学5');
+  } finally { await context.close(); }
+});
+
+async function changeAccountInAnotherTab(context, index) {
+  const second = await context.newPage();
+  second.setDefaultTimeout(6000);
+  await second.goto(origin);
+  await second.locator('#cloudConnectBtn').click();
+  await second.locator('#cloudLogoutBtn').waitFor({ state: 'visible' });
+  await second.locator('#cloudLogoutBtn:enabled').click();
+  await second.locator('#cloudConnectBtn').waitFor({ state: 'visible' });
+  await signIn(second, index);
+  return second;
+}
+
+test('a cached preview cannot replace local progress after another tab changes the account cookie', async () => {
+  const { context, page } = await pageFor(6);
+  try {
+    await signIn(page, 6);
+    await upload(page);
+    await page.locator('[data-cloud-read]').click();
+    await page.locator('#cloudDetail').waitFor({ state: 'visible' });
+    await changeAccountInAnotherTab(context, 7);
+    await page.locator('#cloudOpenBtn').click();
+    await page.locator('#cloudLoginForm').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('[data-cloud-read]').count(), 0);
+    assert.equal(await page.locator('#cloudDetail').isVisible(), false);
+    assert.equal(await page.evaluate(() => window.__pathwise.state.info.name), '连接测试同学6');
+    assert.equal(await page.locator('#screen-cloud.active').count(), 1);
+  } finally { await context.close(); }
+});
+
+test('refreshing an old tab never displays the new cookie account under its previous identity', async () => {
+  const { context, page } = await pageFor(8);
+  try {
+    await signIn(page, 8);
+    await upload(page);
+    const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    const saved = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    await changeAccountInAnotherTab(context, 9);
+    saved.record.id = 'local-private-b';
+    saved.record.reportMeta.batchId = 'AP-PRIVATE-B';
+    saved.record.state.info.name = '另一个账号的私有学生';
+    assert.equal((await context.request.post(origin + '/api/reports', { headers: await csrf(context), data: { record: saved.record } })).status(), 201);
+    await page.locator('#cloudRefreshBtn').click();
+    await page.locator('#cloudLoginForm').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('[data-cloud-read]').count(), 0);
+    assert.equal(await page.locator('#cloudAccount').textContent(), '');
+    assert.ok(!(await page.locator('#cloudList').textContent()).includes('另一个账号的私有学生'));
+  } finally { await context.close(); }
+});

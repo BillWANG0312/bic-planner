@@ -632,6 +632,50 @@ body.in-test .test-shell { margin: 16px auto 0; min-height: calc(100vh - 100px);
   .library-inline-status { margin: 12px; padding: 0; }
 }
 
+/* 账号报告服务：连接、资料选择与服务端详情分别呈现。 */
+.cloud-wrap { max-width: 1064px; padding-top: 36px; padding-bottom: 48px; }
+.cloud-heading, .cloud-account-row, .cloud-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.cloud-heading h2 { margin: 0; font-size: 30px; }
+.cloud-privacy { margin: 22px 0 16px; padding: 14px 18px; border-left: 3px solid var(--brand); background: rgba(59,130,246,.09); color: #c4d9f5; line-height: 1.8; font-size: 14px; }
+.cloud-status { min-height: 24px; color: #93c5fd; font-size: 14px; overflow-wrap: anywhere; }
+.cloud-status.is-error { color: #fecaca; }
+.cloud-connect, .cloud-login, .cloud-upload, .cloud-detail { padding: 22px 24px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); margin: 18px 0; }
+.cloud-connect p { margin: 0 0 18px; color: var(--text-2); font-size: 14px; }
+.cloud-login { max-width: 520px; }
+.cloud-login h3, .cloud-upload h3, .cloud-detail h3 { margin: 0 0 12px; font-size: 18px; }
+.cloud-login label, .cloud-upload label { display: block; font-size: 13px; color: var(--text-2); margin: 16px 0; }
+.cloud-login input, .cloud-upload select { display: block; margin-top: 8px; padding: 11px 13px; width: 100%; min-width: 0; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--bg-2); color: var(--text); font: inherit; }
+.cloud-login input:focus-visible, .cloud-upload select:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.cloud-help { color: var(--text-2); font-size: 12.5px; line-height: 1.8; overflow-wrap: anywhere; }
+.cloud-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.cloud-account-row { border-bottom: 1px solid var(--border); padding: 8px 0 18px; margin-bottom: 22px; flex-wrap: wrap; }
+#cloudAccount { margin: 0; font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+.cloud-upload { border-color: rgba(59,130,246,.4); }
+.cloud-upload label { max-width: 600px; }
+.cloud-list-heading { margin: 26px 0 14px; }
+.cloud-list-heading h3 { font-size: 20px; margin: 0; }
+#cloudCount { font-size: 13px; color: var(--text-2); margin: 0; }
+.cloud-list { display: grid; gap: 12px; }
+.cloud-record { padding: 20px 22px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); min-width: 0; overflow-wrap: anywhere; }
+.cloud-record h4 { margin: 0 0 5px; font-size: 18px; font-weight: 600; }
+.cloud-record p { font-size: 13px; color: var(--text-2); margin: 6px 0; }
+.cloud-record .cloud-actions { margin-top: 16px; }
+.cloud-detail { border-color: #416592; }
+#cloudDetailSummary { font-size: 14px; line-height: 1.9; overflow-wrap: anywhere; }
+#cloudDetailSummary p { margin: 6px 0; }
+.cloud-version { color: #fcd34d; font-size: 13px; overflow-wrap: anywhere; }
+.cloud-empty { padding: 24px; margin: 0; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); font-size: 14px; color: var(--text-2); }
+@media (max-width: 640px) {
+  .cloud-wrap { padding-top: 24px; }
+  .cloud-heading h2 { font-size: 25px; }
+  .cloud-privacy { padding: 12px 14px; font-size: 13px; }
+  .cloud-connect, .cloud-login, .cloud-upload, .cloud-detail { padding: 18px; }
+  .cloud-record { padding: 18px; }
+  .cloud-account-row { align-items: flex-start; }
+  .cloud-list-heading { align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+  .cloud-actions { gap: 8px; }
+}
+
 /* 打印 */
 .print-cover { display: none; }
 @media print {
