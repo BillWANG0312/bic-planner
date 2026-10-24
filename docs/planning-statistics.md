@@ -43,6 +43,6 @@ planning:
 
 每表都有`status/basis/selectionMode/denominator`，分母标识固定`included_reports`。只有`status: available`时才有`included/excluded/selectionCount/entries`，每条仅固定枚举`key/count/pctOfIncluded`。固定枚举标签取自本机配置，JSON不含姓名、学号、报告/归档编号、原始答案、自由学科文字、精确日期、顾问记录或人格画像。
 
-原`calibration.status: not_calibrated`、`followupOutcomes: false`、`thresholdsChanged: false`保持。没有真实后续成绩，不能把这些描述分布称为样本校准、招生预测或A/B完成率/分享率比较。真实后续结果的配对与验证工具是下一独立阶段，缺真实样本时只验证工具行为。
+原`calibration.status: not_calibrated`、`followupOutcomes: false`、`thresholdsChanged: false`保持。没有真实后续成绩，不能把这些描述分布称为样本校准、招生预测或A/B完成率/分享率比较。另有独立 [后续成绩人工配对工具](outcome-review.md)，只用虚构资料完成工具验证，不把后续文件自动混入本v1/v2汇总，也未完成真实样本校准。
 
 开发使用虚构资料，回归覆盖默认v1、显式v2、目录与完整度、缺答/unsure/多选分母、罕见计数及补集整表隐藏、模式切换和快照新鲜性、真实宿主导出与375px显示。最终验证结果与交付记录见 [持续台账](progress.md)。

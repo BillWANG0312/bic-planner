@@ -8,6 +8,7 @@
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/statistics.css" />
+  <link rel="stylesheet" href="css/outcomes.css" />
 </head>
 <body>
   <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -179,6 +180,7 @@
           <button class="btn ghost sm" id="libraryExportBtn">导出 JSON 备份</button>
           <button class="btn ghost sm" id="libraryCsvBtn">导出 CSV 汇总</button>
           <button class="btn ghost sm" id="libraryStatisticsBtn">学术汇总与校准准备</button>
+          <button class="btn ghost sm" id="libraryOutcomesBtn">后续成绩配对</button>
           <label class="btn ghost sm library-file-button" for="libraryImportFile">导入 JSON 备份
             <input id="libraryImportFile" type="file" accept=".json,application/json" />
           </label>
@@ -187,6 +189,7 @@
         <p class="library-help">JSON 只备份已归档报告的作答及顾问修改，请先归档当前报告；可在本系统导入恢复。CSV 仅供查看汇总。导入前会校验并预览，归档编号或报告编号重复时默认跳过。</p>
         <p id="libraryStatus" class="library-status" role="status" aria-live="polite"></p>
         <div id="libraryStatistics" hidden></div>
+        <div id="libraryOutcomes" hidden></div>
         <section id="libraryImportPreview" class="library-import" aria-labelledby="libraryImportHeading" hidden>
           <h3 id="libraryImportHeading" tabindex="-1">确认导入内容</h3>
           <p id="libraryImportSummary"></p>
@@ -336,6 +339,8 @@
   <script src="js/report-store.js"></script>
   <script src="js/report-statistics.js"></script>
   <script src="js/report-statistics-ui.js"></script>
+  <script src="js/outcome-review.js"></script>
+  <script src="js/outcome-review-ui.js"></script>
   <script src="js/report-library.js"></script>
   <script src="js/cloud-config.js"></script>
   <script src="js/cloud-client.js"></script>
