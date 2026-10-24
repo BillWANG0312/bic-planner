@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <title>家校批注 · BIC 学业规划系统</title>
+  <link rel="icon" href="img/favicon-128.png" type="image/png" />
+  <link rel="stylesheet" href="css/family.css" />
+</head>
+<body>
+  <header class="family-brand"><img src="img/bic-logo-blue.png" alt="BIC 湾区国际书院" /><span>BIC 学业规划系统</span><a href="index.html" id="familyBackBtn">返回测评</a></header>
+  <main class="family-wrap">
+    <h1>家校批注</h1>
+    <p class="family-intro">使用学校提供的账号，查看授予该账号的报告摘要并参与讨论。普通只读分享链接不能登录或写入批注；批注不会修改测评分数、报告建议或顾问修改审计。</p>
+    <section id="familyConnectPanel" class="family-connect">
+      <p>本页尚未连接账号服务，不会自动读取邀请或上传资料。</p>
+      <button type="button" id="familyConnectBtn">连接本校账号服务</button>
+    </section>
+    <button type="button" id="familyDisconnectBtn" class="secondary" hidden>断开本页连接</button>
+    <p id="familyStatus" role="status" aria-live="polite">尚未连接。</p>
+    <form id="familyLoginForm" class="family-login" hidden>
+      <h2>学校账号登录</h2>
+      <label for="familyUsername">账号<input id="familyUsername" autocomplete="username" minlength="3" maxlength="64" required /></label>
+      <label for="familyPassword">密码<input id="familyPassword" type="password" autocomplete="current-password" minlength="12" maxlength="128" required /></label>
+      <button type="submit">登录</button>
+    </form>
+    <section id="familyWorkspace" hidden>
+      <div class="family-account"><p id="familyAccount"></p><div class="family-actions"><button type="button" id="familyRefreshBtn" class="secondary">刷新邀请名单</button><button type="button" id="familyLogoutBtn" class="secondary">退出账号</button></div></div>
+      <section aria-labelledby="familyListHeading">
+        <h2 id="familyListHeading">可查看的邀请</h2>
+        <div id="familyList"></div>
+      </section>
+      <article id="familyThread" hidden aria-labelledby="familyThreadHeading">
+        <div class="family-thread-heading"><h2 id="familyThreadHeading" tabindex="-1"></h2><button type="button" id="familyThreadRefreshBtn" class="secondary">刷新当前讨论</button></div>
+        <p id="familyThreadNote"></p>
+        <section id="familySnapshot" aria-label="邀请中的固定报告摘要"></section>
+        <section aria-labelledby="familyCommentsHeading"><h3 id="familyCommentsHeading">讨论记录</h3><div id="familyComments" aria-live="polite"></div></section>
+        <form id="familyCommentForm">
+          <label for="familyBody">添加批注（最多 1000 字符）<textarea id="familyBody" maxlength="1000" rows="5" required></textarea></label>
+          <p class="family-help">批注提交后只追加保存，不能在此编辑或删除。网络结果未确认时，请先刷新讨论核对；本页不会自动重发或保存草稿到浏览器。</p>
+          <div class="family-actions"><button type="submit" id="familySubmitBtn" disabled>提交批注</button><button type="button" id="familyDiscardBtn" class="secondary" disabled>放弃本页未提交文字</button><span id="familyBodyCount">0 / 1000</span></div>
+        </form>
+      </article>
+    </section>
+    <p class="family-disclaimer">仅报告所有者和当前受邀账号可读取这段讨论。邀请到期、被撤销或账号停用后，受邀人不能继续读取或追加；所有者可查看已关闭的历史记录。报告摘要用于沟通，不是正式成绩认证或录取概率。</p>
+  </main>
+  <script src="js/cloud-config.js"></script>
+  <script src="js/cloud-client.js"></script>
+  <script src="js/share-summary.js"></script>
+  <script src="js/family.js"></script>
+</body>
+</html>

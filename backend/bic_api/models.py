@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictStr, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
 
 
 ASSESSMENT_SCHEMA = json.loads(
@@ -292,6 +292,35 @@ class AdvisorSections(StrictModel):
     personality: SectionText = None
 
 
+DraftKind = Literal["rule", "local_mock", "provider"]
+PositiveSafeInteger = Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+
+
+def canonical_draft_id(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", value):
+        raise ValueError("draft identifier must be a canonical UUID")
+    return value
+
+
+def safe_generator(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", value):
+        raise ValueError("generator must be a safe ASCII identifier")
+    return value
+
+
+DraftIdText = Annotated[StrictStr, AfterValidator(canonical_draft_id)]
+DraftGeneratorText = Annotated[StrictStr, AfterValidator(safe_generator)]
+
+
+class DraftOrigin(StrictModel):
+    """Source of one human-reviewed edit, separate from the human author's identity."""
+
+    kind: DraftKind
+    draft_id: DraftIdText
+    generator: DraftGeneratorText
+    source_revision: PositiveSafeInteger
+
+
 class AdvisorHistoryEntry(StrictModel):
     id: Required100
     at: TimestampText
@@ -301,6 +330,7 @@ class AdvisorHistoryEntry(StrictModel):
     after: SectionText
     action: Literal["edit", "reset", "restore"]
     reportId: Required100
+    origin: DraftOrigin = None
 
 
 class AdvisorEditing(StrictModel):

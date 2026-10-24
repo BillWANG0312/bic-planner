@@ -60,7 +60,7 @@ def test_public_health_leaks_no_paths_or_accounts(service):
     with TestClient(app, base_url=ORIGIN) as client:
         result = client.get('/api/health')
         assert result.status_code == 200
-        assert result.json() == {'status': 'ok', 'api_version': '1'}
+        assert result.json() == {'status': 'ok', 'api_version': '2'}
         assert result.headers['cache-control'] == 'no-store'
         assert 'alice' not in result.text and 'sqlite' not in result.text
         assert client.get('/api/reports').status_code == 401
@@ -133,6 +133,23 @@ def test_report_writes_require_csrf_and_no_cross_origin_read_grants(service):
         assert 'access-control-allow-origin' not in foreign.headers
         assert client.get('/api/reports').json()['total'] == 0
         assert client.post('/api/reports', json={'record': record()}, headers=headers(session)).status_code == 201
+
+
+def test_read_session_binding_rejects_cookie_identity_changes_from_another_tab(service):
+    app, _ = service
+    with TestClient(app, base_url=ORIGIN) as first_tab, TestClient(app, base_url=ORIGIN) as other_tab:
+        first = login(first_tab, 'alice')
+        second = login(other_tab, 'bob')
+        saved = other_tab.post('/api/reports', json={'record': record('bob')}, headers=headers(second))
+        assert saved.status_code == 201
+        first_tab.cookies.clear()
+        first_tab.cookies.update(other_tab.cookies)
+        bound = {'X-CSRF-Token': first['csrf_token']}
+        for endpoint in ['/api/reports', '/api/reports/' + saved.json()['id'], '/api/auth/session']:
+            rejected = first_tab.get(endpoint, headers=bound)
+            assert rejected.status_code == 403
+            assert '接口测试同学' not in rejected.text
+        assert first_tab.get('/api/reports', headers={'X-CSRF-Token': second['csrf_token']}).status_code == 200
 
 
 def test_report_crud_is_owner_scoped_and_revision_checked(service):

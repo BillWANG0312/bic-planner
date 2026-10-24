@@ -159,14 +159,24 @@
     if (value.history.length > LIMITS.MAX_HISTORY) fail(`顾问修改记录最多 ${LIMITS.MAX_HISTORY} 条，请先保留原始备份`, 'LIMIT');
     const ids = new Set();
     const history = value.history.map(entry => {
-      shape(entry, ['id', 'at', 'author', 'section', 'before', 'after', 'action', 'reportId'], '顾问修改记录');
+      shape(entry, ['id', 'at', 'author', 'section', 'before', 'after', 'action', 'reportId', 'origin'], '顾问修改记录');
       const id = text(entry.id, 100, '修改编号', true);
       if (ids.has(id)) fail('顾问修改编号重复');
       ids.add(id);
       if (!SECTIONS.includes(entry.section) || !['edit', 'reset', 'restore'].includes(entry.action)) fail('顾问修改部分或操作类型无效');
-      return { id, at: timestamp(entry.at, '修改时间'), author: text(entry.author, 40, '编辑者', true),
+      const result = { id, at: timestamp(entry.at, '修改时间'), author: text(entry.author, 40, '编辑者', true),
         section: entry.section, before: text(entry.before, 4000, '修改前文字'), after: text(entry.after, 4000, '修改后文字', true),
         action: entry.action, reportId: text(entry.reportId, 100, '原报告编号', true) };
+      if (Object.hasOwn(entry, 'origin')) {
+        const origin = entry.origin;
+        shape(origin, ['kind', 'draft_id', 'generator', 'source_revision'], '草稿来源');
+        if (!['rule', 'local_mock', 'provider'].includes(origin.kind)
+            || typeof origin.draft_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(origin.draft_id)
+            || typeof origin.generator !== 'string' || !/^[A-Za-z0-9._-]{1,80}$/.test(origin.generator)
+            || !Number.isSafeInteger(origin.source_revision) || origin.source_revision < 1) fail('草稿来源格式不正确');
+        result.origin = { kind: origin.kind, draft_id: origin.draft_id, generator: origin.generator, source_revision: origin.source_revision };
+      }
+      return result;
     });
     const advisor = { sections, history };
     if (value.lastAuthor !== undefined) advisor.lastAuthor = text(value.lastAuthor, 40, '最近编辑者');

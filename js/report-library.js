@@ -18,6 +18,7 @@
     let pendingImport = null;
     let selection = 0;
     let rawRecovery = null;
+    let statistics = null;
     try { store = window.ReportStore.create(window.localStorage); }
     catch (error) { storageError = error; }
 
@@ -58,6 +59,7 @@
     function setToolsAvailable(available, count = 0) {
       $('#libraryExportBtn').disabled = !available || !count;
       $('#libraryCsvBtn').disabled = !available || !count;
+      $('#libraryStatisticsBtn').disabled = !available;
       importFile.disabled = !available;
       importFile.parentElement.classList.toggle('is-disabled', !available);
       $('#librarySearch').disabled = !available;
@@ -126,6 +128,7 @@
     }
 
     function render(text) {
+      statistics?.clear();
       try {
         records = requireStore().list();
         setToolsAvailable(true, records.length);
@@ -261,7 +264,11 @@
       archiveStatus.textContent = '';
       archiveStatus.hidden = true;
     }
-    return { render, onReportRendered };
+    statistics = window.ReportStatisticsUI?.init({
+      getRecords: () => requireStore().list(),
+      download(text) { download(text, 'json', 'application/json;charset=utf-8', 'bic-academic-aggregate'); }
+    });
+    return { render, onReportRendered, onScreenLeft() { statistics?.clear(); } };
   }
 
   window.ReportLibrary = { init };
