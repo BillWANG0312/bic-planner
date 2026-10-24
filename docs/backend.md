@@ -1,6 +1,6 @@
 # 可选账号与报告 API（本地验证版）
 
-本目录提供独立 FastAPI 服务；静态测评仍能直接打开 index.html。可选登录和逐份上传默认关闭，不自动传送浏览器报告，详见 [连接指南](cloud-connection.md)。已有 [家长只读摘要](parent-sharing.md) 与 [受控批注及 v3 迁移](family-comments.md)，尚未部署公司生产；教师全校/跨用户管理权限未实现。
+本目录提供独立 FastAPI 服务；静态测评仍能直接打开 index.html。可选登录和逐份上传默认关闭，不自动传送浏览器报告，详见 [连接指南](cloud-connection.md)。已有 [家长只读摘要](parent-sharing.md)、[受控批注及 v3 迁移](family-comments.md) 与 [可选文案草稿](advice-drafts.md)，尚未部署公司生产；教师全校/跨用户管理权限未实现。草稿默认禁用，仅有本地模拟与供应商注入协议，没有真实模型适配器、密钥或外部请求。
 
 ## 安装与本地试运行
 

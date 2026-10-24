@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
@@ -18,6 +18,9 @@ from .share_models import ShareContent
 from .sharing import ShareService
 from .comment_models import CommentText, RequestId
 from .comments import CommentService
+from .draft_models import DraftContext, DraftSections
+from .drafts import AdviceDraftService
+from .share_models import plain_text
 
 
 class StrictBody(BaseModel):
@@ -50,6 +53,24 @@ class CreateParentAccessBody(CreateShareBody):
 class AddCommentBody(StrictBody):
     body: CommentText
     client_request_id: RequestId
+
+
+class CreateAdviceDraftBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1)]
+    context: DraftContext
+    fallback: DraftSections
+
+
+class ApplyAdviceDraftBody(StrictBody):
+    sections: Annotated[list[Literal['summary', 'academic', 'plan', 'personality']], Field(min_length=1, max_length=4)]
+    reviewer: plain_text(40, required=True)
+
+    @field_validator('sections')
+    @classmethod
+    def unique_sections(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError('Select each advice section at most once.')
+        return value
 
 
 class ApiBoundary:
@@ -123,7 +144,7 @@ class ApiBoundary:
         await self.app(scope, replay, secured_send)
 
 
-def create_app(settings: Settings, *, clock=time.time):
+def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     app = FastAPI(title='BIC private report API', version='2.0.0', docs_url=None,
                   redoc_url=None, openapi_url='/api/openapi.json' if settings.development else None)
     db = Database(settings.database_path, clock=clock)
@@ -133,6 +154,8 @@ def create_app(settings: Settings, *, clock=time.time):
     app.state.sharing = sharing
     comments = CommentService(db, clock=clock)
     app.state.comments = comments
+    advice_drafts = AdviceDraftService(db, mode=settings.draft_mode, provider=draft_provider, clock=clock)
+    app.state.advice_drafts = advice_drafts
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -264,6 +287,15 @@ def create_app(settings: Settings, *, clock=time.time):
     @app.post('/api/parent-access/{grant_id}/comments', status_code=201)
     def add_family_comment(grant_id: str, body: AddCommentBody, session=Depends(writable_session)):
         return comments.add_comment(session['user']['id'], grant_id, body.body, body.client_request_id)
+
+    @app.post('/api/reports/{report_id}/advice-drafts', status_code=201)
+    def create_advice_draft(report_id: str, body: CreateAdviceDraftBody, session=Depends(writable_session)):
+        return advice_drafts.create(session['user']['id'], report_id, body.revision,
+                                     body.context.model_dump(mode='json'), body.fallback.model_dump(mode='json'))
+
+    @app.post('/api/reports/{report_id}/advice-drafts/{draft_id}/apply')
+    def apply_advice_draft(report_id: str, draft_id: str, body: ApplyAdviceDraftBody, session=Depends(writable_session)):
+        return advice_drafts.apply(session['user']['id'], report_id, draft_id, body.sections, body.reviewer)
 
     return app
 

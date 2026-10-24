@@ -17,6 +17,26 @@
     if (!Object.hasOwn(sections, section)) throw new Error('未知的建议部分');
     return report.advisor?.sections?.[section] ?? defaults[section](report);
   }
+  function normalizeOrigin(value) {
+    const keys = ['kind', 'draft_id', 'generator', 'source_revision'];
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || Object.keys(value).length !== keys.length || Object.keys(value).some(key => !keys.includes(key))
+        || !['rule', 'local_mock', 'provider'].includes(value.kind)
+        || typeof value.draft_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value.draft_id)
+        || typeof value.generator !== 'string' || !/^[A-Za-z0-9._-]{1,80}$/.test(value.generator)
+        || !Number.isSafeInteger(value.source_revision) || value.source_revision < 1) throw new Error('草稿来源格式不正确');
+    return { kind: value.kind, draft_id: value.draft_id, generator: value.generator, source_revision: value.source_revision };
+  }
+  function originLabel(origin) {
+    try {
+      const value = normalizeOrigin(origin);
+      return { rule: '顾问核对·规则草稿', local_mock: '顾问核对·本地模拟草稿', provider: '顾问核对·模型草稿' }[value.kind];
+    } catch (_) { return ''; }
+  }
+  function originDetails(entry) {
+    const label = originLabel(entry.origin);
+    return label ? `<p>${esc(label)} · ${esc(entry.origin.generator)} · 源修订 ${esc(entry.origin.source_revision)}</p>` : '';
+  }
   let sequence = 0;
   function applyEdit(report, section, value, author, action = 'edit') {
     if (!Object.hasOwn(sections, section)) throw new Error('请选择可编辑的建议部分');
@@ -49,6 +69,7 @@
       && typeof entry.author === 'string' && entry.author.length <= 40
       && typeof entry.before === 'string' && entry.before.length <= 4000
       && typeof entry.after === 'string' && entry.after.length <= 4000
+      && (!Object.hasOwn(entry, 'origin') || !!originLabel(entry.origin))
       && Number.isFinite(Date.parse(entry.at))) : [];
     if (!Object.keys(texts).length && !history.length) return;
     next.advisor = { sections: texts, history: JSON.parse(JSON.stringify(history)),
@@ -70,7 +91,7 @@
       </div><label class="editor-text-label" for="advisorText">建议文字（最多 4000 字）</label><textarea id="advisorText" rows="7" maxlength="4000" required></textarea>
       <div class="editor-actions"><button type="button" class="btn ghost sm" id="defaultAdvice">恢复系统建议</button><button class="btn primary sm" type="submit">保存修改</button></div>
       <p id="advisorStatus" role="status" aria-live="polite"></p></form>
-      <details class="editor-history"><summary>修改记录（${history.length}）</summary>${history.length ? [...history].reverse().map(entry => `<article><div><b>${esc(sections[entry.section] || entry.section)}</b> · ${esc(entry.author)} · <time>${esc(new Date(entry.at).toLocaleString('zh-CN'))}</time></div><details><summary>查看修改前后内容</summary><p>修改前</p><pre>${esc(entry.before)}</pre><p>修改后</p><pre>${esc(entry.after)}</pre></details><button type="button" class="btn ghost sm" data-restore="${esc(entry.id)}">恢复此条修改前的内容</button></article>`).join('') : '<p>尚无修改记录。</p>'}</details>`;
+      <details class="editor-history"><summary>修改记录（${history.length}）</summary>${history.length ? [...history].reverse().map(entry => `<article><div><b>${esc(sections[entry.section] || entry.section)}</b> · ${esc(entry.author)} · <time>${esc(new Date(entry.at).toLocaleString('zh-CN'))}</time></div>${originDetails(entry)}<details><summary>查看修改前后内容</summary><p>修改前</p><pre>${esc(entry.before)}</pre><p>修改后</p><pre>${esc(entry.after)}</pre></details><button type="button" class="btn ghost sm" data-restore="${esc(entry.id)}">恢复此条修改前的内容</button></article>`).join('') : '<p>尚无修改记录。</p>'}</details>`;
     const select = panel.querySelector('#advisorSection');
     const text = panel.querySelector('#advisorText');
     const author = panel.querySelector('#advisorAuthor');
@@ -98,5 +119,5 @@
       button.onclick = () => commit(() => restoreEdit(report, button.dataset.restore, author.value));
     });
   }
-  window.reportEditing = { sections, getText, applyEdit, restoreEdit, carryEdits, mount };
+  window.reportEditing = { sections, getText, applyEdit, restoreEdit, carryEdits, normalizeOrigin, originLabel, mount };
 })();

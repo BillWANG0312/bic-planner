@@ -20,6 +20,7 @@
     let epoch = 0;
     let shareOwner = null;
     let commentOwner = null;
+    let adviceDraft = null;
     const localOnly = window.location.protocol === 'file:';
 
     function active() { return options.isActive ? options.isActive() : screen.classList.contains('active'); }
@@ -95,6 +96,7 @@
     function clearDetail() {
       shareOwner?.clear();
       commentOwner?.clear();
+      adviceDraft?.clear();
       selected = null;
       $('#cloudDetail').hidden = true;
       $('#cloudDetailSummary').replaceChildren();
@@ -134,6 +136,7 @@
       }
       shareOwner?.setBusy(busy);
       commentOwner?.setBusy(busy);
+      adviceDraft?.setBusy(busy);
     }
     function handleError(error) {
       if (!client.user || error?.status === 401 || error?.status === 403) clearPrivate();
@@ -187,6 +190,7 @@
       if (!item) return clearDetail();
       shareOwner?.setReport(item);
       commentOwner?.setReport(item);
+      adviceDraft?.setReport(item);
       $('#cloudDetailSummary').replaceChildren(
         node('p', '', `${item.record.state.info.name} · ${item.record.reportMeta.batchId}`),
         node('p', '', `报告日期 ${item.record.reportMeta.date} · 已读取修订 ${item.revision}`),
@@ -345,6 +349,14 @@
     });
     shareOwner = window.ParentShareOwner?.init({ client, run, message });
     commentOwner = window.CommentOwner?.init({ client, run, message });
+    adviceDraft = window.AdviceDraft?.init({ client, run, message,
+      onSaved(result) {
+        if (!selected) throw new Error('当前报告已切换，请重新读取服务端记录。');
+        selected = validFull(result, selected.id);
+        records = records.map(item => item.id === selected.id ? metadata(selected) : item);
+        drawList(); drawDetail();
+      }
+    });
     controls();
     return {
       onScreenLeft,

@@ -323,6 +323,8 @@ class Database:
     def update_report(self, owner_id, identifier, record, expected_revision):
         serialized, units, metadata = self._encode_record(record)
         with self._transaction() as connection:
+            if connection.execute('SELECT id FROM users WHERE id = ? AND disabled = 0', (owner_id,)).fetchone() is None:
+                raise StorageError(404, "Report not found.", "NOT_FOUND")
             current = self._require_revision(connection, owner_id, identifier, expected_revision)
             self._quota(connection, owner_id, units - current["utf16_units"], 0)
             try:

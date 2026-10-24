@@ -397,9 +397,58 @@
       return result;
     }
 
+    const adviceKeys = ['summary', 'academic', 'plan', 'personality'];
+    function adviceSections(value) {
+      return exactKeys(value, adviceKeys) && adviceKeys.every(key => boundedText(value[key], 4000, true));
+    }
+    function adviceContext(value) {
+      const subjects = ['english', 'maths', 'physics', 'chemistry'];
+      const directions = ['cs', 'math', 'phys', 'eng', 'chem', 'med', 'bio', 'econ', 'biz', 'law', 'psych', 'design', 'media', 'intl'];
+      return exactKeys(value, ['status', 'direction_id', 'personality_complete', 'personality_code', 'subjects'])
+        && ['draft', 'complete'].includes(value.status) && directions.includes(value.direction_id)
+        && typeof value.personality_complete === 'boolean'
+        && (value.personality_code === null || value.personality_complete && typeof value.personality_code === 'string' && /^[EI][SN][TF][JP]$/.test(value.personality_code))
+        && Array.isArray(value.subjects) && value.subjects.length === 4
+        && value.subjects.every((subject, index) => exactKeys(subject, ['key', 'answered', 'total', 'pct'])
+          && subject.key === subjects[index] && Number.isInteger(subject.answered) && subject.answered >= 0 && subject.answered <= 15
+          && subject.total === 15 && (subject.answered === subject.total
+            ? Number.isInteger(subject.pct) && subject.pct >= 0 && subject.pct <= 100 : subject.pct === null))
+        && (value.status !== 'complete' || value.personality_complete && value.subjects.every(subject => subject.answered === subject.total));
+    }
+    function adviceDraft(value, id, expectedRevision, fallback) {
+      if (!exactKeys(value, ['id', 'report_id', 'source_revision', 'created_at', 'expires_at', 'kind', 'generator', 'reason', 'before', 'sections'])
+          || !requestId(value.id) || value.report_id !== id || value.source_revision !== expectedRevision
+          || !Number.isSafeInteger(value.created_at) || value.created_at <= 0
+          || !Number.isSafeInteger(value.expires_at) || value.expires_at <= value.created_at || value.expires_at - value.created_at > 900
+          || !['rule', 'local_mock', 'provider'].includes(value.kind) || typeof value.generator !== 'string' || !/^[A-Za-z0-9._-]{1,80}$/.test(value.generator)
+          || !['generated', 'disabled', 'unavailable', 'timeout', 'invalid', 'busy', 'failed'].includes(value.reason)
+          || !adviceSections(value.before) || !adviceSections(value.sections)
+          || adviceKeys.some(key => value.before[key] !== fallback[key])) throw protocolError();
+      return value;
+    }
+    async function createAdviceDraft(id, expectedRevision, context, fallback) {
+      requireConnection(true);
+      const endpoint = 'reports/' + reportId(id) + '/advice-drafts';
+      revision(expectedRevision);
+      if (!adviceContext(context) || !adviceSections(fallback)) throw new CloudError('VALIDATION', '建议草稿上下文无效，请重新读取并核对报告。', 422);
+      return adviceDraft(await request(endpoint, { method: 'POST', body: { revision: expectedRevision, context, fallback }, authenticated: true }), id, expectedRevision, fallback);
+    }
+    async function applyAdviceDraft(id, draftId, sections, reviewer) {
+      requireConnection(true);
+      const endpoint = 'reports/' + reportId(id) + '/advice-drafts/';
+      if (!requestId(draftId) || !Array.isArray(sections) || sections.length < 1 || sections.length > 4
+          || new Set(sections).size !== sections.length || !sections.every(key => adviceKeys.includes(key)) || !boundedText(reviewer, 40, true)) {
+        throw new CloudError('VALIDATION', '请选择变更的建议，并填写 1–40 字符的核对人姓名。', 422);
+      }
+      const result = report(await request(endpoint + draftId + '/apply', { method: 'POST', body: { sections, reviewer }, authenticated: true }));
+      if (result.id !== id) throw protocolError();
+      return result;
+    }
+
     return { connect, login, list, get, create: createReport, update, remove, logout, disconnect,
       createShare, listShares, revokeShare,
       createParentAccess, listParentAccess, revokeParentAccess, listFamilyAccess, familyThread, addFamilyComment,
+      createAdviceDraft, applyAdviceDraft,
       get user() { return user ? copy(user) : null; }, get connected() { return connected; } };
   }
 

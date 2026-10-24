@@ -259,6 +259,23 @@
               <button type="button" class="btn ghost sm" id="cloudUpdateBtn">用所选本机报告更新</button>
             </div>
             <p id="cloudUpdateNote" class="cloud-help"></p>
+            <section class="owner-share advice-draft" aria-labelledby="adviceDraftHeading">
+              <h3 id="adviceDraftHeading">建议文案草稿</h3>
+              <p class="cloud-help">可选功能，默认保留当前规则建议。本阶段可在本校开发服务中预览本地模拟文案；生成与预览均不会更改报告。草稿 15 分钟内有效，应用前需逐段核对并署名。</p>
+              <button type="button" class="btn ghost sm" id="adviceGenerateBtn" disabled>生成建议草稿</button>
+              <div id="advicePreview" class="advice-preview" hidden>
+                <h4 id="draftSource"></h4>
+                <p id="draftExpiry" class="cloud-help"></p>
+                <p class="cloud-help">勾选需要应用的变更。草稿仅供核对，不代表已经人工审校；分数、测评结果和规划方向不会改变。</p>
+                <div id="adviceChoices"></div>
+                <label for="adviceReviewer">核对人姓名<input id="adviceReviewer" type="text" maxlength="40" autocomplete="off" placeholder="逐段核对后填写" /></label>
+                <div class="cloud-actions">
+                  <button type="button" class="btn primary sm" id="adviceApplyBtn" disabled>确认应用到服务端</button>
+                  <button type="button" class="btn ghost sm" id="adviceDiscardBtn" disabled>关闭草稿</button>
+                </div>
+                <p class="cloud-help">只更新这份服务端报告所选段落，并保留来源和修改记录。本机当前报告及本机报告库不会自动替换。</p>
+              </div>
+            </section>
             <section class="owner-share" aria-labelledby="ownerShareHeading">
               <h3 id="ownerShareHeading">家长只读分享</h3>
               <p class="cloud-help">分享当前已读取的服务端报告摘要。先预览并确认；不含逐题答卷、解析和顾问审计。任何持链接者可读，可设置期限或撤销；不会自动发送。</p>
@@ -318,6 +335,7 @@
   <script src="js/cloud-config.js"></script>
   <script src="js/cloud-client.js"></script>
   <script src="js/share-summary.js"></script>
+  <script src="js/advice-draft.js"></script>
   <script src="js/share-owner.js"></script>
   <script src="js/comment-owner.js"></script>
   <script src="js/cloud-ui.js"></script>

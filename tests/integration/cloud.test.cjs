@@ -38,7 +38,7 @@ before(async () => {
   const port = reservation.address().port;
   await new Promise(resolve => reservation.close(resolve));
   origin = `http://127.0.0.1:${port}`;
-  const env = { ...process.env, BIC_DEV: '1', BIC_PORT: String(port),
+  const env = { ...process.env, BIC_DEV: '1', BIC_DRAFT_MODE: 'local_mock', BIC_PORT: String(port),
     BIC_PUBLIC_ORIGIN: origin, BIC_DATABASE_PATH: path.join(directory, 'private.sqlite3'),
     TEMP: directory, TMP: directory, TMPDIR: directory };
   const bootstrap = `from pathlib import Path; import os; from backend.bic_api.db import Database; from backend.bic_api.security import AuthService; auth=AuthService(Database(Path(os.environ['BIC_DATABASE_PATH']))); [auth.create_user('browser.'+str(i),'${password}') for i in range(10)]`;
@@ -466,4 +466,77 @@ test('account-bound family comments preserve edited uncertain drafts, support ow
     assert.deepEqual(await (await context.request.get(origin + '/api/reports/' + reportId)).json(), original);
     assert.deepEqual(pageErrors, []);
   } finally { await parentContext.close(); await context.close(); }
+});
+
+test('local demonstration drafts require review, preserve scores, and carry source through opening and archiving', async () => {
+  const { context, page } = await pageFor(0);
+  try {
+    await signIn(page, 0);
+    await page.locator('[data-cloud-read]').click();
+    const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    const original = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    const localBefore = await page.evaluate(() => JSON.stringify(window.__pathwise.state.info));
+    const requests = [];
+    page.on('request', request => { if (request.method() === 'POST' && request.url().includes('/advice-drafts')) requests.push(request); });
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#adviceGenerateBtn').click();
+    await page.locator('#advicePreview').waitFor({ state: 'visible' });
+    assert.match(await page.locator('#draftSource').textContent(), /本地模拟/);
+    assert.deepEqual(await (await context.request.get(origin + '/api/reports/' + id)).json(), original);
+    for (const section of ['academic', 'plan', 'personality']) await page.locator(`[data-advice-section="${section}"]`).uncheck();
+    await page.locator('[data-advice-section="summary"]').check();
+    await page.locator('#adviceReviewer').fill('本地测试审核者');
+    if (process.env.BIC_CAPTURE === '1') {
+      await page.screenshot({ path: path.join(root, 'test-results/advice-desktop.png'), fullPage: true });
+      await page.setViewportSize({ width: 375, height: 812 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.screenshot({ path: path.join(root, 'test-results/advice-mobile.png'), fullPage: true });
+      await page.setViewportSize({ width: 1280, height: 900 });
+    }
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.locator('#adviceApplyBtn').click();
+    assert.equal(requests.length, 1, 'Cancel review must not write the report');
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#adviceApplyBtn').click();
+    await page.waitForFunction(() => /所选建议已保存/.test(document.querySelector('#cloudStatus').textContent));
+    const updated = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    assert.equal(updated.revision, original.revision + 1);
+    assert.deepEqual(updated.record.state, original.record.state);
+    assert.deepEqual(updated.record.reportMeta, original.record.reportMeta);
+    assert.deepEqual(Object.keys(updated.record.advisor.sections), ['summary']);
+    assert.equal(updated.record.advisor.history.at(-1).origin.kind, 'local_mock');
+    assert.equal(await page.evaluate(() => JSON.stringify(window.__pathwise.state.info)), localBefore);
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#cloudOpenBtn').click();
+    await page.locator('#screen-report.active').waitFor();
+    assert.match(await page.locator('#reportRoot').textContent(), /本地模拟草稿/);
+    await page.locator('#archiveReportBtn').click();
+    const archived = await page.evaluate(() => window.ReportStore.create(localStorage).list());
+    assert.equal(archived[0].advisor.history.at(-1).origin.kind, 'local_mock');
+    await page.reload();
+    await page.locator('#screen-report.active').waitFor();
+    assert.match(await page.locator('#reportRoot').textContent(), /本地模拟草稿/);
+  } finally { await context.close(); }
+});
+
+test('a source change after drafting prevents stale application without overriding another device', async () => {
+  const { context, page } = await pageFor(1);
+  try {
+    await signIn(page, 1);
+    await page.locator('[data-cloud-read]').click();
+    const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
+    const original = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#adviceGenerateBtn').click();
+    await page.locator('#advicePreview').waitFor({ state: 'visible' });
+    original.record.state.info.name = '草稿后另设备的新修订';
+    assert.equal((await context.request.put(origin + '/api/reports/' + id, { headers: await csrf(context), data: { record: original.record, revision: original.revision } })).status(), 200);
+    await page.locator('#adviceReviewer').fill('测试审核者');
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#adviceApplyBtn').click();
+    await page.waitForFunction(() => /变化|冲突|重新读取/.test(document.querySelector('#cloudStatus').textContent));
+    const after = await (await context.request.get(origin + '/api/reports/' + id)).json();
+    assert.equal(after.revision, original.revision + 1);
+    assert.deepEqual(after.record, original.record);
+  } finally { await context.close(); }
 });
