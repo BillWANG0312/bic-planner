@@ -26,7 +26,7 @@ python -m http.server 8765
 
 ## 院校数据
 
-`data/universities.js` 是独立维护的数据目录，包含专业、学校、地区、参考年份、官网来源与复核日期。目前 64 条记录中 11 条经官网核对，53 条为历史待复核。报告只展示已核实记录的要求；待复核记录仅作院校名称参考。修改数据即可更新，无需构建。
+`data/universities.js` 是独立维护的数据目录，包含专业、学校、地区、参考年份、官网来源与复核日期。已逐条处理原型历史记录，目录现有 62 条：52 条明确 2027 入学年的课程、2 条未注明入学年的具体课程要求、8 条招生或路径政策。报告区分具体课程、公布年份、申请周期与政策范围；未将通用资格或路径信息当作完整的课程录取线。修改数据即可更新，无需构建。详细来源、移除记录与未核实范围见 [院校核验记录](docs/admissions-review-2026-10-24.md)。
 
 来源包括 [牛津本科要求总表](https://www.ox.ac.uk/admissions/undergraduate/courses/admissions-requirements/summary-table-of-admissions-requirements)、[牛津计算机](https://www.ox.ac.uk/admissions/undergraduate/courses/course-listing/computer-science)、[牛津数学](https://www.ox.ac.uk/admissions/undergraduate/courses/course-listing/mathematics)、[MIT 测试政策](https://mitadmissions.org/apply/firstyear/tests-scores/)。核对日期 2026-10-24；课程与申请年份需分别核实。
 

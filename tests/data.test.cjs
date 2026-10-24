@@ -80,7 +80,11 @@ test('independent university catalogue supplies each major with review status in
       if (u.reviewStatus === 'verified') {
         assert.match(u.sourceUrl, /^https:\/\//);
         assert.match(u.reviewedAt, /^\d{4}-\d{2}-\d{2}$/);
-        assert.equal(u.entryYear, 2027);
+        assert.ok(u.courseName, u.name + ' must identify the actual course or policy');
+        assert.ok(['course', 'policy'].includes(u.scope), u.name + ' must distinguish course offers from general policy');
+        if (u.entryYear != null) assert.ok(Number.isInteger(u.entryYear) && u.entryYear >= 2026, u.name);
+        if (u.scope === 'policy') assert.equal(u.entryYear, null, 'undated policy must not invent an intake year');
+        assert.ok(Array.isArray(u.sourceUrls) && u.sourceUrls.includes(u.sourceUrl), u.name + ' source provenance');
       } else {
         assert.equal(u.reviewStatus, 'historical');
         assert.equal(u.reviewedAt, null);

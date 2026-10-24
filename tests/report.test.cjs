@@ -7,8 +7,8 @@ const { test } = require('node:test');
 function loadEngine() {
   const context = vm.createContext({ console });
   context.window = context;
-  for (const script of ['bank', 'majors', 'plan', 'mbti', 'report']) {
-    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', `${script}.js`), 'utf8'), context);
+  for (const script of ['js/bank.js', 'data/universities.js', 'js/majors.js', 'js/plan.js', 'js/mbti.js', 'js/report.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', script), 'utf8'), context);
   }
   return context;
 }

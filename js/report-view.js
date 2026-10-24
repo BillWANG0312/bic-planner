@@ -186,10 +186,14 @@
         <h4>${esc(g.country)}</h4>
         ${g.unis.map(u => {
           const source = secureUrl(u.sourceUrl);
-          const verified = u.reviewStatus === 'verified' && u.entryYear && u.reviewedAt && source;
-          return `<div class="uni-row"><div class="uni-name">${esc(u.name)}<small>${verified ? '官网已核验' : '历史参考 · 待复核'}</small></div><div class="uni-req">${verified ? esc(u.req || '请查官网') : '录取要求待复核'}</div><div class="uni-note">${verified ? esc(u.note || '') : '请查看该校本科招生官网。'}
-            ${verified ? `<div>${esc(u.entryYear)} 入学 · 核验日期 ${esc(u.reviewedAt)}</div>` : '<div>历史要求仅作探索参考，请复核对应入学年份。</div>'}
-            ${source ? `<a href="${esc(source)}" target="_blank" rel="noopener noreferrer">官网要求</a>` : ''}</div></div>`;
+          const policy = u.scope === 'policy' && u.entryYear == null;
+          const year = Number.isInteger(u.entryYear) && u.entryYear >= 2020 && u.entryYear <= 2100;
+          const undatedCourse = u.scope === 'course' && u.entryYear == null;
+          const verified = u.reviewStatus === 'verified' && (policy || undatedCourse || year) && u.reviewedAt && source;
+          const sources = [...new Set([source, ...(Array.isArray(u.sourceUrls) ? u.sourceUrls.map(secureUrl) : [])].filter(Boolean))];
+          return `<div class="uni-row"><div class="uni-name">${esc(u.name)}${verified && u.courseName ? `<small class="uni-course">${esc(u.courseName)}</small>` : ''}<small>${verified ? policy ? '官网政策已核验' : '官网课程已核验' : '历史参考 · 待复核'}</small></div><div class="uni-req">${verified ? esc(u.req || '请查官网') : '录取要求待复核'}</div><div class="uni-note">${verified ? esc(u.note || '') : '请查看该校本科招生官网。'}
+            ${verified ? `<div>${policy ? '招生政策 · 未指定入学年' + (u.applicationCycle ? ' · ' + esc(u.applicationCycle) + ' 申请周期' : '') : undatedCourse ? '课程要求 · 未指定入学年' : esc(u.entryYear) + ' 入学'} · 核验日期 ${esc(u.reviewedAt)}</div>` : '<div>历史要求仅作探索参考，请复核对应入学年份。</div>'}
+            ${sources.map((url, index) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">官网要求${sources.length > 1 ? ' ' + (index + 1) : ''}</a>`).join(' · ')}</div></div>`;
         }).join('')}
       </div>`).join('');
 
@@ -346,7 +350,7 @@
       <h3>说明与免责</h3>
       <p class="disclaimer">
         本报告由「BIC 学业规划系统」根据测试作答自动生成，用于帮助学生认识自身优势与方向，不构成升学决策的唯一依据。
-        院校记录逐条标注入学年份、核验日期和官网来源；标注「历史参考 · 待复核」的内容不作为当前录取要求。请以目标课程官网为准。
+        院校记录逐条区分具体课程与招生政策，并标注公布的入学年份、申请周期、核验日期和官网来源；未指定入学年的政策不等于某个入学年的完整课程要求。标注「历史参考 · 待复核」的内容不作为当前录取要求。请以目标课程官网为准。
         MBTI 为简版人格测评，仅供性格参考，非专业心理诊断。
         建议结合学校升学指导老师的意见，共同制定最终规划。
       </p>

@@ -11,6 +11,51 @@ test('carried advisor edits have a review reminder in the printable report body'
   assert.ok(w.renderReport(next).includes('顾问建议沿用自上次报告，请结合本次作答重新复核'));
 });
 
+test('undated admission policies are verified without inventing a course intake year', () => {
+  const w = loadReportScripts();
+  const r = w.generateReport(state(w));
+  r.plan.unis = [{ country: '美国', unis: [{ name: 'MIT', courseName: '本科统一申请（非物理系单独录取）',
+    req: '需 SAT 或 ACT', note: '不设固定分数门槛。', scope: 'policy', entryYear: null,
+    reviewStatus: 'verified', reviewedAt: '2026-10-24', sourceUrl: 'https://mitadmissions.org/apply/firstyear/tests-scores/' }] }];
+  const html = w.renderReport(r);
+  assert.ok(html.includes('本科统一申请（非物理系单独录取）'));
+  assert.ok(html.includes('招生政策 · 未指定入学年'));
+  assert.ok(html.includes('需 SAT 或 ACT'));
+  assert.ok(!html.includes('<div class="uni-req">录取要求待复核</div>'));
+});
+
+test('specific undergraduate course titles accompany course-level offers', () => {
+  const w = loadReportScripts();
+  const r = w.generateReport(state(w));
+  r.plan.unis = [{ country: '英国', unis: [{ name: '剑桥大学', courseName: 'Natural Sciences BA/MSci',
+    req: 'A*A*A', note: '先修数学与两门理科。', scope: 'course', entryYear: 2027,
+    reviewStatus: 'verified', reviewedAt: '2026-10-24', sourceUrl: 'https://www.undergraduate.study.cam.ac.uk/courses/natural-sciences-ba-hons-msci' }] }];
+  assert.ok(w.renderReport(r).includes('Natural Sciences BA/MSci'));
+});
+
+test('an undated named course is not assigned a fabricated intake or mislabeled a general policy', () => {
+  const w = loadReportScripts();
+  const r = w.generateReport(state(w));
+  r.plan.unis = [{ country: '英国', unis: [{ name: '伦敦大学金史密斯学院', courseName: 'BA (Hons) Media & Communications',
+    req: 'CCC', note: '当前公布的课程要求，未指定入学年份。', scope: 'course', entryYear: null,
+    reviewStatus: 'verified', reviewedAt: '2026-10-24', sourceUrl: 'https://www.gold.ac.uk/ug/ba-media-communications/' }] }];
+  const html = w.renderReport(r);
+  assert.ok(html.includes('课程要求 · 未指定入学年'));
+  assert.ok(html.includes('<div class="uni-req">CCC</div>'));
+  assert.ok(!html.includes('招生政策 · 未指定入学年'));
+});
+
+test('an application-cycle policy does not become a permanent rule or a fabricated intake year', () => {
+  const w = loadReportScripts();
+  const r = w.generateReport(state(w));
+  r.plan.unis = [{ country: '美国', unis: [{ name: '纽约大学', courseName: 'Economics BA',
+    req: '标化可选', note: '仅对应公布的申请周期。', scope: 'policy', entryYear: null, applicationCycle: '2026–27',
+    reviewStatus: 'verified', reviewedAt: '2026-10-24', sourceUrl: 'https://www.nyu.edu/admissions/undergraduate-admissions/' }] }];
+  const html = w.renderReport(r);
+  assert.ok(html.includes('2026–27 申请周期'));
+  assert.ok(!html.includes('常设政策'));
+});
+
 test('an unanswered quick report shows pending evidence instead of ESTJ and academic deficits', () => {
   const w = loadReportScripts();
   const html = w.renderReport(w.generateReport(state(w)));

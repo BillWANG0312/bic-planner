@@ -7,7 +7,7 @@
  *  - acceptance: 用于报告中的"能力预估"，粗略估计入学后的承接难度
  *    （以该专业所需基础科目测试得分的中位数衡量）
  * ============================================================ */
-window.REFERENCE_YEAR = '2026 学年入学';
+window.REFERENCE_YEAR = window.UNIVERSITY_CATALOG.referenceYear;
 window.MAJORS = [
   {
     id: 'cs', name: '计算机科学', en: 'Computer Science', category: 'STEM', cluster: 'math',
