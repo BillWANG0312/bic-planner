@@ -6,37 +6,43 @@
 (function () {
   const M = window.MAJORS;
 
-  function median(arr) {
-    if (!arr.length) return null;
-    const s = [...arr].sort((a, b) => a - b);
-    const m = Math.floor(s.length / 2);
-    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  // 评分、答题覆盖率与逐题回顾共用校验，避免空字符串被 Number() 当作 0。
+  function evaluateAnswer(q, answer) {
+    const answered = q.type === 'choice'
+      ? Number.isInteger(answer) && answer >= 0 && answer < q.options.length
+      : (typeof answer === 'number' || typeof answer === 'string' && answer.trim() !== '')
+        && Number.isFinite(Number(answer));
+    const correct = answered && (q.type === 'choice' ? answer === q.answer
+      : Math.abs(Number(answer) - q.answer) <= (q.tol || 0));
+    return { answered, correct };
   }
 
   /* ---------- 学术得分 ---------- */
   function gradeAcademic(academic) {
+    const answers = academic && academic.answers || {};
     const bank = window.QUESTION_BANK;
-    const bySubject = { english: [0, 0], maths: [0, 0], physics: [0, 0], chemistry: [0, 0] };
+    const bySubject = { english: [0, 0, 0], maths: [0, 0, 0], physics: [0, 0, 0], chemistry: [0, 0, 0] };
     const topic = {};
     bank.forEach((q) => {
-      const a = academic.answers[q.id];
-      const correct = q.type === 'choice' ? a === q.answer
-        : (a != null && Number.isFinite(Number(a)) && Math.abs(Number(a) - q.answer) <= (q.tol || 0));
+      const { answered, correct } = evaluateAnswer(q, answers[q.id]);
       bySubject[q.subject][1] += 1;
       if (correct) bySubject[q.subject][0] += 1;
+      if (answered) bySubject[q.subject][2] += 1;
       if (!topic[q.subject]) topic[q.subject] = {};
-      if (!topic[q.subject][q.topic]) topic[q.subject][q.topic] = [0, 0];
+      if (!topic[q.subject][q.topic]) topic[q.subject][q.topic] = [0, 0, 0];
       topic[q.subject][q.topic][1] += 1;
       if (correct) topic[q.subject][q.topic][0] += 1;
+      if (answered) topic[q.subject][q.topic][2] += 1;
     });
     const subjects = {};
-    Object.entries(bySubject).forEach(([k, [c, t]]) => {
-      subjects[k] = { correct: c, total: t, pct: t ? Math.round((c / t) * 100) : 0 };
+    Object.entries(bySubject).forEach(([k, [c, t, a]]) => {
+      subjects[k] = { correct: c, total: t, answered: a, complete: a === t, pct: t ? Math.round((c / t) * 100) : 0 };
     });
-    const sciPct = subjects.physics.total && subjects.chemistry.total
-      ? Math.round(((subjects.physics.correct + subjects.chemistry.correct) / (subjects.physics.total + subjects.chemistry.total)) * 100)
-      : 0;
-    return { subjects, sciPct, topic };
+    const sciTotal = subjects.physics.total + subjects.chemistry.total;
+    const sciAnswered = subjects.physics.answered + subjects.chemistry.answered;
+    const sciPct = sciTotal ? Math.round((subjects.physics.correct + subjects.chemistry.correct) / sciTotal * 100) : 0;
+    return { subjects, sciPct, sciAnswered, sciTotal, topic,
+      answered: Object.values(subjects).reduce((count, subject) => count + subject.answered, 0), total: bank.length };
   }
 
   function band(pct) {
@@ -63,21 +69,25 @@
     free.forEach(o => o.clusters.forEach(c => { clusterScore[c] = (clusterScore[c] || 0) + 1; }));
     self.forEach(id => { const c = moodCluster[id]; if (c) clusterScore[c] = (clusterScore[c] || 0) + 2; });
 
+    // 尚未测过的科目不产生正负加权，草稿中的 0 分不等于能力缺失。
+    const subject = key => academic.subjects[key].complete ? academic.subjects[key].pct : 50;
+    const science = academic.sciTotal
+      ? (subject('physics') * academic.subjects.physics.total + subject('chemistry') * academic.subjects.chemistry.total) / academic.sciTotal : 50;
     const subjectScores = {
-      cs: academic.subjects.maths.pct * 0.6 + academic.sciPct * 0.4,
-      math: academic.subjects.maths.pct,
-      physics: academic.subjects.maths.pct * 0.5 + academic.subjects.physics.pct * 0.5,
-      eng: academic.subjects.maths.pct * 0.5 + academic.subjects.physics.pct * 0.5,
-      chem: academic.subjects.chemistry.pct,
-      med: academic.subjects.chemistry.pct,
-      bio: academic.subjects.chemistry.pct,
-      econ: academic.subjects.maths.pct * 0.7 + academic.subjects.english.pct * 0.3,
-      biz: academic.subjects.english.pct * 0.5 + academic.subjects.maths.pct * 0.5,
-      law: academic.subjects.english.pct,
-      psych: academic.subjects.english.pct * 0.5 + academic.subjects.chemistry.pct * 0.5,
-      design: academic.subjects.english.pct,
-      media: academic.subjects.english.pct,
-      intl: academic.subjects.english.pct
+      cs: subject('maths') * 0.6 + science * 0.4,
+      math: subject('maths'),
+      phys: subject('maths') * 0.5 + subject('physics') * 0.5,
+      eng: subject('maths') * 0.5 + subject('physics') * 0.5,
+      chem: subject('chemistry'),
+      med: subject('chemistry'),
+      bio: subject('chemistry'),
+      econ: subject('maths') * 0.7 + subject('english') * 0.3,
+      biz: subject('english') * 0.5 + subject('maths') * 0.5,
+      law: subject('english'),
+      psych: subject('english') * 0.5 + subject('chemistry') * 0.5,
+      design: subject('english'),
+      media: subject('english'),
+      intl: subject('english')
     };
 
     const results = M.map(m => {
@@ -107,8 +117,8 @@
       const subjScore = subjectScores[m.id] ?? 50;
       score += (subjScore - 50) * 0.35;
       // MBTI 倾向（轻量）
-      const tVal = mbti.TF.pole === 'T' ? mbti.TF.pctA : 100 - mbti.TF.pctA;
-      const nVal = mbti.SN.pole === 'N' ? mbti.SN.pctA : 100 - mbti.SN.pctA;
+      const tVal = mbti.TF.complete ? mbti.TF.pctA : 50;
+      const nVal = mbti.SN.complete ? mbti.SN.pctB : 50;
       if (['cs', 'math', 'phys', 'eng', 'econ', 'intl', 'psych'].includes(m.id)) score += (tVal - 50) * 0.06;
       if (['chem', 'bio', 'med', 'law', 'media', 'design', 'intl'].includes(m.id)) score += (nVal - 50) * 0.04;
       // 不同专业自身的集群偏好权重
@@ -164,44 +174,87 @@
 
   /* ---------- 能力预估 ---------- */
   function fitForMajor(major, academic) {
-    const need = [];
-    (major.required || []).forEach(s => { if (s === '数学') need.push(academic.subjects.maths.pct); if (s === '物理') need.push(academic.subjects.physics.pct); if (s === '化学') need.push(academic.subjects.chemistry.pct); });
-    if (!need.length) need.push(academic.subjects.english.pct, academic.subjects.maths.pct);
-    const pct = Math.round(need.reduce((a, b) => a + b, 0) / need.length);
-    if (pct >= 75) return { level: '适配度高', cls: 'good', pct, note: '该专业所需基础科目表现扎实，入学后有望较快适应。' };
-    if (pct >= 55) return { level: '基本适配', cls: 'mid', pct, note: '基础尚可，但需在开学前补齐关键知识点，尤其是题目类型转换。' };
-    return { level: '需重点准备', cls: 'weak', pct, note: '该专业所需基础科目存在明显缺口，建议暑期安排针对性的衔接学习。' };
+    const subjectKeys = { '数学': 'maths', '物理': 'physics', '化学': 'chemistry' };
+    const keys = [...new Set((major.required || []).map(s => subjectKeys[s]).filter(Boolean))];
+    const measured = (keys.length ? keys : ['english', 'maths']).map(key => academic.subjects[key]);
+    const answered = measured.reduce((count, subject) => count + subject.answered, 0);
+    const total = measured.reduce((count, subject) => count + subject.total, 0);
+    const complete = total > 0 && answered === total;
+    const evidence = { answered, total, complete };
+    if (!complete) return { ...evidence, level: '待完成测评', cls: 'pending', pct: null,
+      note: '相关基础科目的作答尚未完成；完成测评后再评估学科准备情况，当前不作能力判断。' };
+    const pct = Math.round(measured.reduce((sum, subject) => sum + subject.pct, 0) / measured.length);
+    if (pct >= 75) return { ...evidence, level: '适配度高', cls: 'good', pct, note: '本次测评覆盖的相关基础科目表现扎实，可继续挑战进阶内容。' };
+    if (pct >= 55) return { ...evidence, level: '基本适配', cls: 'mid', pct, note: '本次测评覆盖的基础尚可，建议结合错题回顾安排衔接学习。' };
+    return { ...evidence, level: '需重点准备', cls: 'weak', pct, note: '本次测评覆盖的相关基础科目存在薄弱点，建议安排针对性的衔接学习。' };
+  }
+
+  function normalizePlan(raw, info) {
+    const plan = {};
+    raw = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    window.PLAN_QUESTIONS.forEach(q => {
+      const value = raw[q.key];
+      if (q.type === 'single') {
+        if (q.options().some(option => option.id === value)) plan[q.key] = value;
+      } else if (Array.isArray(value)) {
+        const options = q.source().map(option => option.id);
+        plan[q.key] = [...new Set(value.filter(item => typeof item === 'string'
+          && (options.includes(item) || q.multiFree && item.trim() !== '')).map(item => item.trim()))]
+          .slice(0, q.max || Infinity);
+      }
+    });
+    const grade = String(info.grade || '');
+    if (window.PLAN_CONFIG.grade.some(option => option.id === grade)) plan.grade = grade;
+    return plan;
+  }
+
+  function planCoverage(plan) {
+    const answered = window.PLAN_QUESTIONS.filter(q => {
+      const value = plan[q.key];
+      return Array.isArray(value) ? value.length > 0 || q.optional : value != null && value !== '';
+    }).length;
+    const complete = window.PLAN_QUESTIONS.every(q => {
+      const value = plan[q.key];
+      return q.optional || (Array.isArray(value) ? value.length > 0 : value != null && value !== '');
+    });
+    return { answered, total: window.PLAN_QUESTIONS.length, complete };
   }
 
   /* ---------- 主入口 ---------- */
-  function generateReport(state) {
+  function generateReport(state = {}) {
+    const info = state.info || {};
     const academic = gradeAcademic(state.academic);
-    const mbti = window.computeMBTI(state.mbti.answers);
-    const plan = state.plan.answers;
+    const mbti = window.computeMBTI(state.mbti && state.mbti.answers);
+    const plan = normalizePlan(state.plan && state.plan.answers, info);
+    const planning = planCoverage(plan);
+    const coverage = {
+      academic: { answered: academic.answered, total: academic.total },
+      plan: { answered: planning.answered, total: planning.total },
+      mbti: { answered: mbti.answered, total: mbti.total }
+    };
     const majors = scoreMajors(plan, academic, mbti);
     const top = majors[0];
     const second = majors[1];
 
     // 学科分析
-    const info = state.info;
     const subjectList = Object.entries(academic.subjects).map(([k, v]) => ({
       key: k, ...window.SUBJECT_META[k], ...v, band: band(v.pct)
     })).sort((a, b) => b.pct - a.pct);
-    const sci = { key: 'science', name: '理科综合', nameEn: 'Science (Phys + Chem)', icon: '🔬', pct: academic.sciPct, band: band(academic.sciPct) };
-    const strengths = subjectList.filter(s => s.pct >= 70);
+    const sci = { key: 'science', name: '理科综合', nameEn: 'Science (Phys + Chem)', icon: '🔬',
+      pct: academic.sciPct, band: band(academic.sciPct), answered: academic.sciAnswered, total: academic.sciTotal,
+      complete: academic.sciAnswered === academic.sciTotal };
+    const strengths = subjectList.filter(s => s.complete && s.answered && s.pct >= 70);
     // 薄弱点：按主题找正确率低的
     const weakTopics = [];
     Object.entries(academic.topic).forEach(([subj, topics]) => {
-      Object.entries(topics).forEach(([t, [c, tot]]) => {
-        if (c / tot < 0.6) weakTopics.push({ subject: window.SUBJECT_META[subj].name, topic: t, pct: Math.round(c / tot * 100) });
+      Object.entries(topics).forEach(([t, [c, tot, answered]]) => {
+        if (answered === tot && answered > 0 && c / tot < 0.6) weakTopics.push({ subject: window.SUBJECT_META[subj].name, topic: t, pct: Math.round(c / tot * 100) });
       });
     });
     // 逐题回顾（错题+解析）
     const review = window.QUESTION_BANK.map(q => {
-      const a = state.academic.answers[q.id];
-      const correct = q.type === 'choice' ? a === q.answer
-        : (a != null && Number.isFinite(Number(a)) && Math.abs(Number(a) - q.answer) <= (q.tol || 0));
-      return { q, a, correct };
+      const a = state.academic && state.academic.answers && state.academic.answers[q.id];
+      return { q, a, ...evaluateAnswer(q, a) };
     });
 
     const recSubjects = recommendSubjects(top.major, plan, academic);
@@ -212,21 +265,25 @@
 
     // 下一步建议
     const next = [];
-    if (academic.subjects.english.pct < 60) next.push({ t: '英语能力是 A-Level 的核心门槛', d: '除英语外所有科目都要求学术英语（阅读大段题干、写论证型答案）。建议每天 20 分钟英语原版阅读，并每周写一篇 200 词学术短文。' });
-    if (academic.subjects.maths.pct < 60) next.push({ t: '数学基础需系统补强', d: '数学几乎是所有 STEM 与商科专业的门槛。建议优先补齐函数、代数变形、三角与基础微积分，再进入 A-Level Pure Math。' });
-    if (academic.sciPct < 60) next.push({ t: '理科（物理 / 化学）存在知识缺口', d: '若希望走 STEM 路线，开学前应集中复习力学、物质的量与酸碱基础，配合实验理解。' });
-    if (academic.subjects.english.pct >= 70) next.push({ t: '发挥英语优势', d: '英语强项是人文、传媒、法律方向的优势，也意味着你可以更快适应全英文授课，建议尝试英文辩论或论文写作训练。' });
-    if (academic.subjects.maths.pct >= 75) next.push({ t: '数学能力可以成为"硬实力"', d: `数学表现突出，适合冲刺 ${['cs', 'math', 'phys', 'eng', 'econ'].includes(top.major.id) ? '该专业' : '数学要求较高的专业'}；建议尽早接触进阶数学（Further Maths）内容。` });
+    if (academic.answered < academic.total) next.push({ t: '先完成学术测评', d: `目前已作答 ${academic.answered}/${academic.total} 题；未答题暂计入总题数，完成后再解读科目分数与能力准备情况。` });
+    if (academic.subjects.english.complete && academic.subjects.english.pct < 60) next.push({ t: '英语能力是 A-Level 的核心门槛', d: '除英语外所有科目都要求学术英语（阅读大段题干、写论证型答案）。建议每天 20 分钟英语原版阅读，并每周写一篇 200 词学术短文。' });
+    if (academic.subjects.maths.complete && academic.subjects.maths.pct < 60) next.push({ t: '数学基础需系统补强', d: '数学几乎是所有 STEM 与商科专业的门槛。建议优先补齐函数、代数变形、三角与基础微积分，再进入 A-Level Pure Math。' });
+    if (sci.complete && academic.sciPct < 60) next.push({ t: '理科（物理 / 化学）存在知识缺口', d: '若希望走 STEM 路线，开学前应集中复习力学、物质的量与酸碱基础，配合实验理解。' });
+    if (academic.subjects.english.complete && academic.subjects.english.pct >= 70) next.push({ t: '发挥英语优势', d: '英语强项是人文、传媒、法律方向的优势，也意味着你可以更快适应全英文授课，建议尝试英文辩论或论文写作训练。' });
+    if (academic.subjects.maths.complete && academic.subjects.maths.pct >= 75) next.push({ t: '数学能力可以成为"硬实力"', d: `数学表现突出，适合冲刺 ${['cs', 'math', 'phys', 'eng', 'econ'].includes(top.major.id) ? '该专业' : '数学要求较高的专业'}；建议尽早接触进阶数学（Further Maths）内容。` });
 
     return {
       meta: {
-        name: info.name, grade: (window.PLAN_CONFIG.grade.find(g => g.id === plan.grade) || {}).label || '',
+        name: info.name || '', gradeId: plan.grade || '',
+        grade: (window.PLAN_CONFIG.grade.find(g => g.id === plan.grade) || {}).label || '',
+        status: academic.answered === academic.total && planning.complete && mbti.complete ? 'complete' : 'draft',
+        coverage,
         date: new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
         refYear: window.REFERENCE_YEAR,
         year: info.year || '',
         batchId: 'AP-' + Date.now().toString(36).toUpperCase()
       },
-      academic: { subjects: subjectList, sci, strengths, weakTopics, review },
+      academic: { subjects: subjectList, sci, strengths, weakTopics, review, answered: academic.answered, total: academic.total },
       plan: { top, second, majors: majors.slice(0, 4), recSubjects, countries, unis, fit, fit2, subjects: plan, prefer: plan.preferredMajor },
       mbti,
       next

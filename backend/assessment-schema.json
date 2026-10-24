@@ -1,0 +1,558 @@
+{
+  "bankVersion": "2026.10",
+  "academic": [
+    {
+      "id": "en1",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en2",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en3",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en4",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en5",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en6",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en7",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en8",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en9",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en10",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma1",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma2",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma3",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma4",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma5",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma6",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma7",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma8",
+      "type": "numeric"
+    },
+    {
+      "id": "ma9",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma10",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph1",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph2",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph3",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph4",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph5",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch1",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch2",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch3",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch4",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch5",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en11",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en12",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en13",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en14",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "en15",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma11",
+      "type": "numeric"
+    },
+    {
+      "id": "ma12",
+      "type": "numeric"
+    },
+    {
+      "id": "ma13",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma14",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ma15",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph6",
+      "type": "numeric"
+    },
+    {
+      "id": "ph7",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph8",
+      "type": "numeric"
+    },
+    {
+      "id": "ph9",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph10",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph11",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph12",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph13",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph14",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ph15",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch6",
+      "type": "numeric"
+    },
+    {
+      "id": "ch7",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch8",
+      "type": "numeric"
+    },
+    {
+      "id": "ch9",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch10",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch11",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch12",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch13",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch14",
+      "type": "choice",
+      "optionCount": 4
+    },
+    {
+      "id": "ch15",
+      "type": "choice",
+      "optionCount": 4
+    }
+  ],
+  "plan": [
+    {
+      "key": "grade",
+      "type": "single",
+      "options": [
+        "8",
+        "9",
+        "10",
+        "11"
+      ]
+    },
+    {
+      "key": "interests",
+      "type": "tags",
+      "options": [
+        "coding",
+        "math",
+        "puzzles",
+        "logic",
+        "physics",
+        "space",
+        "experiment",
+        "science",
+        "chemistry",
+        "biology",
+        "health",
+        "help",
+        "people",
+        "psych",
+        "business",
+        "news",
+        "deal",
+        "lead",
+        "history",
+        "read",
+        "debate",
+        "art",
+        "design",
+        "photo",
+        "create",
+        "build",
+        "volunteer",
+        "economy",
+        "environment",
+        "talk"
+      ],
+      "max": 3,
+      "multiFree": false
+    },
+    {
+      "key": "schoolSubjects",
+      "type": "tags",
+      "options": [
+        "数学",
+        "进阶数学",
+        "物理",
+        "化学",
+        "生物",
+        "经济学",
+        "商科",
+        "计算机",
+        "心理学",
+        "英语文学",
+        "历史",
+        "地理",
+        "社会学",
+        "艺术",
+        "设计",
+        "音乐",
+        "戏剧",
+        "中文",
+        "法语",
+        "西班牙语"
+      ],
+      "max": 30,
+      "multiFree": true
+    },
+    {
+      "key": "weakSubjects",
+      "type": "tags",
+      "options": [
+        "数学",
+        "进阶数学",
+        "物理",
+        "化学",
+        "生物",
+        "经济学",
+        "商科",
+        "计算机",
+        "心理学",
+        "英语文学",
+        "历史",
+        "地理",
+        "社会学",
+        "艺术",
+        "设计",
+        "音乐",
+        "戏剧",
+        "中文",
+        "法语",
+        "西班牙语"
+      ],
+      "max": 30,
+      "multiFree": true
+    },
+    {
+      "key": "clubs",
+      "type": "tags",
+      "options": [
+        "debate",
+        "modelun",
+        "mathclub",
+        "coding",
+        "journalism",
+        "drama",
+        "sports",
+        "volunteer",
+        "art",
+        "music",
+        "env",
+        "business"
+      ],
+      "max": 12,
+      "multiFree": false
+    },
+    {
+      "key": "groupSize",
+      "type": "single",
+      "options": [
+        "small",
+        "medium",
+        "large"
+      ]
+    },
+    {
+      "key": "timeStyle",
+      "type": "single",
+      "options": [
+        "deep",
+        "varied",
+        "steady",
+        "deadline"
+      ]
+    },
+    {
+      "key": "selfImage",
+      "type": "tags",
+      "options": [
+        "rational",
+        "empathic",
+        "creative",
+        "practical",
+        "leader",
+        "explorer"
+      ],
+      "max": 2,
+      "multiFree": false
+    },
+    {
+      "key": "preferredMajor",
+      "type": "tags",
+      "options": [
+        "science",
+        "math",
+        "eng",
+        "tech",
+        "business",
+        "econ",
+        "med",
+        "social",
+        "humanities",
+        "art",
+        "media",
+        "unsure"
+      ],
+      "max": 2,
+      "multiFree": false
+    },
+    {
+      "key": "freeTime",
+      "type": "tags",
+      "options": [
+        "internet",
+        "books",
+        "games",
+        "sports",
+        "volunteer2",
+        "music",
+        "make",
+        "hangout"
+      ],
+      "max": 3,
+      "multiFree": false
+    },
+    {
+      "key": "career",
+      "type": "tags",
+      "options": [
+        "researcher",
+        "tech",
+        "finance",
+        "medicine",
+        "law",
+        "creative",
+        "entrepreneur",
+        "unsure"
+      ],
+      "max": 2,
+      "multiFree": false
+    },
+    {
+      "key": "countries",
+      "type": "tags",
+      "options": [
+        "uk",
+        "us",
+        "ca",
+        "au",
+        "hk",
+        "sg",
+        "eu",
+        "unsure"
+      ],
+      "max": 3,
+      "multiFree": false
+    },
+    {
+      "key": "subjectPerf",
+      "type": "single",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "key": "preferredLength",
+      "type": "single",
+      "options": [
+        "short",
+        "long",
+        "flex"
+      ]
+    }
+  ],
+  "grades": [
+    "8",
+    "9",
+    "10",
+    "11"
+  ],
+  "mbtiCount": 24,
+  "mbtiScale": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ]
+}

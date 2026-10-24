@@ -19,60 +19,85 @@
     report: null
   });
   let S = blank();
+  let reportLibrary = null;
+  const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const TEST_MODES = ['academic', 'plan', 'mbti'];
 
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
-      if (sessionStorage.getItem('pathwise.fresh') === '1') {
-        sessionStorage.removeItem('pathwise.fresh');
-        localStorage.removeItem(STORAGE_KEY);
-        return;
-      }
       const saved = JSON.parse(raw);
-      S = Object.assign(blank(), saved);
-      S.info = Object.assign(blank().info, saved.info || {});
-      S.ui = Object.assign(blank().ui, saved.ui || {});
-      if (S.ui.screen === 'test') S.ui.screen = ['academic', 'plan', 'mbti'].includes(saved.ui.resumeScreen) ? saved.ui.resumeScreen : 'academic';
-      S.academic = Object.assign(blank().academic, saved.academic || {});
-      S.academic.answers = Object.assign({}, saved.academic?.answers || {});
-      S.plan.answers = Object.assign(blank().plan.answers, saved.plan?.answers || {});
-      // 保证 MBTI 答案数组长度正确
-      const a = new Array(window.MBTI_QUESTIONS.length).fill(null);
-      (saved.mbti?.answers || []).forEach((v, i) => { if (i < a.length) a[i] = v; });
-      S.mbti.answers = a;
-    } catch (e) { /* 忽略损坏的本地数据 */ }
+      if (!isObject(saved)) return;
+      const restored = Object.assign(blank(), saved);
+      restored.info = Object.assign(blank().info, isObject(saved.info) ? saved.info : {});
+      ['name', 'grade', 'year'].forEach(key => { if (typeof restored.info[key] !== 'string') restored.info[key] = ''; });
+      restored.info.name = restored.info.name.slice(0, 24);
+      restored.ui = Object.assign(blank().ui, isObject(saved.ui) ? saved.ui : {});
+      if (!['home', 'info', 'test', 'generating', 'report', 'library', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
+      if (!TEST_MODES.includes(restored.ui.resumeScreen)) restored.ui.resumeScreen = TEST_MODES.includes(restored.ui.screen) ? restored.ui.screen : 'academic';
+      restored.ui.idx = Number.isInteger(restored.ui.idx) && restored.ui.idx >= 0 ? restored.ui.idx : 0;
+      restored.academic = blank().academic;
+      const academicAnswers = saved.academic?.answers;
+      if (isObject(academicAnswers)) window.QUESTION_BANK.forEach(q => {
+        const value = academicAnswers[q.id];
+        if (q.type === 'choice' ? Number.isInteger(value) && value >= 0 && value < q.options.length
+          : value !== null && value !== '' && Number.isFinite(Number(value))) restored.academic.answers[q.id] = value;
+      });
+      restored.plan = blank().plan;
+      const planAnswers = isObject(saved.plan?.answers) ? saved.plan.answers : {};
+      window.PLAN_QUESTIONS.forEach(q => {
+        const value = planAnswers[q.key];
+        const valid = (q.type === 'single' ? q.options() : q.source()).map(o => o.id);
+        if (q.type === 'single') {
+          if (valid.includes(value)) restored.plan.answers[q.key] = value;
+        } else {
+          const values = Array.isArray(value) ? value.filter(v => typeof v === 'string'
+            && (valid.includes(v) || q.multiFree && v.trim() !== '' && v.length <= 80)) : [];
+          restored.plan.answers[q.key] = [...new Set(values)].slice(0, q.max || (q.multiFree ? 30 : valid.length));
+        }
+      });
+      const grade = [restored.info.grade, restored.plan.answers.grade].find(value => window.PLAN_CONFIG.grade.some(g => g.id === value)) || '';
+      restored.info.grade = grade;
+      if (grade) restored.plan.answers.grade = grade;
+      restored.mbti = blank().mbti;
+      if (Array.isArray(saved.mbti?.answers)) saved.mbti.answers.forEach((value, i) => {
+        if (i < restored.mbti.answers.length && window.MBTI_SCALE.some(s => s.value === value)) restored.mbti.answers[i] = value;
+      });
+      restored.report = isObject(saved.report) && ['meta', 'academic', 'plan', 'mbti'].every(key => isObject(saved.report[key])) ? saved.report : null;
+      S = restored;
+    } catch (e) { /* 损坏或禁用的存储不影响本次使用 */ }
   }
   let saveTimer = null;
+  let autoAdvanceTimer = null;
+  let generationTimer = null;
+  function cancelAutoAdvance() { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
   function flush() {
     clearTimeout(saveTimer);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); } catch (e) { /* 存储已满时静默失败 */ }
+    const notice = $('#storageNotice');
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
+      if (notice) notice.hidden = true;
+      return true;
+    } catch (e) {
+      if (notice) {
+        notice.textContent = '浏览器暂时无法保存进度。你仍可继续作答，请保持页面打开，并导出 PDF 留存报告。';
+        notice.hidden = false;
+      }
+      return false;
+    }
   }
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, 120);
   }
   window.addEventListener('beforeunload', () => { clearTimeout(saveTimer); flush(); });
-
-  /* 首次打开时清空过期的中断进度，保证从信息页开始 */
-  (function dropStaleProgress() {
-    try {
-      if (sessionStorage.getItem('pathwise.entered')) return;
-      sessionStorage.setItem('pathwise.entered', '1');
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const prev = JSON.parse(raw);
-      if (prev.report) return; // 已有完整报告则保留
-      if (prev.ui && prev.ui.screen && prev.ui.screen !== 'home') {
-        localStorage.removeItem(STORAGE_KEY);
-        sessionStorage.setItem('pathwise.fresh', '1');
-      }
-    } catch (e) { /* ignore */ }
-  })();
+  window.addEventListener('pagehide', flush);
 
   function hasProgress() {
     return Object.keys(S.academic.answers).length > 0 || S.mbti.answers.some(v => v != null)
-      || Object.values(S.plan.answers).some(v => Array.isArray(v) && v.length) || !!S.info.name;
+      || Object.values(S.plan.answers).some(v => Array.isArray(v) ? v.length > 0 : v != null && v !== '')
+      || Object.values(S.info).some(v => typeof v === 'string' && v.trim() !== '') || !!S.report;
   }
 
   /* ---------------- 通用 ---------------- */
@@ -87,19 +112,24 @@
 
   const STEP_ORDER = ['info', 'academic', 'plan', 'mbti', 'report'];
   function setScreen(name, resume) {
+    cancelAutoAdvance();
+    if (name !== 'generating' && generationTimer !== null) { clearInterval(generationTimer); generationTimer = null; }
     S.ui.screen = name;
-    // 记录"上一次真实阶段"，测试页本身不覆盖它，刷新后才能回到对应模块
-    if (!resume) S.ui.resumeScreen = name === 'generating' ? 'mbti' : name;
+    // 临时查看基本信息或首页时，保留原测试模块及题号。
+    if (TEST_MODES.includes(name)) S.ui.resumeScreen = name;
+    if (name === 'generating') S.ui.resumeScreen = 'mbti';
     $$('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + name));
-    const cur = { home: -1, info: 0, academic: 1, plan: 2, mbti: 3, report: 4, generating: 3 }[name];
+    const phase = name === 'test' ? S.ui.resumeScreen : name;
+    const cur = { home: -1, info: 0, academic: 1, plan: 2, mbti: 3, report: 4, generating: 3 }[phase];
     $$('.step').forEach(st => {
       const i = STEP_ORDER.indexOf(st.dataset.step);
       st.classList.toggle('active', i === cur);
       st.classList.toggle('done', i < cur);
     });
     // 测试页由 test-shell 自身负责上下空白，不再留出首页 hero 的顶部空间
-    document.body.classList.toggle('in-test', ['academic', 'plan', 'mbti', 'generating'].includes(name));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); // 立即写入，避免刷新丢失当前阶段
+    document.body.classList.toggle('in-test', ['test', ...TEST_MODES, 'generating'].includes(name));
+    flush();
+    $('#resumeBtn').hidden = !hasProgress();
     window.scrollTo(0, 0);
   }
 
@@ -127,6 +157,7 @@
     $('#inGrade').onclick = (e) => {
       const b = e.target.closest('button'); if (!b) return;
       S.info.grade = b.dataset.v;
+      S.plan.answers.grade = S.info.grade;
       $$('#inGrade button').forEach(x => x.setAttribute('aria-checked', x === b));
       save();
     };
@@ -134,7 +165,7 @@
       S.info.name = $('#inName').value.trim(); // 实时同步，刷新后仍可直达报告
       save();
       const upd = $('#updateReportBtn');
-      if (S.info.name && !upd) renderInfo(); else if (!S.info.name && upd) upd.hidden = true;
+      if (S.info.name && !upd) renderInfo(); else if (upd) upd.hidden = !S.info.name;
     };
     $('#inYear').onclick = (e) => {
       const b = e.target.closest('button'); if (!b) return;
@@ -163,7 +194,7 @@
       items() { return window.QUESTION_BANK; },
       get(i) { return S.academic.answers[this.items()[i].id]; },
       set(i, v) { S.academic.answers[this.items()[i].id] = v; },
-      isAnswered(i) { const v = this.get(i); return v !== undefined && v !== null && v !== ''; },
+      isAnswered(i) { const v = this.get(i); return v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)); },
       canSkip: false,
       render(item) {
         const meta = window.SUBJECT_META[item.subject];
@@ -179,6 +210,7 @@
         return `<div class="q-tag">
             <span class="pill">${esc(meta.name)}</span>
             <span class="pill gray">${esc(item.topic)}</span>
+            ${window.QUESTION_BANK_META?.difficultyLabels[item.difficulty] ? `<span class="pill gray">${esc(window.QUESTION_BANK_META.difficultyLabels[item.difficulty])}</span>` : ''}
             <span class="pill gray">${item.type === 'choice' ? '单选题' : '数值题'}</span>
           </div>
           <p class="q-prompt">${esc(item.prompt)}</p>
@@ -188,6 +220,7 @@
       bind(item) {
         if (item.type === 'choice') {
           $$('#testBody .option').forEach(btn => {
+            btn.classList.toggle('selected', this.get(this.idx) === Number(btn.dataset.v));
             btn.onclick = () => {
               const v = Number(btn.dataset.v);
               $$('#testBody .option').forEach(x => x.classList.toggle('selected', x === btn));
@@ -215,7 +248,11 @@
       tip: '没有标准答案，跟着直觉选最像你的选项',
       items() { return window.PLAN_QUESTIONS; },
       get(i) { return S.plan.answers[this.items()[i].key]; },
-      set(i, v) { S.plan.answers[this.items()[i].key] = v; },
+      set(i, v) {
+        const key = this.items()[i].key;
+        S.plan.answers[key] = v;
+        if (key === 'grade') S.info.grade = v;
+      },
       isAnswered(i) { const v = this.get(i); return Array.isArray(v) ? v.length > 0 : !!v || this.items()[i].optional; },
       canSkip: true,
       render(item) {
@@ -302,7 +339,10 @@
             save(); updateFoot();
             // 自动进入下一题；若期间用户改了选择则取消
             const pick = this.idx;
-            setTimeout(() => { if (this.idx === pick && this.isAnswered(pick)) goNext(); }, 380);
+            cancelAutoAdvance();
+            autoAdvanceTimer = setTimeout(() => {
+              if (mode === 'mbti' && S.ui.screen === 'test' && this.idx === pick && this.isAnswered(pick)) goNext();
+            }, 380);
           };
         });
       }
@@ -319,7 +359,9 @@
     e.idx = Math.min(S.ui.idx || 0, total() - 1);
     S.ui.resumeScreen = m;
     $('#testTitle').textContent = e.title;
-    $('#testSub').textContent = e.sub;
+    $('#testSub').textContent = m === 'academic'
+      ? `${e.sub} · ${window.QUESTION_BANK.length} 题${window.QUESTION_BANK_META?.version ? ' · 题库 ' + window.QUESTION_BANK_META.version : ''}`
+      : e.sub;
     setScreen('test', true);
     renderItem();
   }
@@ -334,6 +376,7 @@
   }
 
   function renderItem() {
+    cancelAutoAdvance();
     const e = engine[mode];
     e.idx = Math.max(0, Math.min(e.idx || 0, total() - 1));
     S.ui.idx = e.idx;
@@ -361,6 +404,8 @@
   }
 
   function goNext() {
+    if (S.ui.screen !== 'test') return;
+    cancelAutoAdvance();
     const e = engine[mode];
     if (!e.isAnswered(e.idx)) {
       if (mode === 'academic') { toast('请先作答本题'); return; }
@@ -386,9 +431,12 @@
   $('#testBack').onclick = () => {
     const e = engine[mode];
     if (e.idx > 0) { e.idx--; renderItem(); return; }
-    if (mode === 'academic') { setScreen('info'); S.ui.resumeScreen = 'academic'; }
-    else if (mode === 'plan') { startAcademic(); }
-    else { startPlan(); }
+    if (mode === 'academic') { setScreen('info'); S.ui.resumeScreen = 'academic'; renderInfo(); }
+    else {
+      const previousMode = mode === 'plan' ? 'academic' : 'plan';
+      S.ui.idx = engine[previousMode].items().length - 1;
+      startTest(previousMode);
+    }
   };
   $('#testSkip').onclick = () => {
     const e = engine[mode];
@@ -399,22 +447,23 @@
   // 键盘快捷键：1-9 选项，Enter 下一题
   document.addEventListener('keydown', (ev) => {
     if (!document.getElementById('screen-test').classList.contains('active')) return;
-    if (ev.target.tagName === 'INPUT') return;
+    if (ev.target.matches('input, textarea, select, [contenteditable=true]') || ev.ctrlKey || ev.altKey || ev.metaKey) return;
     if (ev.key === 'Enter') { ev.preventDefault(); goNext(); return; }
     const n = Number(ev.key);
-    if (!Number.isInteger(n) || n < 1 || n > 9) return;
     const body = $('#testBody');
-    if (mode === 'mbti') { const b = $$('.likert button')[n - 1]; if (b) b.click(); return; }
-    if (mode === 'academic') { const b = $$('.option')[n - 1]; if (b) b.click(); return; }
-    if (mode === 'plan') {
-      const item = items()[engine.plan.idx];
-      if (item.type === 'single') { const b = $$('.option')[n - 1]; if (b) b.click(); return; }
+    if (Number.isInteger(n) && n >= 1 && n <= 9) {
+      if (mode === 'mbti') { const b = $$('.likert button')[n - 1]; if (b) b.click(); return; }
+      if (mode === 'academic') { const b = $$('.option')[n - 1]; if (b) b.click(); return; }
+      if (mode === 'plan') {
+        const item = items()[engine.plan.idx];
+        if (item.type === 'single') { const b = $$('.option')[n - 1]; if (b) b.click(); return; }
+      }
     }
     // 多选：按 A-K 字母也可选
     if (ev.key.length !== 1) return;
     const letter = ev.key.toUpperCase();
     const cards = $$('.tag-card');
-    if (letter >= 'A' && letter <= 'K') {
+    if (mode === 'plan' && letter >= 'A' && letter <= 'Z') {
       const idx = letter.charCodeAt(0) - 65;
       const item = items()[engine.plan.idx];
       if (item.type !== 'single' && cards[idx]) cards[idx].click();
@@ -423,37 +472,59 @@
 
   /* ---------------- 报告生成 ---------------- */
   function generate() {
+    if (generationTimer !== null) return;
     setScreen('generating');
     const lis = $$('.gen-steps li');
     lis.forEach(li => li.className = '');
     let i = 0;
-    const tick = setInterval(() => {
+    generationTimer = setInterval(() => {
       if (i < lis.length) { lis[i].className = 'ok'; }
       if (i + 1 < lis.length) lis[i + 1].className = 'on';
       i++;
       if (i > lis.length) {
-        clearInterval(tick);
+        clearInterval(generationTimer);
+        generationTimer = null;
         try {
-          S.report = window.generateReport(S);
+          const previousReport = S.report;
+          const nextReport = window.generateReport(S);
+          window.reportEditing?.carryEdits(previousReport, nextReport);
+          S.report = nextReport;
         } catch (err) {
           console.error(err);
-          clearInterval(tick);
           toast('生成报告时出现错误：' + err.message);
           setScreen('home');
           return;
         }
-        renderReport();
+        renderReport(false);
       }
     }, 420);
   }
 
-  function renderReport() {
-    const r = S.report;
-    if (!r) return;
+  function renderReport(refresh = true) {
+    const previous = S.report;
+    if (!previous) return;
+    let r = previous;
+    if (refresh) {
+      // 基本资料/作答可能已在其他页面更新；展示与归档必须使用同一份最新结果。
+      r = window.generateReport(S);
+      const material = report => JSON.stringify({ name: report.meta.name, grade: report.meta.gradeId, year: report.meta.year,
+        academic: report.academic, plan: report.plan, mbti: report.mbti, next: report.next });
+      const changed = material(previous) !== material(r);
+      r.meta.batchId = previous.meta.batchId || r.meta.batchId;
+      r.meta.date = previous.meta.date || r.meta.date;
+      window.reportEditing?.carryEdits(previous, r);
+      if (r.advisor) {
+        if (previous.advisor?.carriedFrom) r.advisor.carriedFrom = previous.advisor.carriedFrom;
+        else if (!changed) delete r.advisor.carriedFrom;
+      }
+      S.report = r;
+    }
     $('#reportRoot').innerHTML = window.renderReport(r);
     $('#reportId').textContent = r.meta.batchId;
     setScreen('report');
     window.animateReport($('#reportRoot'));
+    reportLibrary?.onReportRendered(r);
+    window.reportEditing?.mount(r, () => { const persisted = flush(); renderReport(false); return persisted; });
   }
 
   $('#pdfBtn').onclick = () => {
@@ -462,7 +533,7 @@
   };
   $('#restartBtn').onclick = () => {
     if (!confirm('确定要清空所有作答并重新开始吗？')) return;
-    localStorage.removeItem(STORAGE_KEY);
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* 本次会话仍可重置 */ }
     S = blank();
     setScreen('home');
     renderInfo();
@@ -470,18 +541,15 @@
   };
 
   /* ---------------- 首页 ---------------- */
-  $('#startBtn').onclick = () => {
+  function resumeProgress() {
     if (S.report) { renderReport(); return; }
-    // 已有进度：回到上次中断的位置；没有进度：从填写信息开始
-    const s = S.ui.screen;
-    if (S.info.name && hasProgress() && (s === 'academic' || s === 'plan' || s === 'mbti')) { startTest(s); return; }
+    const s = S.ui.resumeScreen;
+    if (S.info.name && TEST_MODES.includes(s)) { startTest(s); return; }
     setScreen('info');
     renderInfo();
-  };
-  $('#resumeBtn').onclick = () => {
-    if (S.report) { renderReport(); return; }
-    setScreen('info'); renderInfo();
-  };
+  }
+  $('#startBtn').onclick = resumeProgress;
+  $('#resumeBtn').onclick = resumeProgress;
   $$('[data-goto]').forEach(b => b.onclick = () => {
     const t = b.dataset.goto;
     setScreen(t);
@@ -496,16 +564,48 @@
   /* ---------------- 启动 ---------------- */
   function boot() {
     load();
+    // 报告在 renderReport 中按已校验作答重算，保留原编号、日期和顾问来源。
     const s = S.ui.screen;
     setScreen('home', true);
     renderInfo();
     $('#resumeBtn').hidden = !hasProgress();
     if (s === 'report' && S.report) renderReport();
     else if (s === 'info') { setScreen('info'); renderInfo(); }
-    else if (s === 'academic' || s === 'plan' || s === 'mbti') startTest(s);
+    else if (s === 'test' || TEST_MODES.includes(s)) startTest(s === 'test' ? S.ui.resumeScreen : s);
+    else if (s === 'generating') generate();
+    else if (s === 'library') setScreen('library');
   }
   boot();
 
+  /* ---------------- 本机报告库 ---------------- */
+  let libraryReturnScreen = 'home';
+  reportLibrary = window.ReportLibrary?.init({
+    getState: () => S,
+    hasProgress,
+    showLibrary() {
+      if (S.ui.screen !== 'library') libraryReturnScreen = S.ui.screen;
+      setScreen('library');
+    },
+    closeLibrary() {
+      if (libraryReturnScreen === 'report' && S.report) renderReport();
+      else if (libraryReturnScreen === 'info') { setScreen('info'); renderInfo(); }
+      else setScreen('home');
+    },
+    openState(next) {
+      const previous = S;
+      // 成功写入后才切换界面；配额/权限异常时保留当前学生的内存和磁盘进度。
+      S = next;
+      if (!flush()) {
+        S = previous;
+        throw new Error('无法保存打开的报告，当前作答未替换。请先导出备份并释放本地空间。');
+      }
+      renderInfo();
+      renderReport(false);
+      return true;
+    }
+  });
+  if (S.ui.screen === 'library') reportLibrary?.render();
+
   // 暴露给调试
-  window.__pathwise = { get state() { return S; }, generate, startTest, reset() { localStorage.removeItem(STORAGE_KEY); S = blank(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true; } };
+  window.__pathwise = { get state() { return S; }, generate, startTest, reset() { S = blank(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true; } };
 })();
