@@ -115,6 +115,7 @@
   function setScreen(name, resume) {
     cancelAutoAdvance();
     if (S.ui.screen === 'cloud' && name !== 'cloud') cloudReports?.onScreenLeft();
+    if (S.ui.screen === 'library' && name !== 'library') reportLibrary?.onScreenLeft();
     if (name !== 'generating' && generationTimer !== null) { clearInterval(generationTimer); generationTimer = null; }
     S.ui.screen = name;
     // 临时查看基本信息或首页时，保留原测试模块及题号。
@@ -614,6 +615,7 @@
       throw new Error('无法保存打开的报告，当前作答未替换。请先导出备份并释放本地空间。');
     }
     if (previous.ui.screen === 'cloud') cloudReports?.onScreenLeft();
+    if (previous.ui.screen === 'library') reportLibrary?.onScreenLeft();
     renderInfo();
     renderReport(false);
     return true;
