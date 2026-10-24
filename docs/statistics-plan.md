@@ -10,6 +10,8 @@
 
 **Spec:** 本文件为本轮设计与实现范围，结合 docs/progress.md 当前下一项。专业/地区分布、后续真实成绩及A/B事件留后续独立阶段。
 
+后续记录：此v1基线已交付。专业/地区v2扩展另见planning-statistics-plan.md，默认v1及原学术口径保留。
+
 ## 固定契约
 
 - `window.ReportStatistics.analyze(records, {source})` 返回只含白名单字段的纯JSON对象，无副作用。source必须显式为 `synthetic` 或 `unverified_real`；后者仅操作者声明，不能自动认证真实/授权或独立学生。
@@ -37,4 +39,4 @@
 - [x] UI：tests/statistics-ui.test.cjs先红后绿；选择默认空、预览/取消/变动失效、导出新鲜性/存储异常、纯文本/移动端/离开清理。
 - [x] 集成：index与ReportLibrary初始化/清理；原本机库/作答无变化、file://零HTTP冒烟。
 - [x] 独立审查后完整前端回归；后端与真实API回归验证静态入口未破坏；语法/元数据/diff检查。
-- [ ] 更新README/使用说明/台账、提交推送个人fork、更新现有草稿PR（若已合并则另建分支PR）、静态/源码包与真实日志/界面/校验和；更新两小时续做准确下一步。
+- [x] 更新README/使用说明/台账、提交推送个人fork、更新现有草稿PR（若已合并则另建分支PR）、静态/源码包与真实日志/界面/校验和；更新两小时续做准确下一步。

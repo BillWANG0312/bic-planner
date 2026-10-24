@@ -24,5 +24,11 @@
 .statistics-items li { margin: 14px 0; font-size: 13px; }
 .statistics-items p { color: var(--text-2); margin: 5px 0; }
 .statistics-json { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; font-size: 11px; padding: 12px; border: 1px solid var(--border); background: var(--bg-2); }
+.statistics-planning-note { margin: 0; color: var(--text-2); font-size: 12px; }
+.statistics-planning-table { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
+.statistics-planning-table h5 { margin: 0 0 8px; font-size: 14px; }
+.statistics-planning-table p { margin: 8px 0; color: var(--text-2); font-size: 13px; }
+.statistics-planning-entries { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; padding-left: 20px; font-size: 13px; }
+@media (max-width: 600px) { .statistics-planning-entries { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 600px) { .statistics-panel { padding: 14px; } .statistics-subjects { grid-template-columns: minmax(0, 1fr); } }
 @media print { .statistics-panel, #libraryStatisticsBtn { display: none !important; } }
