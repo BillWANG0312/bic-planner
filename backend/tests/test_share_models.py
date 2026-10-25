@@ -91,13 +91,13 @@ def test_public_model_keeps_plain_text_and_exact_utf16_boundary(models):
 def test_real_browser_archives_produce_the_same_python_public_contract(models):
     script = r"""
 const fs=require('node:fs'),vm=require('node:vm');
-const {loadReportScripts,state}=require('./tests/helpers/report.cjs');
+const {loadReportScripts,legacyState}=require('./tests/helpers/report.cjs');
 const w=loadReportScripts();
 for(const file of ['js/report-store.js','js/share-summary.js'])vm.runInNewContext(fs.readFileSync(file,'utf8'),{window:w,Date});
 const output=[];
 for(const complete of [false,true]){
-  const value=state(w,complete);
-  if(complete)for(const q of w.PLAN_QUESTIONS)value.plan.answers[q.key]=q.type==='single'?q.options()[0].id:q.optional?[]:[q.source()[0].id];
+  const value=legacyState(w,complete);
+  if(complete)for(const q of w.LegacyAssessment.planQuestions)value.plan.answers[q.key]=q.type==='single'?q.options()[0].id:q.optional?[]:[q.source()[0].id];
   value.report=w.generateReport(value);value.report.meta.batchId='AP-CROSS-'+complete;
   w.reportEditing.applyEdit(value.report,'summary','家长可见的建议。','不应分享的编辑者');
   let raw=null;const record=w.ReportStore.create({getItem:()=>raw,setItem:(_,v)=>raw=v}).save(value).record;

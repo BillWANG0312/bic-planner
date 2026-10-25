@@ -444,6 +444,11 @@
     };
   }
 
-  window.generateReport = generateReport;
+  window.generateReport = function (state = {}) {
+    const profile = window.AssessmentProfiles.stateProfile(state);
+    const report = profile === window.AssessmentProfiles.LEGACY ? window.LegacyAssessment.generateReport(state) : generateReport(state);
+    report.meta.assessmentProfile = profile;
+    return report;
+  };
   window.gradeAcademic = gradeAcademic;
 })();

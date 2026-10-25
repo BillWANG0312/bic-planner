@@ -33,6 +33,7 @@
     function fail(text) { throw new Error(text); }
     function localStore() { return window.ReportStore.create(window.localStorage); }
     function validRecord(record) {
+      window.AssessmentProfiles?.requireLegacyRecord(record);
       let raw = null;
       const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
       const backup = { format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records: [record] };
@@ -58,15 +59,15 @@
       fail('请先生成当前报告，或选择一份本机归档。');
     }
     function sourceAvailability() {
-      let record;
+      let record, profileProblem;
       try { record = sourceRecord(); }
-      catch (_) { /* 选项为空或本机库不可读时，不发出网络请求。 */ }
+      catch (error) { if (error?.code === 'PROFILE') profileProblem = '新版游戏或特质报告暂不支持云端保存。请保留本机JSON备份；旧版报告仍可使用。'; }
       $('#cloudUploadBtn').disabled = busy || !client.user || !record;
       $('#cloudUpdateBtn').disabled = busy || !client.user || !selected || !record
         || selected.record.reportMeta.batchId !== record.reportMeta.batchId;
       $('#cloudSourceNote').textContent = record
         ? `${record.state.info.name} · ${record.reportMeta.batchId}。仅此份资料会在确认后上传。`
-        : '没有可用的报告，请先生成报告或检查本机归档。';
+        : profileProblem || '没有可用的报告，请先生成报告或检查本机归档。';
       $('#cloudUpdateNote').textContent = selected
         ? record && record.reportMeta.batchId === selected.record.reportMeta.batchId
           ? `更新使用已读取的修订 ${selected.revision}；若服务端已变化，会停止并要求重新读取。`

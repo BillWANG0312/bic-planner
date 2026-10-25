@@ -7,7 +7,7 @@ const { test } = require('node:test');
 function loadEngine() {
   const context = vm.createContext({ console });
   context.window = context;
-  for (const script of ['js/bank.js', 'data/universities.js', 'js/majors.js', 'js/plan.js', 'js/personality.js', 'js/games.js', 'js/report.js']) {
+  for (const script of ['js/bank.js', 'data/universities.js', 'js/majors.js', 'js/plan.js', 'js/personality.js', 'js/games.js', 'js/assessment-profile.js', 'js/legacy-assessment.js', 'js/report.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', script), 'utf8'), context);
   }
   return context;
@@ -15,6 +15,7 @@ function loadEngine() {
 
 function state() {
   return {
+    assessmentProfile: 'games-traits-v1',
     info: { name: '测试学生', grade: '8', year: '2027 年秋季' },
     academic: { answers: {} }, plan: { answers: {} }, mbti: { answers: [] }
   };
@@ -92,7 +93,7 @@ test('personality traits tilt matching toward majors that use them', () => {
 
 test('incomplete personality answers do not change major recommendations', () => {
   const engine = loadEngine();
-  const sparse = [];
+  const sparse = Array(13).fill(null);
   sparse[12] = { value: 4, ms: 500 };
   const partial = engine.generateReport({ ...state(), plan: { answers: { preferredMajor: ['chem'] } }, mbti: { answers: sparse } }).plan.majors;
   const empty = engine.generateReport({ ...state(), plan: { answers: { preferredMajor: ['chem'] } }, mbti: { answers: [] } }).plan.majors;
@@ -144,6 +145,7 @@ test('basic-information grade overrides stale planning grade without mutating in
 test('legacy records use planning grade when basic information has no grade', () => {
   const engine = loadEngine();
   const input = state();
+  input.assessmentProfile = engine.AssessmentProfiles.LEGACY;
   delete input.info.grade;
   input.plan.answers.grade = '9';
   assert.equal(engine.generateReport(input).meta.gradeId, '9');

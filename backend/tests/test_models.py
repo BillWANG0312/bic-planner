@@ -238,14 +238,15 @@ class ArchiveRecordTests(unittest.TestCase):
         script = r"""
 const fs = require('node:fs');
 const vm = require('node:vm');
-const {loadReportScripts, state} = require('./tests/helpers/report.cjs');
+const {loadReportScripts, legacyState} = require('./tests/helpers/report.cjs');
 const w = loadReportScripts();
+const legacy = w.LegacyAssessment;
 vm.runInNewContext(fs.readFileSync('js/report-store.js', 'utf8'), {window: w, Date});
 let raw = null;
 const store = w.ReportStore.create({getItem: () => raw, setItem: (_, value) => {raw = value;}});
 const records = [];
 for (const complete of [false, true]) {
-  const value = state(w, complete);
+  const value = legacyState(w, complete);
   value.plan.answers.preferredMajor = ['tech'];
   value.report = w.generateReport(value);
   value.report.meta.batchId = 'AP-CONTRACT-' + complete;
@@ -255,10 +256,10 @@ for (const complete of [false, true]) {
 const metadata = {
   bankVersion: w.QUESTION_BANK_META.version,
   academic: w.QUESTION_BANK.map(q => ({id: q.id, type: q.type, ...(q.type === 'choice' ? {optionCount: q.options.length} : {})})),
-  plan: w.PLAN_QUESTIONS.map(q => { const ids = (q.type === 'single' ? q.options() : q.source()).map(o => o.id);
+  plan: legacy.planQuestions.map(q => { const ids = (q.type === 'single' ? q.options() : q.source()).map(o => o.id);
     return {key: q.key, type: q.type, options: ids, ...(q.type !== 'single' ? {max: q.max || (q.multiFree ? 30 : ids.length), multiFree: !!q.multiFree} : {})}; }),
-  grades: w.PLAN_CONFIG.grade.map(o => o.id), mbtiCount: w.MBTI_QUESTIONS.length,
-  mbtiScale: w.MBTI_SCALE.map(o => o.value)
+  grades: legacy.planConfig.grade.map(o => o.id), mbtiCount: legacy.mbtiQuestions.length,
+  mbtiScale: legacy.mbtiScale.map(o => o.value)
 };
 process.stdout.write(JSON.stringify({records, metadata}));
 """

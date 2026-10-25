@@ -90,7 +90,8 @@
         item.setAttribute('aria-labelledby', title.id);
         heading.append(title);
         let report;
-        try { report = window.generateReport(record.state); }
+        try { report = window.generateReport({ ...record.state,
+          assessmentProfile: window.AssessmentProfiles.recordProfile(record) }); }
         catch (error) { /* 归档仍保留；打开时由存储模型给出具体校验结果。 */ }
         heading.append(node('span', 'library-badge', report?.meta.status === 'complete' ? '测评已完成' : '探索草稿'));
         item.append(heading);

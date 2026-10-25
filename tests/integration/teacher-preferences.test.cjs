@@ -6,7 +6,7 @@ const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
-const { loadReportScripts, state } = require('../helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
 const root = path.resolve(__dirname, '../..');
 const temporaryRoot = path.resolve('D:/Codex/work/bic-teacher-preferences-browser-tests');
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');

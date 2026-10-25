@@ -63,6 +63,7 @@
   }
 
   function build(record) {
+    window.AssessmentProfiles?.requireLegacyRecord(record);
     if (!window.ReportStore || typeof window.reportEditing?.getText !== 'function') {
       fail('请从账号报告的详情中生成分享摘要。');
     }

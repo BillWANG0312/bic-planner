@@ -3,7 +3,6 @@
   'use strict';
   const KEY = 'bic.report-library.v1';
   const FORMAT = 'bic-report-library';
-  const VERSION = 1;
   const LIMITS = Object.freeze({ MAX_RECORDS: 100, MAX_CHARS: 2000000, MAX_HISTORY: 200 });
   const SECTIONS = ['summary', 'academic', 'plan', 'personality'];
   const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -24,12 +23,49 @@
   }
   function text(value, max, label, required = false) {
     if (typeof value !== 'string' || value.length > max || required && !value.trim()) fail(`${label}需为${required ? '非空' : ''}文字，最多 ${max} 字`);
+    for (let index = 0; index < value.length; index++) {
+      const code = value.charCodeAt(index);
+      if (code >= 0xD800 && code <= 0xDBFF) {
+        const next = value.charCodeAt(++index);
+        if (!(next >= 0xDC00 && next <= 0xDFFF)) fail(`${label}含无效文字`);
+      } else if (code >= 0xDC00 && code <= 0xDFFF) fail(`${label}含无效文字`);
+    }
     return value;
   }
   function timestamp(value, label) {
     text(value, 40, label, true);
     if (!Number.isFinite(Date.parse(value))) fail(`${label}无效`);
     return value;
+  }
+  function profiles() {
+    if (!window.AssessmentProfiles || typeof window.AssessmentProfiles.stateProfile !== 'function'
+        || typeof window.AssessmentProfiles.recordProfile !== 'function') fail('测评版本模块不可用，请保留原始资料并重新载入。', 'PROFILE');
+    return window.AssessmentProfiles;
+  }
+  function legacy() {
+    if (!window.LegacyAssessment || typeof window.LegacyAssessment.validateRecord !== 'function'
+        || typeof window.LegacyAssessment.validateState !== 'function') fail('旧版测评模块不可用，请保留原始资料并重新载入。', 'PROFILE');
+    return window.LegacyAssessment;
+  }
+  function jsonShape(value) {
+    const pending = [value], seen = new Set();
+    let count = 0;
+    while (pending.length) {
+      const item = pending.pop();
+      if (++count > LIMITS.MAX_CHARS) fail('资料结构超出支持范围。', 'LIMIT');
+      if (item === null || typeof item === 'boolean') continue;
+      if (typeof item === 'string') { text(item, item.length, '资料文字'); continue; }
+      if (typeof item === 'number') { if (!Number.isFinite(item)) fail('资料包含无效数值。'); continue; }
+      if (!object(item) && !Array.isArray(item)) fail('资料包含非JSON值。');
+      if (seen.has(item)) continue;
+      seen.add(item);
+      const prototype = Object.getPrototypeOf(item);
+      if (!Array.isArray(item) && prototype !== null && Object.getPrototypeOf(prototype) !== null
+          || Object.getOwnPropertySymbols(item).length || Object.getOwnPropertyNames(item).length !== Object.keys(item).length + (Array.isArray(item) ? 1 : 0)
+          || Array.isArray(item) && Object.keys(item).length !== item.length) fail('资料包含非JSON结构。');
+      pending.push(...Object.values(item));
+    }
+    try { JSON.stringify(value); } catch (_) { fail('资料不能无损序列化。'); }
   }
 
   // 小游戏答案：分格卡片 / 靶环 / 团队竞速
@@ -39,14 +75,15 @@
       const board = cfg[q.game];
       if (!object(answer) || Object.keys(answer).some(key => !board.lanes.some(lane => lane.id === key))) return null;
       const allowed = new Set((q.game === 'campus' ? board.items : board.majors).map(item => item.id || item));
-      const out = {};
+      const seen = new Set();
+      let invalid = false;
       board.lanes.forEach(lane => {
         const list = answer[lane.id] === undefined ? [] : answer[lane.id];
         if (!Array.isArray(list) || list.length > board.capacity || new Set(list).size !== list.length
-          || list.some(id => typeof id !== 'string' || !allowed.has(id))) { out.bad = true; return; }
-        out[lane.id] = list.slice();
+          || list.some(id => typeof id !== 'string' || !allowed.has(id) || seen.has(id))) { invalid = true; return; }
+        list.forEach(id => seen.add(id));
       });
-      return out.bad ? null : out;
+      return invalid ? null : clone(answer);
     }
     if (q.game === 'dart') {
       const rings = cfg.dart.rings.map(ring => ring.id);
@@ -55,22 +92,21 @@
       return answer.slice();
     }
     if (q.game === 'race') {
-      if (!object(answer)) return null;
-      const out = {};
-      if (answer.pace !== undefined) { if (!cfg.race.pace.some(p => p.id === answer.pace)) return null; out.pace = answer.pace; }
-      if (answer.partner !== undefined) { if (!cfg.race.partners.some(p => p.id === answer.partner)) return null; out.partner = answer.partner; }
-      return out;
+      if (!object(answer) || Object.keys(answer).some(key => !['pace', 'partner'].includes(key))) return null;
+      if (Object.hasOwn(answer, 'pace') && !cfg.race.pace.some(p => p.id === answer.pace)) return null;
+      if (Object.hasOwn(answer, 'partner') && !cfg.race.partners.some(p => p.id === answer.partner)) return null;
+      return clone(answer);
     }
     return null;
   }
 
   const LEGACY_PLAN_KEYS = ['schoolSubjects', 'weakSubjects'];
 
-  function normalizeState(value) {
+  function normalizeState(value, { allowBlankName = false } = {}) {
     shape(value, ['info', 'academic', 'plan', 'mbti'], '作答记录');
     shape(value.info, ['name', 'grade', 'year'], '学生资料');
     const info = {
-      name: text(value.info.name, 24, '学生姓名', true),
+      name: text(value.info.name, 24, '学生姓名', !allowBlankName),
       grade: text(value.info.grade, 10, '年级'),
       year: text(value.info.year, 40, '目标入学时间')
     };
@@ -82,7 +118,7 @@
     window.QUESTION_BANK.forEach(q => {
       if (!Object.hasOwn(value.academic.answers, q.id)) return;
       const answer = value.academic.answers[q.id];
-      if (answer === null) return; // 页面清空数值题后存为 null，含义仍为未作答。
+      if (answer === null) { academic.answers[q.id] = null; return; }
       const valid = q.type === 'choice'
         ? Number.isInteger(answer) && answer >= 0 && answer < q.options.length
         : (typeof answer === 'number' || typeof answer === 'string' && answer.trim() !== '' && answer.length <= 100)
@@ -99,7 +135,7 @@
     window.PLAN_QUESTIONS.forEach(q => {
       const answer = value.plan.answers[q.key];
       if (q.type === 'game') {
-        if (answer === undefined) { plan.answers[q.key] = q.game === 'race' ? {} : q.game === 'dart' ? [] : {}; return; }
+        if (answer === undefined) return;
         const clean = normalizeGame(q, answer);
         if (clean == null) fail(`规划题 ${q.key} 的答案类型或选项无效`);
         plan.answers[q.key] = clean;
@@ -111,19 +147,21 @@
         if (!options.includes(answer)) fail(`规划题 ${q.key} 的答案无效`);
         plan.answers[q.key] = answer;
       } else {
-        if (answer === undefined) { plan.answers[q.key] = []; return; }
+        if (answer === undefined) return;
         const max = q.max || (q.multiFree ? 30 : options.length);
         if (!Array.isArray(answer) || answer.length > max || new Set(answer).size !== answer.length
           || answer.some(item => typeof item !== 'string' || !item.trim() || item.length > 80 || !options.includes(item) && !q.multiFree)) fail(`规划题 ${q.key} 的答案类型、选项或数量无效`);
+        answer.forEach(item => text(item, 80, '规划选项', true));
         plan.answers[q.key] = answer.slice();
       }
     });
     LEGACY_PLAN_KEYS.forEach(key => {
       const list = value.plan.answers[key];
       if (list === undefined) return;
-      if (!Array.isArray(list) || list.length > 30 || list.some(item => typeof item !== 'string' || !item.trim() || item.length > 80)) {
+      if (!Array.isArray(list) || list.length > 30 || new Set(list).size !== list.length || list.some(item => typeof item !== 'string' || !item.trim() || item.length > 80)) {
         fail(`规划题 ${key} 的答案类型或数量无效`);
       }
+      list.forEach(item => text(item, 80, '学科选项', true));
       plan.answers[key] = list.slice();
     });
     if (value.plan.answers.preferredMajor !== undefined) {
@@ -134,19 +172,26 @@
       plan.answers.preferredMajor = value2.slice();
     }
     if (info.grade && plan.answers.grade && info.grade !== plan.answers.grade) fail('学生资料与规划答案的年级不一致');
-    if (!info.grade && plan.answers.grade) info.grade = plan.answers.grade;
-    if (info.grade) plan.answers.grade = info.grade;
-    shape(value.mbti, ['answers', 'legacy'], '性格测评');
+    shape(value.mbti, ['answers'], '性格测评');
     if (!Array.isArray(value.mbti.answers) || value.mbti.answers.length > window.TRAIT_QUESTIONS.length) fail('性格答案数量或类型无效');
     const scale = window.PERSONALITY_SCALE.map(option => option.value);
-    const mbti = { answers: Array.from({ length: window.TRAIT_QUESTIONS.length }, (_, i) => {
-      const answer = value.mbti.answers[i];
-      if (answer === undefined || answer === null) return null;
-      if (!object(answer) || !scale.includes(answer.value)) fail(`性格题 ${i + 1} 的答案无效`);
-      return { value: answer.value, ms: Number.isFinite(answer.ms) ? answer.ms : null };
-    }) };
-    if (value.mbti.legacy === true) mbti.legacy = true;
-    return { info, academic, plan, mbti };
+    value.mbti.answers.forEach((answer, index) => {
+      if (answer === null) return;
+      shape(answer, ['value', 'ms'], `性格题 ${index + 1}`);
+      if (!scale.includes(answer.value) || Object.hasOwn(answer, 'ms') && answer.ms !== null && !Number.isFinite(answer.ms)) fail(`性格题 ${index + 1} 的答案无效`);
+    });
+    return clone(value);
+  }
+
+  function validateState(value, profile, options = {}) {
+    const api = profiles();
+    if (!object(options) || Object.keys(options).some(key => key !== 'allowBlankName')
+        || Object.hasOwn(options, 'allowBlankName') && typeof options.allowBlankName !== 'boolean') fail('续答校验参数不符合要求。', 'PROFILE');
+    shape(value, ['info', 'academic', 'plan', 'mbti', 'assessmentProfile'], '作答记录');
+    if (![api.LEGACY, api.CURRENT].includes(profile) || api.stateProfile(value) !== profile) fail('测评版本不一致，请保留原始资料。', 'PROFILE');
+    jsonShape(value);
+    const state = clone(value); delete state.assessmentProfile;
+    return profile === api.LEGACY ? legacy().validateState(state, options) : normalizeState(state, options);
   }
 
   function normalizeAdvisor(value) {
@@ -197,7 +242,10 @@
   }
 
   function normalizeRecord(value) {
-    shape(value, ['id', 'createdAt', 'updatedAt', 'bankVersion', 'catalogVersion', 'state', 'reportMeta', 'advisor'], '归档记录');
+    jsonShape(value);
+    const api = profiles(), profile = api.recordProfile(value);
+    if (profile === api.LEGACY) return legacy().validateRecord(value);
+    shape(value, ['id', 'createdAt', 'updatedAt', 'bankVersion', 'catalogVersion', 'state', 'reportMeta', 'advisor', 'assessmentProfile'], '归档记录');
     const id = text(value.id, 100, '归档编号', true);
     if (!/^[A-Za-z0-9_-]+$/.test(id)) fail('归档编号格式无效');
     shape(value.reportMeta, ['batchId', 'date'], '报告资料');
@@ -207,7 +255,9 @@
       state: normalizeState(value.state), reportMeta: { batchId: text(value.reportMeta.batchId, 100, '报告编号', true), date: text(value.reportMeta.date, 80, '报告日期', true) } };
     const advisor = normalizeAdvisor(value.advisor);
     if (advisor) record.advisor = advisor;
-    return record;
+    // Reading an issued archive validates it without inserting defaults or
+    // silently changing the stored fields, answer order, or optional timing.
+    return clone(value);
   }
   function validateRecords(records) {
     if (!Array.isArray(records)) fail('报告列表格式不正确');
@@ -220,7 +270,9 @@
       return record;
     });
   }
-  function envelope(records) { return { format: FORMAT, version: VERSION, exportedAt: now(), records }; }
+  function envelope(records) {
+    return { format: FORMAT, version: records.some(record => record.assessmentProfile === profiles().CURRENT) ? 2 : 1, exportedAt: now(), records };
+  }
   function serialize(records) {
     const result = JSON.stringify(envelope(records));
     if (result.length > LIMITS.MAX_CHARS) fail(`报告库超过 ${LIMITS.MAX_CHARS} 字符的保存上限，请先导出备份并整理归档`, 'LIMIT');
@@ -232,9 +284,11 @@
     let parsed;
     try { parsed = JSON.parse(raw); } catch (_) { fail('JSON 格式无法读取，请保留原文件并检查备份'); }
     shape(parsed, ['format', 'version', 'exportedAt', 'records'], '备份文件');
-    if (parsed.format !== FORMAT || parsed.version !== VERSION) fail('备份格式或版本不受支持，请保留原文件');
+    if (parsed.format !== FORMAT || ![1, 2].includes(parsed.version)) fail('备份格式或版本不受支持，请保留原文件');
     timestamp(parsed.exportedAt, '备份时间');
-    return validateRecords(parsed.records);
+    const records = validateRecords(parsed.records);
+    if (parsed.version === 1 && records.some(record => Object.hasOwn(record, 'assessmentProfile'))) fail('明确标记的新版归档需要version2容器，请保留原文件。', 'PROFILE');
+    return records;
   }
 
   function create(storage) {
@@ -256,14 +310,17 @@
     function save(currentState, options = {}) {
       const records = read();
       if (!object(currentState) || !object(currentState.report) || !object(currentState.report.meta)) fail('请先生成当前学生的报告再归档');
-      const state = normalizeState({ info: currentState.info, academic: currentState.academic, plan: currentState.plan,
-        mbti: { answers: currentState.mbti?.answers, ...(currentState.mbti?.legacy ? { legacy: true } : {}) } });
+      const api = profiles(), profile = api.stateProfile(currentState);
+      const state = validateState({ info: currentState.info, academic: currentState.academic, plan: currentState.plan, mbti: currentState.mbti,
+        ...(Object.hasOwn(currentState, 'assessmentProfile') ? { assessmentProfile: currentState.assessmentProfile } : {}) }, profile);
       const reportMeta = { batchId: currentState.report.meta.batchId, date: currentState.report.meta.date };
       const previous = records.find(record => record.reportMeta.batchId === reportMeta.batchId);
       if (previous && options.overwrite !== true) fail('此报告已归档，请明确选择更新已有归档', 'DUPLICATE');
+      if (previous && api.recordProfile(previous) !== profile) fail('不能用另一版问卷覆盖同一归档，请保留原记录并使用新报告编号。', 'PROFILE');
       const at = now();
       const record = normalizeRecord({ id: previous?.id || `local-${Date.now().toString(36)}-${(++sequence).toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
         createdAt: previous?.createdAt || at, updatedAt: at, bankVersion: bankVersion(), catalogVersion: catalogVersion(), state, reportMeta,
+        ...(profile === api.CURRENT ? { assessmentProfile: api.CURRENT } : {}),
         ...(currentState.report.advisor !== undefined ? { advisor: currentState.report.advisor } : {}) });
       const next = previous ? records.map(item => item.id === previous.id ? record : item) : [...records, record];
       write(next);
@@ -280,9 +337,9 @@
       const record = read().find(item => item.id === id);
       if (!record) fail('找不到这份归档，可能已被删除', 'NOT_FOUND');
       const state = clone(record.state);
-      state.mbti = state.mbti || { answers: [] };
-      if (state.mbti.answers.length < window.TRAIT_QUESTIONS.length) state.mbti.answers.push(...new Array(window.TRAIT_QUESTIONS.length - state.mbti.answers.length).fill(null));
-      const report = window.generateReport(state);
+      const api = profiles(), profile = api.recordProfile(record);
+      state.assessmentProfile = profile;
+      const report = profile === api.LEGACY ? legacy().generateReport(state) : window.generateReport(state);
       report.meta.batchId = record.reportMeta.batchId;
       report.meta.date = record.reportMeta.date;
       if (record.advisor) {
@@ -330,23 +387,13 @@
     function exportBackup() { return serialize(read()); }
     function exportCSV() {
       const records = read();
-      const rows = [['归档编号', '报告编号', '学生姓名', '年级', '目标入学时间', '报告日期', '报告状态', '学术已答', '学术总题', '数学百分比（完成后）', '英语百分比（完成后）', '物理百分比（完成后）', '化学百分比（完成后）', '首选探索专业', '性格特质', '归档题库版本', '归档院校目录版本']];
-      records.forEach(record => {
-        const report = window.generateReport(record.state);
-        const pct = key => { const subject = report.academic.subjects.find(item => item.key === key); return subject?.complete ? subject.pct : ''; };
-        rows.push([record.id, record.reportMeta.batchId, record.state.info.name, report.meta.grade, record.state.info.year,
-          record.reportMeta.date, report.meta.status === 'complete' ? '完成' : '草稿', report.academic.answered, report.academic.total,
-          pct('maths'), pct('english'), pct('physics'), pct('chemistry'), report.plan.top.major.name,
-          report.mbti.complete ? (report.mbti.top || []).slice(0, 2).map(t => t.label).join(' / ') || '倾向均衡' : '待完成', record.bankVersion, record.catalogVersion || '未知']);
-      });
-      const cell = value => {
-        let result = String(value ?? '');
-        if (/^[\s\u0000-\u001f\u007f]*[=+\-@]/.test(result) || /^[\u0000-\u001f\u007f]/.test(result)) result = "'" + result;
-        return '"' + result.replace(/"/g, '""') + '"';
-      };
-      return '\uFEFF' + rows.map(row => row.map(cell).join(',')).join('\r\n') + '\r\n';
+      if (records.some(record => profiles().recordProfile(record) !== profiles().LEGACY)) {
+        fail('当前或混合测评版本尚不支持旧格式CSV，请导出JSON备份保留完整资料。', 'PROFILE');
+      }
+      const raw = JSON.stringify({ format: FORMAT, version: 1, exportedAt: now(), records });
+      return legacy().createStore({ getItem: () => raw, setItem() { fail('导出不应修改归档。'); } }).exportCSV();
     }
     return { list: () => clone(read()), save, remove, restore, previewImport, importBackup, exportBackup, exportCSV, rawBackup };
   }
-  window.ReportStore = { create, LIMITS };
+  window.ReportStore = { create, LIMITS, validateState };
 })();

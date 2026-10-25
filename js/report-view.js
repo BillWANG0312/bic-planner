@@ -369,6 +369,7 @@
   }
 
   window.renderReport = function (r) {
+    if (window.AssessmentProfiles.reportProfile(r) === window.AssessmentProfiles.LEGACY) return window.LegacyAssessment.renderReport(r);
     return `<div class="paper">
       ${renderCover(r)}
       ${renderSummary(r)}

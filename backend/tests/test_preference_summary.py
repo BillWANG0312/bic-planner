@@ -40,7 +40,7 @@ def fingerprint(value):
 
 def browser_questions():
     script = """const fs=require('node:fs'),vm=require('node:vm');const window={};const c=vm.createContext({window});
-for(const file of ['data/universities.js','js/majors.js','js/plan.js'])vm.runInContext(fs.readFileSync(file,'utf8'),c);
+for(const file of ['data/universities.js','js/majors.js','js/legacy/plan.js'])vm.runInContext(fs.readFileSync(file,'utf8'),c);
 const keys=['preferredMajor','countries'];process.stdout.write(JSON.stringify(keys.map(key=>{
 const q=window.PLAN_QUESTIONS.find(q=>q.key===key);return{key:q.key,max:q.max,options:q.source().map(({id,label})=>({id,label}))};})));"""
     result = subprocess.run(['node', '-e', script], cwd=ROOT, capture_output=True, text=True, encoding='utf-8', check=True)
@@ -56,8 +56,8 @@ def test_generated_dictionary_matches_actual_browser_sources_and_has_only_safe_f
     assert [[option['id'] for option in question['options']] for question in schema['questions']] == IDS
     assert [question['max'] for question in schema['questions']] == [2, 3]
     assert schema['fingerprint'] == fingerprint(schema)
-    for name in ['majors', 'plan']:
-        source = (ROOT / ('js/' + name + '.js')).read_text(encoding='utf-8').replace('\r\n', '\n')
+    for name, filename in [('majors', 'js/majors.js'), ('plan', 'js/legacy/plan.js')]:
+        source = (ROOT / filename).read_text(encoding='utf-8').replace('\r\n', '\n')
         assert schema[name + '_sha256'] == hashlib.sha256(source.encode('utf-8')).hexdigest()
     metadata = module.metadata(schema)
     assert metadata == {'bank_version': ASSESSMENT_SCHEMA['bankVersion'], 'schema_version': 'planning-preferences-v1',
@@ -104,8 +104,9 @@ def test_missing_invalid_or_deep_dictionary_is_generic_503(tmp_path, contents):
 
 def test_generator_normalizes_source_and_output_newlines_and_detects_stale_public_dictionary(tmp_path):
     implementation().load_schema(); project = tmp_path / 'project'
-    files = ['backend/tools/preference-schema.cjs', 'backend/preference-schema.json', 'backend/assessment-schema.json',
-             'js/preference-schema.js', 'js/majors.js', 'js/plan.js']
+    files = ['backend/tools/preference-schema.cjs', 'backend/tools/legacy-contract.cjs',
+             'backend/preference-schema.json', 'backend/assessment-schema.json',
+             'js/preference-schema.js', 'js/majors.js', 'js/legacy/manifest.json', 'js/legacy/plan.js']
     for relative in files:
         destination = project / relative; destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / relative, destination)

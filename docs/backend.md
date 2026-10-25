@@ -1,5 +1,7 @@
 # 可选账号与报告 API（本地验证版）
 
+当前测评范围：本页报告操作沿用旧版14道规划/24道数字量表合同；新版游戏/30题特质尚未适配，明确拒绝进入旧云端或投影，不截断或混用分母。新旧档案与续答操作见 [测评版本说明](assessment-profiles.md)。
+
 本目录提供独立 FastAPI 服务；静态测评仍能直接打开 index.html。可选登录和逐份上传默认关闭，不自动传送浏览器报告，详见 [连接指南](cloud-connection.md)。已有 [家长摘要](parent-sharing.md)、[受控批注](family-comments.md)、[指定顾问只读](teacher-access.md) 与 [可选文案草稿](advice-drafts.md)，尚未部署公司生产。顾问必须获得单报告明确授权，角色不开放全校，另有[单报告建议文字编辑](advisor-edit.md)，需另行确认授权，旧只读不扩权。草稿默认禁用，仅有本地模拟与供应商注入协议，没有真实模型适配器、密钥或外部请求。
 
 ## 安装与本地试运行
@@ -87,3 +89,5 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 现有API2/schema5增加POST /api/auth/password：本人有效会话+Origin/CSRF，旧密码验证、新密码确认、事务CAS替换哈希并撤销全部本人会话，204空响应清Cookie。登录会话创建同时核对被验证哈希，关闭改密与旧登录竞态；没有本轮迁移。限流与哈希资源上限保持。操作、Unicode长度、未知结果及边界见 [改密说明](password-change.md)。管理员找回/身份复核仍未实现，不能用新建同名账号替代恢复。
 
 合并后新游戏/特质报告尚不能通过现有严格归档模型，旧报告语义需版本隔离。不能把本人改密的定向通过记为全站通过，见 [兼容性记录](upstream-assessment-compatibility.md)。
+
+旧API结构生成器现从固定旧版plan/mbti与共享学术bank生成，先运行legacy-assessment.cjs --check；旧assessment-schema.json内容保持。新profile需要独立严格模型，不能通过重生成旧形状或手改JSON扩展。

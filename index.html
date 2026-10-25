@@ -34,6 +34,10 @@
 
   <main id="app">
     <p id="storageNotice" class="storage-notice no-print" role="status" hidden></p>
+    <section id="profileNotice" class="storage-notice no-print" aria-label="原始进度保护" hidden>
+      <p id="profileNoticeText" role="status"></p>
+      <div class="hero-actions"><button id="profileRawDownloadBtn" type="button" class="btn ghost sm">下载原始JSON备份</button><button id="profileContinueBtn" type="button" class="btn primary sm">确认继续原版本并允许保存</button><button id="profileRestartBtn" type="button" class="btn ghost sm">保留资料后开始新版</button></div>
+    </section>
 
     <!-- ============ 首页 ============ -->
     <section class="screen hero" id="screen-home" style="display:grid">
@@ -367,6 +371,8 @@
   <script src="js/plan.js"></script>
   <script src="js/personality.js"></script>
   <script src="js/games.js"></script>
+  <script src="js/assessment-profile.js"></script>
+  <script src="js/legacy-assessment.js"></script>
   <script src="js/report.js"></script>
   <script src="js/report-editing.js"></script>
   <script src="js/report-print.js"></script>

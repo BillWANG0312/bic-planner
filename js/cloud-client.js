@@ -8,6 +8,28 @@
   const copy = value => JSON.parse(JSON.stringify(value));
   const identifier = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
   const revisionNumber = value => Number.isSafeInteger(value) && value > 0;
+  function requireLegacyRecord(record) {
+    const unsupported = () => { throw new CloudError('PROFILE', '新版游戏、特质或未知问卷资料暂不支持此账号接口。请保留本机JSON备份，旧版报告仍可使用。', 422); };
+    if (window.AssessmentProfiles?.requireLegacyRecord) {
+      try { window.AssessmentProfiles.requireLegacyRecord(record); } catch (_) { unsupported(); }
+      return;
+    }
+    // Account-only pages need no assessment modules. Even in that minimal
+    // client, never send a visibly newer/unknown shape to the legacy API.
+    if (Object.hasOwn(record, 'assessmentProfile')) unsupported();
+    const state = record.state;
+    if (state === undefined) return;
+    if (!object(state) || Object.hasOwn(state, 'assessmentProfile')
+        || state.mbti !== undefined && !object(state.mbti) || state.plan !== undefined && !object(state.plan)) unsupported();
+    const personality = state.mbti || {}, plan = state.plan?.answers || {};
+    const answers = personality.answers === undefined ? [] : personality.answers;
+    if (!object(plan) || Object.hasOwn(personality, 'legacy') || !Array.isArray(answers) || answers.length > 24
+        || answers.some(value => value !== null && (!Number.isInteger(value) || value < 0 || value > 4))) unsupported();
+    if (['subjectBoard', 'majorBoard', 'team'].some(key => Object.hasOwn(plan, key))
+        || Array.isArray(plan.career) && plan.career.some(id => ['ideas', 'people', 'systems', 'science', 'build', 'market'].includes(id))
+        || Array.isArray(plan.preferredMajor) && (plan.preferredMajor.length > 2
+          || plan.preferredMajor.some(id => ['cs', 'phys', 'chem', 'bio', 'biz', 'law', 'psych', 'design', 'intl'].includes(id)))) unsupported();
+  }
   function passwordShape(value) {
     if (typeof value !== 'string') return false;
     let length = 0;
@@ -273,6 +295,7 @@
 
     function report(value) {
       if (!object(value) || !identifier(value.id) || !revisionNumber(value.revision) || !object(value.record)) throw protocolError();
+      requireLegacyRecord(value.record);
       return value;
     }
     function reportId(id) {
@@ -298,6 +321,7 @@
     async function createReport(record) {
       requireConnection(true);
       if (!object(record)) throw new CloudError('VALIDATION', '请选择有效的本机归档。', 422);
+      requireLegacyRecord(record);
       return report(await request('reports', { method: 'POST', body: { record }, authenticated: true }));
     }
     async function update(id, expectedRevision, record) {
@@ -305,6 +329,7 @@
       const endpoint = 'reports/' + reportId(id);
       revision(expectedRevision);
       if (!object(record)) throw new CloudError('VALIDATION', '请选择有效的本机归档。', 422);
+      requireLegacyRecord(record);
       return report(await request(endpoint, { method: 'PUT', body: { record, revision: expectedRevision }, authenticated: true }));
     }
     async function remove(id, expectedRevision) {

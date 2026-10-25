@@ -2,7 +2,7 @@
 
 默认纯静态的 A-Level 学术规划互动测评，面向 8–11 年级学生。另提供可选的账号与服务端报告连接，默认关闭，尚未部署公司生产环境。线上地址：[BIC Academic Planner](https://tlwl-bic.com/academic-planner/)。更新须通过 PR，由所有者合并；本地修改不代表线上已经更新。
 
-当前集成状态：本人改密与会话撤销已独立验证；合并后的游戏/特质测评与旧备份、账号API及摘要合同存在兼容问题，全站回归尚未通过。准确范围与下一步见 [兼容性记录](docs/upstream-assessment-compatibility.md)。
+当前集成状态（v1.16.0）：旧档案原义、续答保护和新旧profile隔离已恢复，完整回归1377项通过。新游戏/30题特质仍可在本机使用及JSON备份；其云归档、分享和汇总尚未适配，入口明确拒绝。既有云端及摘要功能继续处理旧版14/13/24合同。操作见 [测评版本与保护说明](docs/assessment-profiles.md)，历史问题与后续见 [兼容性记录](docs/upstream-assessment-compatibility.md)。
 
 ## 本地版功能
 
@@ -12,7 +12,7 @@
 - 报告：展示作答完成度、学科表现、选科与专业建议，未完成时为探索草稿。
 - 顾问编辑：在报告页点击「编辑建议」，填写编辑者，选择四处建议文字之一编辑；保存修改前后内容，可恢复旧内容。重新生成时保留顾问修改并提示复核。
 - 本地续答：同一浏览器可关闭后继续；保存不可用时提示仍可在当前页面使用。保留一个当前学生进度，重新测试需确认并清空当前记录，已归档报告不受影响。
-- 本机报告库：可主动归档最多 100 份学生报告，按姓名/编号搜索，导出或导入 JSON 备份、下载 CSV 汇总。重复替换需明确选择；配额或损坏数据不会静默覆盖原库。详见 [使用与恢复说明](docs/report-library.md)。
+- 本机报告库：可主动归档最多 100 份学生报告，按姓名/编号搜索，导出或导入 JSON 备份；纯旧库可下载原CSV，新或混合库使用JSON。重复替换需明确选择；配额或损坏数据不会静默覆盖原库。详见 [使用与恢复说明](docs/report-library.md)。
 - 可选账号连接：开通同源服务后主动登录，逐份确认上传、读取/打开自己的报告，按已读修订更新或删除。默认不联网、不自动同步，详见 [连接指南](docs/cloud-connection.md)。
 - 本人账号安全：独立账号安全页验证旧密码、确认新密码后撤销本人所有会话，需主动重新登录；结果未知不自动重试，详见 [改密与会话说明](docs/password-change.md)。
 - 家长只读分享：所有者预览并确认后生成有期限的摘要链接，可撤销；不包含逐题答卷和修改审计，不提供匿名写入。详见 [分享与升级说明](docs/parent-sharing.md)。
@@ -68,7 +68,8 @@ pnpm test
 | `data/universities.js` | 独立院校目录与复核信息 |
 | `js/majors.js`、`js/plan.js`、`js/mbti.js` | 专业配置、规划题与性格量表 |
 | `js/personality.js`、`js/games.js` | 特质模型（10 项特质、30 道情境题、计分与 MBTI 对照）与互动小游戏 |
-| `js/report.js`、`js/report-view.js` | 报告计算与展示 |
+| `js/report.js`、`js/report-view.js` | 按profile分派的报告计算与展示 |
+| `js/assessment-profile.js`、`js/legacy-assessment.js`、`js/legacy/` | 两代识别、固定旧引擎与原始进度保护 |
 | `js/report-editing.js` | 顾问编辑与本地修改记录 |
 | `js/report-store.js`、`js/report-library.js` | 本机多报告管理、严格备份导入与 CSV 汇总 |
 | `js/report-statistics*.js`、`css/statistics.css` | 明确选择的本地学术/专业/地区聚合、预览导出与未校准状态 |

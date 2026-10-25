@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
 
 const root = path.resolve(__dirname, '..');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -17,7 +17,7 @@ function fixture(complete = false) {
   const w = loadReportScripts();
   vm.runInNewContext(fs.readFileSync(path.join(root, 'js/report-store.js'), 'utf8'), { window: w, Date });
   const value = state(w, complete);
-  if (complete) for (const q of w.PLAN_QUESTIONS) value.plan.answers[q.key] = q.type === 'single'
+  if (complete) for (const q of w.LegacyAssessment.planQuestions) value.plan.answers[q.key] = q.type === 'single'
     ? q.options()[0].id : q.optional ? [] : [q.source()[0].id];
   value.report = w.generateReport(value);
   value.report.meta.batchId = 'AP-PARENT-01';
