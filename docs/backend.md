@@ -4,6 +4,8 @@
 
 ## 安装与本地试运行
 
+新增 [指定顾问完成度清单](teacher-summary.md) 只读取操作者选择的1–20个有效只读授权，用单次JOIN快照返回必要计数，`POST /api/teacher-summaries`仍需Origin/CSRF身份绑定。旧只读权限不变，编辑授权不能用于此入口；数据库沿用schema5，没有新表、迁移或导出缓存。
+
 使用 Python 3.12（本次验证为 3.12.14）。从完整源码根目录执行，虚拟环境及数据库都放在网站目录外。下面以 Windows PowerShell 为例：
 
 ```powershell

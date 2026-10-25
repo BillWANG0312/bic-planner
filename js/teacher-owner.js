@@ -59,14 +59,14 @@
         panel.append(node('h4', report.record.state.info.name + ' · 完整报告只读范围'),
           node('p', `授权者账号 ${options.client.user?.username || '当前账号'}；接收顾问 ${target}；修订 ${report.revision}；期限 ${hours} 小时。`),
           node('p', `报告 ${report.record.reportMeta.batchId}；题库 ${report.record.bankVersion || '未知'}；院校目录 ${report.record.catalogVersion || '未知'}。`),
-          node('p', '包含姓名、逐题作答、版本、顾问建议与修改历史及授权者账号。只读此修订，不能编辑、删除或转授原报告；报告更新后需重新确认授权。已读取或复制的资料不能收回。系统不创建账号或发送消息。'));
+          node('p', '包含姓名、逐题作答、版本、顾问建议与修改历史及授权者账号。只读此修订，不能编辑、删除或转授原报告；接收顾问可逐份选择必要完成度摘要并保存校内CSV，包含姓名与报告编号，不是匿名文件。报告更新后需重新确认授权。已读取或复制的资料不能收回。系统不创建账号或发送消息。'));
         panel.hidden = false; setBusy(busy); options.message('请核对完整答卷与修改历史的授权范围、顾问账号、修订和期限，再确认。');
       });
     };
     $('#teacherCreateBtn').onclick = () => {
       if (busy || !samePreview()) return;
       const report = selected, captured = preview, own = epoch;
-      if (!window.confirm(`授权账号 ${captured.recipient} 在 ${captured.ttl} 小时内只读「${report.record.state.info.name}」修订 ${captured.revision} 的完整报告，包括逐题答卷和顾问修改历史？报告更新需重授，已读副本不能收回。不会发送消息或授予编辑权限。`)) return;
+      if (!window.confirm(`授权账号 ${captured.recipient} 在 ${captured.ttl} 小时内只读「${report.record.state.info.name}」修订 ${captured.revision} 的完整报告，包括逐题答卷和顾问修改历史，并可保存含姓名/编号的校内完成度清单？报告更新需重授，已读副本不能收回。不会发送消息或授予编辑权限。`)) return;
       resetPreview(); setBusy(busy);
       options.run('正在创建顾问单报告只读授权…', async current => {
         const grant = await options.client.createTeacherAccess(report.id, captured.revision, captured.recipient, captured.ttl);

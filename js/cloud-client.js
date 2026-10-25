@@ -613,11 +613,25 @@
       return result;
     }
 
+    async function readTeacherSummaries(grantIds) {
+      requireAdvisor();
+      if (!Array.isArray(grantIds) || !grantIds.length || grantIds.length > 20 || grantIds.some(value => !identifier(value))
+          || new Set(grantIds).size !== grantIds.length) throw new CloudError('VALIDATION', '请逐份选择1–20个不同的只读授权。', 422);
+      const selected = [...grantIds];
+      const result = await request('teacher-summaries', { method: 'POST', authenticated: true, body: { grant_ids: selected } });
+      try {
+        const value = window.TeacherSummary.validate(result, user.username);
+        if (value.items.length !== selected.length || value.items.some((item, index) => item.grant.id !== selected[index])) throw protocolError();
+        return value;
+      } catch (_) { throw protocolError(); }
+    }
+
     return { connect, login, list, get, create: createReport, update, remove, logout, disconnect,
       createShare, listShares, revokeShare,
       createParentAccess, listParentAccess, revokeParentAccess, listFamilyAccess, familyThread, addFamilyComment,
       createAdviceDraft, applyAdviceDraft,
       createTeacherAccess, listTeacherAccess, revokeTeacherAccess, listTeacherReports, readTeacherReport,
+      readTeacherSummaries,
       createAdvisorEditAccess, listAdvisorEditAccess, revokeAdvisorEditAccess, listAdvisorEditable, readAdvisorEditable, applyAdvisorEdit, listAdvisorAudit,
       get user() { return user ? copy(user) : null; }, get connected() { return connected; } };
   }

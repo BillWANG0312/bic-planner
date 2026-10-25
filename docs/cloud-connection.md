@@ -38,11 +38,13 @@ $env:BIC_PORT = '9001'
 & D:\Codex\work\bic-backend-venv\Scripts\python.exe -m backend.bic_api.dev
 ```
 
-访问 `http://127.0.0.1:9001/`。此入口临时返回启用配置，未修改磁盘默认配置；仅公开 index.html 与 css/js/img/data，不公开后端、文档、Git 或数据库。没有开发标志或非回环来源则拒绝启动。正式环境仍使用 API 入口 `python -m backend.bic_api` 和独立 HTTPS 静态服务器/反代，本地演示不等于上线。
+访问 `http://127.0.0.1:9001/`。此入口临时返回启用配置，未修改磁盘默认配置；只公开显式测评/家长/顾问页面及 css/js/img/data，不公开后端、文档、Git 或数据库。没有开发标志或非回环来源则拒绝启动。正式环境仍使用 API 入口 `python -m backend.bic_api` 和独立 HTTPS 静态服务器/反代，本地演示不等于上线。
 
 原owner面板中student/advisor都只管理自己的原始记录；角色本身不授全校权限。另有 [家长只读摘要](parent-sharing.md) 和 [单报告批注](family-comments.md)，这两者不授原始答卷权限。[指定顾问只读](teacher-access.md) 是独立的所有者确认，明确包含完整答卷/历史，限指定账号和修订，原写接口仍不扩权。已读报告的 [可选建议草稿](advice-drafts.md) 默认关闭，人工选段应用只更新服务端；打开到本机仍需独立确认。另有独立的[顾问建议编辑](advisor-edit.md)授权，仅四段文字及服务端登录账号审计，旧只读不扩权。公开注册和改密找回尚未实现。
 
 ## 测试
+
+[顾问完成度清单](teacher-summary.md) 是独立主动入口，需逐份选择有效只读授权，预览并在确认前后复查后才能保存含姓名/编号的校内CSV。只返回完成度摘要，不向页面传原始答卷或审计；不写原报告、浏览器存储或数据库新状态，schema5/API2沿用。
 
 `pnpm test` 或 `npm test` 验证前端、协议和模拟服务的真实 Chromium UI，不需要 Python 服务。实际浏览器到 FastAPI/SQLite 集成需后端开发依赖，另行执行：
 

@@ -22,6 +22,7 @@ from .draft_models import DraftContext, DraftSections
 from .drafts import AdviceDraftService
 from .teacher_access import TeacherAccessService
 from .advisor_edit import AdvisorEditService
+from .teacher_summary import TeacherSummaryService
 from .share_models import plain_text
 
 
@@ -70,6 +71,17 @@ class CreateAdvisorEditBody(StrictBody):
     ttl_hours: Literal[24, 72, 168]
     scope: Literal['full_report_advice_edit']
     baseline: DraftSections
+
+
+class TeacherSummaryBody(StrictBody):
+    grant_ids: Annotated[list[Annotated[StrictStr, Field(pattern=r'^[A-Za-z0-9_-]{1,128}$')]], Field(min_length=1, max_length=20)]
+
+    @field_validator('grant_ids')
+    @classmethod
+    def unique_grants(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError('Select each authorization at most once.')
+        return value
 
 
 class ApplyAdvisorEditBody(StrictBody):
@@ -182,6 +194,8 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     app.state.teachers = teachers
     advisor_edits = AdvisorEditService(db, clock=clock)
     app.state.advisor_edits = advisor_edits
+    teacher_summaries = TeacherSummaryService(db, clock=clock)
+    app.state.teacher_summaries = teacher_summaries
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -343,6 +357,10 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     @app.get('/api/teacher-access/{grant_id}')
     def read_teacher_report(grant_id: str, session=Depends(current_session)):
         return teachers.read(session['user']['id'], grant_id)
+
+    @app.post('/api/teacher-summaries')
+    def teacher_completion_summaries(body: TeacherSummaryBody, session=Depends(writable_session)):
+        return teacher_summaries.read(session['user']['id'], body.grant_ids)
 
     @app.post('/api/reports/{report_id}/advisor-edit-access', status_code=201)
     def create_advisor_edit_access(report_id: str, body: CreateAdvisorEditBody, session=Depends(writable_session)):
