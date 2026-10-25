@@ -6,9 +6,10 @@
 
 - 本地源码：`D:/Codex/work/bic-planner`。
 - 原仓库：`BillWANG0312/bic-planner`；个人 fork：`paoludehuaxuesheng/bic-planner`。
-- 当前分支：`feat/explicit-cloud-report-connection`。
+- 当前分支：`feat/self-service-password`。
 - PR #5 已由仓库所有者 BillWANG0312 于 2026-10-24 08:05:33 UTC 合并，合并提交 `3175694`；不是本代理执行合并。
-- 当前草稿 PR：[#6](https://github.com/BillWANG0312/bic-planner/pull/6)，基于合并后的 main。
+- PR #6 已由仓库所有者于 2026-10-25 08:46:51 UTC 合并，合并提交 `6f8687217945b874de3cfda30ea0e37d0262e673`；不是本代理执行合并。
+- 当前草稿 PR：[#8](https://github.com/BillWANG0312/bic-planner/pull/8)，包含本人改密、旧档案/续答保护和测评版本隔离，基于上述 main。
 - 源码、临时文件和主要交付使用 D 盘；最终主要交付放 `D:/Codex/outputs`，聊天下载副本放本聊天的 outputs。
 - 可自主实现、测试、审查、提交和推送个人 fork、更新/创建草稿 PR。不得直接合并 main、改生产、购买服务或向他人发送消息。
 
@@ -289,6 +290,14 @@ app在任何自动save/导航/flush前识别并锁住原始续答，合法旧或
 完整回归后最终截图复核发现浅色保护栏ghost按钮字色太淡，追加仅#profileNotice作用域的对比度/换行样式修复；无业务源码变化，原22项续答UI和3项真实profile集成重复通过，不重复计入1377总数。新截图等字体并禁动画、回到顶部，桌面和375px实际可读，旧原始保护与新云拒绝仍通过。
 
 真实浏览器证明旧漂亮格式JSON在首次打开/离开/刷新仍逐字一致，确认后旧云上传保留自由科目/24数字/顾问history/actor；新本机备份v2且上传按钮/程序触发均无POST，后端报告数保持0；已转换资料原始下载一致，取消重测不写，确认才新30对象。桌面/375px已核对。主要交付D:/Codex/outputs/bic-planner-20261025-assessment-profiles，本聊天outputs/assessment-profiles-20261025为下载副本，包含完整源码/默认关闭本机静态包/补丁/说明/实际日志及初次失败记录/虚构截图/校验和。解压验证结果见verification-package.log。没有真实公司数据、外部模型、付费、发送消息、main合并或生产部署。
+
+## 已完成：统一GitHub交付与团队交接（2026-10-25）
+
+用户要求集中提交当前工作，并让团队清楚已完成内容及接下来如何修改。本次开始工作区干净，功能HEAD为83bc637，PR #8仍OPEN/DRAFT，无评论/审查/CI；fetch后main仍6f86872。PR #5、#6已由所有者合并，当前代码已在fork，继续更新同一PR #8，不重复合并或改写已合并历史，不直接合并main。
+
+新增development-handoff.md作为统一接手入口：列明各PR归属、完成行为、两代profile支持矩阵、模块修改入口、未完成及外部依赖，按“审阅当前PR→新版严格云归档→逐项协作→版本化汇总/统计”写明验收。verification-2026-10-25.md记录1377项本地回归、94参数子案例、1跳过/1警告、原失败与最终样式22+3复验不重复计数，以及可复跑命令；不把本地验证写成GitHub CI或生产/真实样本验证。README增加入口，修正台账顶端旧分支/PR、后端/连接中的改密与兼容状态、固定旧合同生成器维护说明。
+
+本次只有Markdown变更，业务源码保持83bc637，不重复全套运行并虚增测试数。独立审查修复交接表误写auth.py为实际security.py，补充集成脚本D盘临时路径前提；文档目标/锚点、模块路径、Git diff及远程PR/提交状态检查通过。交接源码与说明主要交付D:/Codex/outputs/bic-planner-20261025-handoff，聊天outputs/handoff-20261025为副本。原阶段源码/静态包和实际日志保持原校验和。未实现新版云归档、未部署公司环境或接触真实学生资料；准确下一步仍如下，定时任务保持既有PAUSED。
 
 ## 当前下一项：新版游戏/特质严格云归档
 
