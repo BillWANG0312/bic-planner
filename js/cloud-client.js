@@ -613,15 +613,18 @@
       return result;
     }
 
-    async function readTeacherSummaries(grantIds) {
+    async function readTeacherSummaries(grantIds, options = {}) {
       requireAdvisor();
+      if (!object(options) || Object.keys(options).some(key => key !== 'academic')
+          || Object.hasOwn(options, 'academic') && typeof options.academic !== 'boolean') throw new CloudError('VALIDATION', '请明确选择是否附加完整科目的题库表现。', 422);
+      const academic = Object.hasOwn(options, 'academic') && options.academic === true;
       if (!Array.isArray(grantIds) || !grantIds.length || grantIds.length > 20 || grantIds.some(value => !identifier(value))
           || new Set(grantIds).size !== grantIds.length) throw new CloudError('VALIDATION', '请逐份选择1–20个不同的只读授权。', 422);
       const selected = [...grantIds];
-      const result = await request('teacher-summaries', { method: 'POST', authenticated: true, body: { grant_ids: selected } });
+      const result = await request('teacher-summaries', { method: 'POST', authenticated: true, body: { grant_ids: selected, ...(academic ? { academic: true } : {}) } });
       try {
         const value = window.TeacherSummary.validate(result, user.username);
-        if (value.items.length !== selected.length || value.items.some((item, index) => item.grant.id !== selected[index])) throw protocolError();
+        if (value.version !== (academic ? 2 : 1) || value.items.length !== selected.length || value.items.some((item, index) => item.grant.id !== selected[index])) throw protocolError();
         return value;
       } catch (_) { throw protocolError(); }
     }

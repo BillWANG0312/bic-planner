@@ -6,6 +6,7 @@ import time
 from .db import StorageError
 from .models import ASSESSMENT_SCHEMA
 from .teacher_access import TeacherAccessService
+from . import academic_scoring
 
 
 _SUBJECTS = (('english', 'en'), ('maths', 'ma'), ('physics', 'ph'), ('chemistry', 'ch'))
@@ -59,8 +60,8 @@ class TeacherSummaryService(TeacherAccessService):
                 'catalog_version': record.get('catalogVersion'), 'status': 'complete' if complete else 'draft',
                 'academic': academic, 'planning': planning, 'personality': personality}
 
-    def read(self, recipient_id, grant_ids):
-        if (type(grant_ids) is not list or not 1 <= len(grant_ids) <= 20
+    def read(self, recipient_id, grant_ids, academic=False):
+        if (type(academic) is not bool or type(grant_ids) is not list or not 1 <= len(grant_ids) <= 20
                 or any(type(identifier) is not str or not _ID.fullmatch(identifier) for identifier in grant_ids)
                 or len(set(grant_ids)) != len(grant_ids)):
             raise self._invalid()
@@ -80,8 +81,17 @@ class TeacherSummaryService(TeacherAccessService):
             raise self._invalid()
         by_id = {row['id']: row for row in rows}
         items = []
+        scoring_records = []
         for identifier in grant_ids:
             row = by_id[identifier]
             record = self._validated_record(row, joined=True)
             items.append({'grant': self._metadata(row, at), 'report': self._completion(row, record)})
-        return {'format': 'bic-teacher-completion-summary', 'version': 1, 'items': items}
+            if academic:
+                scoring_records.append(record)
+        result = {'format': 'bic-teacher-completion-summary', 'version': 1, 'items': items}
+        if academic:
+            rules = academic_scoring.load_rules()
+            for record, item in zip(scoring_records, items):
+                item['report']['performance'] = academic_scoring.grade(record, rules)
+            result.update(version=2, scoring=academic_scoring.scoring_metadata(rules))
+        return result

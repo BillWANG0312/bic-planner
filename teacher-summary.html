@@ -6,7 +6,7 @@
   <meta name="referrer" content="no-referrer" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
-  <title>顾问完成度清单 · BIC 学业规划系统</title>
+  <title>顾问报告清单 · BIC 学业规划系统</title>
   <link rel="icon" href="img/favicon-128.png" type="image/png" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/teacher-summary.css" />
@@ -14,8 +14,8 @@
 <body>
   <header class="summary-brand"><img src="img/bic-logo-blue.png" alt="BIC 湾区国际书院" /><span>BIC 学业规划系统</span><a href="index.html">返回测评</a></header>
   <main class="summary-wrap">
-    <h1>顾问跨报告完成度清单</h1>
-    <p class="summary-intro">仅可选择所有者已明确授予当前顾问账号的有效只读报告，逐份核对后生成校内CSV。包含姓名、报告编号、版本及已答题数，是带身份的私密清单；不是匿名统计、学科成绩、人格判断或真实校准。编辑授权或家长链接不授予这项读取权限。</p>
+    <h1>顾问跨报告清单</h1>
+    <p class="summary-intro">仅可选择所有者已明确授予当前顾问账号的有效只读报告，逐份核对后生成校内CSV。默认包含姓名、报告编号、版本及已答题数，可明确附加同版题库学科表现；这是带身份的私密清单，不是匿名统计、正式成绩、人格判断或真实校准。编辑授权或家长链接不授予这项读取权限。</p>
     <section id="summaryConnectPanel" class="summary-panel"><p>尚未连接，不会自动读取授权名单或学生摘要。</p><button type="button" class="btn primary" id="summaryConnectBtn">连接本校账号服务</button></section>
     <button type="button" class="btn ghost sm" id="summaryDisconnectBtn" hidden>断开本页连接</button>
     <p id="summaryStatus" class="summary-status" role="status" aria-live="polite">尚未连接。</p>
@@ -27,11 +27,14 @@
     </form>
     <section id="summaryWorkspace" hidden>
       <div class="summary-account"><p id="summaryAccount"></p><div class="summary-actions"><button type="button" class="btn ghost sm" id="summaryRefreshBtn">主动刷新只读授权名单</button><button type="button" class="btn ghost sm" id="summaryLogoutBtn">退出账号</button></div></div>
-      <section aria-labelledby="summaryListHeading"><h2 id="summaryListHeading">逐份选择1–20份报告</h2><p>没有默认选择或全选。仅请求所选报告的必要完成度，不读取完整答卷或修改历史。刷新名单会清除旧选择和预览。</p><div id="summaryList"></div></section>
+      <section aria-labelledby="summaryListHeading"><h2 id="summaryListHeading">逐份选择1–20份报告</h2><p>没有默认选择或全选。仅请求所选报告的必要完成度，勾选v2时附加同版题库学科表现；不读取完整答卷或修改历史。刷新名单会清除旧选择和预览。</p><div id="summaryList"></div></section>
+      <label class="summary-academic-option" for="summaryAcademic"><input id="summaryAcademic" type="checkbox" />明确附加同版题库学科表现（v2，仅完整科目）</label>
+      <p class="summary-academic-note">默认完成度v1保持21列。v2按当前同版本规则重新计分，未完整科目显示「未完整」，完整0%仍显示0；不是正式成绩、A-Level预测、学习增长或真实校准。不会读取原始答卷或答案键到本页。</p>
       <div class="summary-actions"><button type="button" class="btn primary" id="summaryPreviewBtn" disabled>核对所选报告并预览</button><button type="button" class="btn ghost" id="summaryExportBtn" disabled>核对并确认导出CSV</button></div>
       <section id="summaryPreview" class="summary-panel" hidden aria-labelledby="summaryPreviewHeading">
         <h2 id="summaryPreviewHeading" tabindex="-1">带身份的校内完成度清单预览</h2>
         <p>姓名和编号可识别学生，请按学校规则保管。下表与CSV列一致；左右滚动查看全部列。规划弱项题可选，未答不会阻止必答完成。目录版本只记录原值，未重新生成院校建议。</p>
+        <p id="summaryScoring" class="summary-scoring" hidden></p>
         <div class="summary-table-scroll" tabindex="0" role="region" aria-label="完成度清单，可左右滚动"><table id="summaryTable"></table></div>
       </section>
     </section>
@@ -39,6 +42,7 @@
   </main>
   <script src="js/cloud-config.js"></script>
   <script src="js/cloud-client.js"></script>
+  <script src="js/academic-scoring-meta.js"></script>
   <script src="js/teacher-summary.js"></script>
   <script src="js/teacher-summary-ui.js"></script>
 </body>

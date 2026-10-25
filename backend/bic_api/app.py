@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
@@ -75,6 +75,7 @@ class CreateAdvisorEditBody(StrictBody):
 
 class TeacherSummaryBody(StrictBody):
     grant_ids: Annotated[list[Annotated[StrictStr, Field(pattern=r'^[A-Za-z0-9_-]{1,128}$')]], Field(min_length=1, max_length=20)]
+    academic: StrictBool = False
 
     @field_validator('grant_ids')
     @classmethod
@@ -360,7 +361,7 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
 
     @app.post('/api/teacher-summaries')
     def teacher_completion_summaries(body: TeacherSummaryBody, session=Depends(writable_session)):
-        return teacher_summaries.read(session['user']['id'], body.grant_ids)
+        return teacher_summaries.read(session['user']['id'], body.grant_ids, academic=True) if body.academic else teacher_summaries.read(session['user']['id'], body.grant_ids)
 
     @app.post('/api/reports/{report_id}/advisor-edit-access', status_code=201)
     def create_advisor_edit_access(report_id: str, body: CreateAdvisorEditBody, session=Depends(writable_session)):

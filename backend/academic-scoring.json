@@ -1,0 +1,489 @@
+{
+  "bank_version": "2026.10",
+  "rule_version": "academic-pct-v1",
+  "bank_sha256": "1e7e4db2c403e04625ef89b103794329038fbc98fab7674d4cd2d6eb18a3231d",
+  "report_sha256": "23e7dd55cef795bd258b9c890768bf942856c8967013b8f5ada2289a4a77889b",
+  "questions": [
+    {
+      "id": "en1",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en2",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en3",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en4",
+      "subject": "english",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en5",
+      "subject": "english",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en6",
+      "subject": "english",
+      "type": "choice",
+      "answer": "3",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en7",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en8",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en9",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en10",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma1",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma2",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma3",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma4",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma5",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma6",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma7",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma8",
+      "subject": "maths",
+      "type": "numeric",
+      "answer": "5",
+      "tol": "0.01",
+      "option_count": null
+    },
+    {
+      "id": "ma9",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma10",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph1",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph2",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph3",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "3",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph4",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph5",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch1",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch2",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch3",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch4",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch5",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en11",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en12",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en13",
+      "subject": "english",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en14",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "en15",
+      "subject": "english",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma11",
+      "subject": "maths",
+      "type": "numeric",
+      "answer": "12",
+      "tol": "0.01",
+      "option_count": null
+    },
+    {
+      "id": "ma12",
+      "subject": "maths",
+      "type": "numeric",
+      "answer": "6",
+      "tol": "0",
+      "option_count": null
+    },
+    {
+      "id": "ma13",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma14",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ma15",
+      "subject": "maths",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph6",
+      "subject": "physics",
+      "type": "numeric",
+      "answer": "6",
+      "tol": "0.01",
+      "option_count": null
+    },
+    {
+      "id": "ph7",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "3",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph8",
+      "subject": "physics",
+      "type": "numeric",
+      "answer": "3",
+      "tol": "0.01",
+      "option_count": null
+    },
+    {
+      "id": "ph9",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph10",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph11",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph12",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph13",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph14",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ph15",
+      "subject": "physics",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch6",
+      "subject": "chemistry",
+      "type": "numeric",
+      "answer": "0.25",
+      "tol": "0.001",
+      "option_count": null
+    },
+    {
+      "id": "ch7",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "3",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch8",
+      "subject": "chemistry",
+      "type": "numeric",
+      "answer": "0.5",
+      "tol": "0.001",
+      "option_count": null
+    },
+    {
+      "id": "ch9",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "2",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch10",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch11",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "3",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch12",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch13",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch14",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "0",
+      "tol": "0",
+      "option_count": 4
+    },
+    {
+      "id": "ch15",
+      "subject": "chemistry",
+      "type": "choice",
+      "answer": "1",
+      "tol": "0",
+      "option_count": 4
+    }
+  ],
+  "fingerprint": "16c04959e59ca8c282ee2f06f036494468db7534c8dac10bb55f11c12956f3b1"
+}

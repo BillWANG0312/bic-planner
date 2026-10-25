@@ -1,4 +1,7 @@
-"""Strict saved-response records; grades and recommendations are computed in the client.
+"""Strict saved-response records; browser rules generate reports and recommendations.
+
+Optional academic summary v2 uses a separate generated backend scoring snapshot;
+this archive schema remains an input/shape boundary, not certified school marks.
 
 The small assessment schema is generated from the browser scripts with Node's VM.
 It contains answer shapes and option identifiers, never prompts or answer keys.
