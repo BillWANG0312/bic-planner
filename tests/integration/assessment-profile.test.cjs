@@ -76,9 +76,11 @@ test('old original progress stays untouched until confirmation and retains its o
     await f.page.evaluate(() => dispatchEvent(new Event('pagehide'))); assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
     await f.page.reload(); await f.page.locator('#profileNotice').waitFor({ state: 'visible' }); assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
     if (process.env.BIC_CAPTURE === '1') {
-      await f.page.locator('#profileNotice').evaluate(element => element.scrollIntoView({ block: 'start' })); await f.page.screenshot({ path: path.join(root, 'test-results/profile-desktop.png') });
+      await f.page.evaluate(async () => { await document.fonts.ready; window.scrollTo({ top: 0, behavior: 'instant' }); });
+      await f.page.screenshot({ path: path.join(root, 'test-results/profile-desktop.png'), animations: 'disabled' });
       await f.page.setViewportSize({ width: 375, height: 812 }); assert.ok(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-      await f.page.locator('#profileNotice').evaluate(element => element.scrollIntoView({ block: 'start' })); await f.page.screenshot({ path: path.join(root, 'test-results/profile-mobile.png') });
+      await f.page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+      await f.page.screenshot({ path: path.join(root, 'test-results/profile-mobile.png'), animations: 'disabled' });
     }
     f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#profileContinueBtn').click();
     await signIn(f, 'profile.legacy'); f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#cloudUploadBtn').click(); await f.page.locator('[data-cloud-read]').waitFor();

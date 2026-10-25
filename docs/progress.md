@@ -286,6 +286,8 @@ app在任何自动save/导航/flush前识别并锁住原始续答，合法旧或
 
 完整574项Node/Chromium、770项Python与33项真实Chromium→FastAPI/SQLite通过，共1377项，另94个参数子案例通过。1项Windows符号链接权限跳过，1条原Starlette/httpx弃用提示保留。首次完整前端535过/22失败，保留profile-frontend-first-attempt.log；旧合同夹具、现代脚本依赖和真实缺陷修复后先558项全过，最终最小client修复增加16项后重新完整574项全过，没有删除断言/跳过业务测试或称定向等于全站。最终日志profile-frontend-final.log、profile-backend-full.log、profile-api-integration-final.log。两次独立审查及最终fallback复核通过；JS语法/Python编译/pip/四生成器/diff与文档链接检查通过。
 
+完整回归后最终截图复核发现浅色保护栏ghost按钮字色太淡，追加仅#profileNotice作用域的对比度/换行样式修复；无业务源码变化，原22项续答UI和3项真实profile集成重复通过，不重复计入1377总数。新截图等字体并禁动画、回到顶部，桌面和375px实际可读，旧原始保护与新云拒绝仍通过。
+
 真实浏览器证明旧漂亮格式JSON在首次打开/离开/刷新仍逐字一致，确认后旧云上传保留自由科目/24数字/顾问history/actor；新本机备份v2且上传按钮/程序触发均无POST，后端报告数保持0；已转换资料原始下载一致，取消重测不写，确认才新30对象。桌面/375px已核对。主要交付D:/Codex/outputs/bic-planner-20261025-assessment-profiles，本聊天outputs/assessment-profiles-20261025为下载副本，包含完整源码/默认关闭本机静态包/补丁/说明/实际日志及初次失败记录/虚构截图/校验和。解压验证结果见verification-package.log。没有真实公司数据、外部模型、付费、发送消息、main合并或生产部署。
 
 ## 当前下一项：新版游戏/特质严格云归档
