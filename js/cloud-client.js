@@ -615,16 +615,19 @@
 
     async function readTeacherSummaries(grantIds, options = {}) {
       requireAdvisor();
-      if (!object(options) || Object.keys(options).some(key => key !== 'academic')
-          || Object.hasOwn(options, 'academic') && typeof options.academic !== 'boolean') throw new CloudError('VALIDATION', '请明确选择是否附加完整科目的题库表现。', 422);
+      if (!object(options) || Object.keys(options).some(key => !['academic', 'preferences'].includes(key))
+          || ['academic', 'preferences'].some(key => Object.hasOwn(options, key) && typeof options[key] !== 'boolean')) throw new CloudError('VALIDATION', '请明确选择是否附加题库表现和学生自选偏好。', 422);
       const academic = Object.hasOwn(options, 'academic') && options.academic === true;
+      const preferences = Object.hasOwn(options, 'preferences') && options.preferences === true;
       if (!Array.isArray(grantIds) || !grantIds.length || grantIds.length > 20 || grantIds.some(value => !identifier(value))
           || new Set(grantIds).size !== grantIds.length) throw new CloudError('VALIDATION', '请逐份选择1–20个不同的只读授权。', 422);
       const selected = [...grantIds];
-      const result = await request('teacher-summaries', { method: 'POST', authenticated: true, body: { grant_ids: selected, ...(academic ? { academic: true } : {}) } });
+      const result = await request('teacher-summaries', { method: 'POST', authenticated: true, body: { grant_ids: selected, ...(academic ? { academic: true } : {}), ...(preferences ? { preferences: true } : {}) } });
       try {
         const value = window.TeacherSummary.validate(result, user.username);
-        if (value.version !== (academic ? 2 : 1) || value.items.length !== selected.length || value.items.some((item, index) => item.grant.id !== selected[index])) throw protocolError();
+        if (value.version !== (preferences ? 3 : academic ? 2 : 1)
+            || preferences && (value.options.academic !== academic || value.options.preferences !== true)
+            || value.items.length !== selected.length || value.items.some((item, index) => item.grant.id !== selected[index])) throw protocolError();
         return value;
       } catch (_) { throw protocolError(); }
     }

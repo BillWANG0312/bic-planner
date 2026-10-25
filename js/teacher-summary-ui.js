@@ -12,9 +12,11 @@
   function canonical(value) { if (Array.isArray(value)) return value.map(canonical); if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])); return value; }
   const stamp = value => JSON.stringify(canonical(value));
   const academicMode = () => $('#summaryAcademic').checked;
-  const requestOptions = academic => academic ? { academic: true } : undefined;
-  function clearPreview() { preview = null; $('#summaryPreview').hidden = true; $('#summaryTable').replaceChildren(); $('#summaryScoring').textContent = ''; $('#summaryScoring').hidden = true; }
-  function clearPrivate() { clearTimeout(expiryTimer); expiryTimer = null; grants = []; viewRevision++; clearPreview(); $('#summaryAcademic').checked = false; $('#summaryList').replaceChildren(); $('#summaryAccount').textContent = ''; $('#summaryPassword').value = ''; }
+  const preferencesMode = () => $('#summaryPreferences').checked;
+  const requestOptions = (academic, preferences) => academic || preferences ? { ...(academic ? { academic: true } : {}), ...(preferences ? { preferences: true } : {}) } : undefined;
+  const modeName = (academic, preferences) => preferences ? `${academic ? '学科表现与' : ''}学生自选偏好v3` : academic ? '学科表现v2' : '完成度v1';
+  function clearPreview() { preview = null; $('#summaryPreview').hidden = true; $('#summaryTable').replaceChildren(); $('#summaryScoring').textContent = ''; $('#summaryScoring').hidden = true; $('#summaryPreferencesMeta').textContent = ''; $('#summaryPreferencesMeta').hidden = true; }
+  function clearPrivate() { clearTimeout(expiryTimer); expiryTimer = null; grants = []; viewRevision++; clearPreview(); $('#summaryAcademic').checked = false; $('#summaryPreferences').checked = false; $('#summaryList').replaceChildren(); $('#summaryAccount').textContent = ''; $('#summaryPassword').value = ''; }
   function controls() {
     const user = client.user, count = chosen().length;
     $('#summaryConnectPanel').hidden = client.connected; $('#summaryLoginForm').hidden = !client.connected || !!user; $('#summaryWorkspace').hidden = !user;
@@ -22,6 +24,7 @@
     $('#summaryLoginForm button[type=submit]').disabled = busy; $('#summaryUsername').disabled = busy; $('#summaryPassword').disabled = busy;
     $('#summaryRefreshBtn').disabled = busy; $('#summaryLogoutBtn').disabled = busy;
     $('#summaryAcademic').disabled = busy || !user;
+    $('#summaryPreferences').disabled = busy || !user;
     $('#summaryPreviewBtn').disabled = busy || !user || count < 1 || count > 20;
     $('#summaryExportBtn').disabled = busy || !currentPreview(preview);
     for (const input of $('#summaryList').querySelectorAll('input')) input.disabled = busy;
@@ -41,7 +44,7 @@
     }, Math.max(0, Math.min(2147483647, until * 1000 - Date.now())));
     expiryTimer = timer;
   }
-  function currentPreview(value) { const user = client.user; return !!value && preview === value && user?.id === value.userId && user?.username === value.username && sameIds(chosen(), value.ids) && academicMode() === value.academic && viewRevision === value.viewRevision && value.until * 1000 > Date.now(); }
+  function currentPreview(value) { const user = client.user; return !!value && preview === value && user?.id === value.userId && user?.username === value.username && sameIds(chosen(), value.ids) && academicMode() === value.academic && preferencesMode() === value.preferences && viewRevision === value.viewRevision && value.until * 1000 > Date.now(); }
   function errorText(error) {
     if (error?.status === 401 || error?.status === 403 || error?.code === 'AUTH') return '账号会话已失效或变化，旧名单和清单已清除，请重新登录。';
     if (error?.status === 404 || error?.status === 409 || error?.code === 'STALE') return '授权、修订或摘要资料已变化，旧选择和预览已清除。请主动刷新并重新核对，没有下载或自动重算。';
@@ -90,20 +93,25 @@
     }
     controls();
   }
-  function validateSnapshot(result, ids, username, academic) {
+  function validateSnapshot(result, ids, username, academic, preferences) {
     const payload = window.TeacherSummary.validate(result, username);
-    if (payload.version !== (academic ? 2 : 1) || !sameIds(payload.items.map(item => item.grant.id), ids) || payload.items.some(item => item.grant.expires_at * 1000 <= Date.now())) throw { code: 'PROTOCOL' };
+    if (payload.version !== (preferences ? 3 : academic ? 2 : 1) || preferences && (payload.options.academic !== academic || payload.options.preferences !== true) || !sameIds(payload.items.map(item => item.grant.id), ids) || payload.items.some(item => item.grant.expires_at * 1000 <= Date.now())) throw { code: 'PROTOCOL' };
     return payload;
   }
   function showPreview(value) {
     preview = value; const table = $('#summaryTable'); table.replaceChildren();
     table.classList.toggle('summary-academic', value.academic);
-    const head = node('thead'), title = node('tr'); for (const label of window.TeacherSummary.columns(value.payload.version)) title.append(node('th', label)); head.append(title);
-    const body = node('tbody'); for (const row of value.rows) { const line = node('tr'); for (const text of window.TeacherSummary.values(row, value.scoring)) line.append(node('td', text)); body.append(line); }
-    $('#summaryPreviewHeading').textContent = value.academic ? '带身份的校内学科表现清单预览（v2）' : '带身份的校内完成度清单预览';
+    table.classList.toggle('summary-preferences', value.preferences);
+    const head = node('thead'), title = node('tr'); for (const label of window.TeacherSummary.columns(value.payload.version, value.options)) title.append(node('th', label)); head.append(title);
+    const body = node('tbody'); for (const row of value.rows) { const line = node('tr'); for (const text of window.TeacherSummary.values(row, value.scoring, value.preference_schema)) line.append(node('td', text)); body.append(line); }
+    $('#summaryPreviewHeading').textContent = value.preferences ? `带身份的校内${value.academic ? '学科表现与' : ''}学生自选偏好清单预览（v3）` : value.academic ? '带身份的校内学科表现清单预览（v2）' : '带身份的校内完成度清单预览';
     if (value.scoring) {
       $('#summaryScoring').textContent = `题库 ${value.scoring.bank_version} · 评分规则 ${value.scoring.rule_version} · 指纹 ${value.scoring.rule_fingerprint}。当前同版规则重算，未校准，不是正式成绩或A-Level预测；未完整科目不显示百分比，完整0%有效。`;
       $('#summaryScoring').hidden = false;
+    }
+    if (value.preference_schema) {
+      $('#summaryPreferencesMeta').textContent = `题库 ${value.preference_schema.bank_version} · 偏好选项 ${value.preference_schema.schema_version} · 指纹 ${value.preference_schema.schema_fingerprint}。仅学生自选的固定选项，非推荐；缺答为未回答，不确定选项可与具体选项并存，顺序不代表优先级。指纹不证明历史规则、人工审校或防篡改。`;
+      $('#summaryPreferencesMeta').hidden = false;
     }
     table.append(head, body); $('#summaryPreview').hidden = false; $('#summaryPreviewHeading').focus();
     armSelectionExpiry();
@@ -117,31 +125,33 @@
     grants = result.items.filter(grant => grant.expires_at * 1000 > Date.now()); drawList(); message('已读取有效只读授权元数据。请逐份选择1–20份报告，再主动核对摘要。');
   });
   $('#summaryPreviewBtn').onclick = () => {
-    if (busy) return; const ids = chosen(), academic = academicMode(), revision = viewRevision;
+    if (busy) return; const ids = chosen(), academic = academicMode(), preferences = preferencesMode(), revision = viewRevision;
     return run('正在核对所选报告的必要完成度…', async current => {
       requireAdvisor(); clearPreview(); if (!ids.length || ids.length > 20) throw { code: 'PROTOCOL' };
-      const user = client.user, result = await client.readTeacherSummaries(ids, requestOptions(academic)); if (!current() || !sameIds(chosen(), ids) || academicMode() !== academic || viewRevision !== revision) return;
-      const payload = validateSnapshot(result, ids, user.username, academic), built = window.TeacherSummary.build(payload, user.username);
-      showPreview({ payload, snapshot: stamp(payload), ids: [...ids], username: user.username, userId: user.id, academic, viewRevision: revision, csv: built.csv, rows: built.rows, scoring: built.scoring, until: Math.min(...payload.items.map(item => item.grant.expires_at)) });
-      message(`已预览${ids.length}份带身份的校内${academic ? '学科表现v2' : '完成度v1'}。未导出；下载前后还会核对模式、规则、授权、修订和身份。`);
+      const user = client.user, result = await client.readTeacherSummaries(ids, requestOptions(academic, preferences)); if (!current() || !sameIds(chosen(), ids) || academicMode() !== academic || preferencesMode() !== preferences || viewRevision !== revision) return;
+      const payload = validateSnapshot(result, ids, user.username, academic, preferences), built = window.TeacherSummary.build(payload, user.username);
+      showPreview({ payload, snapshot: stamp(payload), ids: [...ids], username: user.username, userId: user.id, academic, preferences, viewRevision: revision, csv: built.csv, rows: built.rows, scoring: built.scoring, options: built.options, preference_schema: built.preference_schema, until: Math.min(...payload.items.map(item => item.grant.expires_at)) });
+      message(`已预览${ids.length}份带身份的校内${modeName(academic, preferences)}。未导出；下载前后还会核对模式、规则、偏好选项、授权、修订和身份。`);
     });
   };
   $('#summaryExportBtn').onclick = () => {
     const captured = preview; if (busy || !currentPreview(captured)) return;
     return run('正在重新核对预览来源…', async current => {
       requireAdvisor();
-      const fresh = validateSnapshot(await client.readTeacherSummaries(captured.ids, requestOptions(captured.academic)), captured.ids, captured.username, captured.academic);
+      const fresh = validateSnapshot(await client.readTeacherSummaries(captured.ids, requestOptions(captured.academic, captured.preferences)), captured.ids, captured.username, captured.academic, captured.preferences);
       if (!current() || !currentPreview(captured) || stamp(fresh) !== captured.snapshot) throw { code: 'STALE' };
-      const accepted = window.confirm(`导出这${captured.ids.length}份包含学生姓名、报告编号、完成度${captured.academic ? '及完整科目的同版题库表现（v2，非正式成绩）' : '（v1）'}的校内CSV？请仅在获准的校内用途保管，不能称匿名资料；已经下载或复制的副本无法收回。确认后还会核对一次模式、规则、授权与修订。`);
+      const accepted = window.confirm(`导出这${captured.ids.length}份包含学生姓名、报告编号、完成度${captured.academic ? '、完整科目的同版题库表现（非正式成绩）' : ''}${captured.preferences ? '、学生自选专业意向与地区偏好（非规则推荐）' : ''}的校内CSV（${modeName(captured.academic, captured.preferences)}）？请仅在获准的校内用途保管，不能称匿名资料；已经下载或复制的副本无法收回。确认后还会核对一次模式、规则、偏好选项、授权与修订。`);
       if (!current() || !currentPreview(captured)) throw { code: 'STALE' };
       if (!accepted) { message('已取消下载，未生成文件。'); return; }
-      const final = validateSnapshot(await client.readTeacherSummaries(captured.ids, requestOptions(captured.academic)), captured.ids, captured.username, captured.academic);
+      const final = validateSnapshot(await client.readTeacherSummaries(captured.ids, requestOptions(captured.academic, captured.preferences)), captured.ids, captured.username, captured.academic, captured.preferences);
       if (!current() || !currentPreview(captured) || stamp(final) !== captured.snapshot) throw { code: 'STALE' };
-      const url = URL.createObjectURL(new Blob([captured.csv], { type: 'text/csv;charset=utf-8' })), link = node('a'); link.href = url; link.download = captured.academic ? 'bic-teacher-academic-v2.csv' : 'bic-teacher-completion-v1.csv'; document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
-      message(`已导出${captured.ids.length}份校内${captured.academic ? '学科表现v2' : '完成度v1'}清单，请妥善保管带身份资料。`);
+      const url = URL.createObjectURL(new Blob([captured.csv], { type: 'text/csv;charset=utf-8' })), link = node('a'); link.href = url; link.download = captured.preferences ? captured.academic ? 'bic-teacher-academic-preferences-v3.csv' : 'bic-teacher-preferences-v3.csv' : captured.academic ? 'bic-teacher-academic-v2.csv' : 'bic-teacher-completion-v1.csv'; document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+      message(`已导出${captured.ids.length}份校内${modeName(captured.academic, captured.preferences)}清单，请妥善保管带身份资料。`);
     });
   };
-  $('#summaryAcademic').onchange = () => { viewRevision++; clearPreview(); controls(); message(academicMode() ? '已选择学科表现v2，旧预览已清除；请重新核对，不是正式成绩或真实校准。' : '已退回完成度v1，旧预览已清除；请重新核对。'); };
+  function modeChanged() { viewRevision++; clearPreview(); controls(); message(`已选择${modeName(academicMode(), preferencesMode())}，旧预览已清除；请重新核对。学生自选非推荐，学科表现不是正式成绩或真实校准。`); }
+  $('#summaryAcademic').onchange = modeChanged;
+  $('#summaryPreferences').onchange = modeChanged;
   $('#summaryLogoutBtn').onclick = () => run('正在退出账号…', async (_, live) => {
     clearPrivate(); try { await client.logout(); if (live()) message('已退出，服务端会话已撤销。'); }
     catch (_) { if (live()) message('本页已断开，但服务器注销未确认。请重新连接后退出。', true); }
