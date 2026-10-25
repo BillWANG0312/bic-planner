@@ -52,6 +52,10 @@ def create_dev_app(settings: Settings):
     def teacher_summary_portal():
         return FileResponse(_PUBLIC_ROOT / 'teacher-summary.html', media_type='text/html')
 
+    @app.get('/account.html', include_in_schema=False)
+    def account_security_portal():
+        return FileResponse(_PUBLIC_ROOT / 'account.html', media_type='text/html')
+
     # This route precedes the /js mount. Only this explicit local preview turns
     # on the UI configuration; it does not edit the deployable static file.
     @app.get('/js/cloud-config.js', include_in_schema=False)

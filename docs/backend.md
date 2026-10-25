@@ -81,3 +81,9 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 维护题目或规划选项后，在完整源码根目录运行 `node backend/tools/assessment-schema.cjs` 重新生成元数据，再审查 diff 并跑前后端测试；`node backend/tools/assessment-schema.cjs --check` 只检查是否一致。生成文件仅含字段形状和选项 ID，没有题目答案。后端测试会独立加载真实浏览器脚本与 ReportStore 归档做交叉验证，不能仅通过改快照绕过不兼容的数据变化。
 
 实现参考 [FastAPI 密码哈希教程](https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/)（采用其维护中的 pwdlib/Argon2 用法，会话使用可撤销的服务端记录）、[pwdlib 官方指南](https://frankie567.github.io/pwdlib/guide/)、[Python sqlite3 官方文档](https://docs.python.org/3.12/library/sqlite3.html)。本阶段验证不替代公司的部署、容量或人工题库审校。
+
+## 本人改密增量接口
+
+现有API2/schema5增加POST /api/auth/password：本人有效会话+Origin/CSRF，旧密码验证、新密码确认、事务CAS替换哈希并撤销全部本人会话，204空响应清Cookie。登录会话创建同时核对被验证哈希，关闭改密与旧登录竞态；没有本轮迁移。限流与哈希资源上限保持。操作、Unicode长度、未知结果及边界见 [改密说明](password-change.md)。管理员找回/身份复核仍未实现，不能用新建同名账号替代恢复。
+
+合并后新游戏/特质报告尚不能通过现有严格归档模型，旧报告语义需版本隔离。不能把本人改密的定向通过记为全站通过，见 [兼容性记录](upstream-assessment-compatibility.md)。
