@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <title>家长报告摘要 · BIC 学业规划系统</title>
+  <link rel="icon" href="img/favicon-128.png" type="image/png" />
+  <link rel="stylesheet" href="css/share.css" />
+</head>
+<body>
+  <header class="share-brand"><img src="img/bic-logo-blue.png" alt="BIC 湾区国际书院" /><span>BIC 学业规划系统</span></header>
+  <main class="share-wrap">
+    <h1>家长报告摘要</h1>
+    <p class="share-intro">这是报告所有者生成的只读摘要快照，不包含逐题答卷或顾问修改审计。报告更新不会改变这份快照；链接过期或被撤销后无法再次读取。</p>
+    <div class="share-read-action">
+      <button type="button" id="shareLoadBtn" aria-controls="shareContent" disabled>读取分享报告</button>
+      <p id="shareStatus" role="status" aria-live="polite">正在检查分享链接…</p>
+    </div>
+    <p class="share-link-note">分享链接包含读取权限，请妥善保管。链接会从地址栏隐藏；刷新页面后，请重新打开原链接。</p>
+    <article id="shareContent" hidden></article>
+    <p class="share-disclaimer">本摘要用于家校沟通，由报告所有者按测评规则及顾问建议生成。它不是正式成绩认证，也不表示录取概率。此页面只供阅读，不提供账号、作答或报告修改入口。</p>
+  </main>
+  <script src="js/cloud-config.js"></script>
+  <script src="js/share-summary.js"></script>
+  <script src="js/share-view.js"></script>
+</body>
+</html>

@@ -14,6 +14,7 @@ class Settings:
     session_ttl: int = 28_800
     max_request_bytes: int = 6_100_000
     cookie_path: str = '/api'
+    draft_mode: str = 'disabled'
 
     def __post_init__(self):
         candidate = Path(self.database_path)
@@ -37,6 +38,10 @@ class Settings:
         host = hostname
         suffix = ':' + str(port) if port and port != {'http': 80, 'https': 443}[origin.scheme] else ''
         object.__setattr__(self, 'public_origin', origin.scheme + '://' + host + suffix)
+        if self.draft_mode not in ('disabled', 'local_mock', 'provider'):
+            raise ValueError('Draft mode must be disabled, local_mock or provider.')
+        if self.draft_mode == 'local_mock' and not (self.development and hostname in ('127.0.0.1', 'localhost')):
+            raise ValueError('Local draft demonstrations require explicit loopback development mode.')
         if type(self.session_ttl) is not int or not 300 <= self.session_ttl <= 86_400:
             raise ValueError('Session lifetime must be between 300 and 86400 seconds.')
         if type(self.max_request_bytes) is not int or not 1_024 <= self.max_request_bytes <= 6_100_000:
@@ -58,4 +63,5 @@ class Settings:
         if not database or (not origin and not development):
             raise ValueError('BIC_DATABASE_PATH and BIC_PUBLIC_ORIGIN must be explicitly configured.')
         return cls(database_path=Path(database), public_origin=origin or 'http://127.0.0.1:9001',
-                   development=development, cookie_path=os.environ.get('BIC_COOKIE_PATH', '/api'))
+                   development=development, cookie_path=os.environ.get('BIC_COOKIE_PATH', '/api'),
+                   draft_mode=os.environ.get('BIC_DRAFT_MODE', 'disabled'))

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <title>顾问只读报告 · BIC 学业规划系统</title>
+  <link rel="icon" href="img/favicon-128.png" type="image/png" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/teacher.css" />
+</head>
+<body>
+  <header class="teacher-brand"><img src="img/bic-logo-blue.png" alt="BIC 湾区国际书院" /><span>BIC 学业规划系统</span><a href="teacher-summary.html">完成度清单</a><a href="index.html">返回测评</a></header>
+  <main class="teacher-wrap">
+    <h1>顾问只读报告</h1>
+    <p class="teacher-intro">使用学校提供的顾问账号，只能读取所有者明确授予该账号的报告修订。包括姓名、逐题作答、版本与顾问建议/修改历史；不能在此编辑、删除、转授或上传报告。普通家长分享链接或批注邀请不授予这些权限。</p>
+    <section id="teacherConnectPanel" class="teacher-panel"><p>本页尚未连接账号服务，不会自动读取授权名单或学生报告。</p><button type="button" class="btn primary" id="teacherConnectBtn">连接本校账号服务</button></section>
+    <button type="button" class="btn ghost sm" id="teacherDisconnectBtn" hidden>断开本页连接</button>
+    <p id="teacherStatus" class="teacher-status" role="status" aria-live="polite">尚未连接。</p>
+    <form id="teacherLoginForm" class="teacher-panel teacher-login" hidden>
+      <h2>学校顾问账号登录</h2>
+      <label for="teacherUsername">账号<input id="teacherUsername" autocomplete="username" minlength="3" maxlength="64" required /></label>
+      <label for="teacherPassword">密码<input id="teacherPassword" type="password" autocomplete="current-password" minlength="12" maxlength="128" required /></label>
+      <button type="submit" class="btn primary">登录</button>
+    </form>
+    <section id="teacherWorkspace" hidden>
+      <div class="teacher-account"><p id="teacherAccount"></p><div class="teacher-actions"><button type="button" class="btn ghost sm" id="teacherRefreshBtn">刷新授权名单</button><button type="button" class="btn ghost sm" id="teacherLogoutBtn">退出账号</button></div></div>
+      <section aria-labelledby="teacherListHeading"><h2 id="teacherListHeading">有效的单报告授权</h2><div id="teacherList"></div></section>
+      <article id="teacherDetail" hidden aria-labelledby="teacherHeading">
+        <div class="teacher-account"><h2 id="teacherHeading" tabindex="-1"></h2><button type="button" class="btn ghost sm" id="teacherReadRefreshBtn">重新核对并读取</button></div>
+        <p id="teacherNote" class="teacher-note"></p>
+        <div id="teacherReport"></div>
+        <details id="teacherHistoryPanel" class="teacher-panel"><summary>只读顾问修改记录</summary><div id="teacherHistory"></div></details>
+      </article>
+    </section>
+    <p class="teacher-disclaimer">报告更新后旧授权关闭，需所有者复核后重新授权。到期、撤销、账号停用或角色变化会阻止新的读取；本页无后台轮询，请主动刷新核对。已读取、复制或截图的内容不能收回。报告按当前同版本规则生成，仅供规划沟通，不是正式成绩或录取概率。</p>
+  </main>
+  <script src="js/cloud-config.js"></script>
+  <script src="js/cloud-client.js"></script>
+  <script src="js/bank.js"></script>
+  <script src="js/mbti.js"></script>
+  <script src="data/universities.js"></script>
+  <script src="js/majors.js"></script>
+  <script src="js/plan.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/report-editing.js"></script>
+  <script src="js/report-view.js"></script>
+  <script src="js/report-store.js"></script>
+  <script src="js/teacher.js"></script>
+</body>
+</html>

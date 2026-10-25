@@ -7,6 +7,8 @@
   <link rel="icon" href="img/favicon-128.png" type="image/png" />
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/statistics.css" />
+  <link rel="stylesheet" href="css/outcomes.css" />
 </head>
 <body>
   <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -46,6 +48,7 @@
           <button class="btn primary lg" id="startBtn">开始探索 <span class="arrow">→</span></button>
           <button class="btn ghost lg" id="resumeBtn" hidden>继续上次进度</button>
           <button class="btn ghost lg" id="libraryBtn">本机报告库</button>
+          <button class="btn ghost lg" id="cloudBtn">账号报告服务</button>
         </div>
         <div class="hero-stats">
           <div><b>3</b><span>互动模块</span></div>
@@ -81,7 +84,7 @@
         <div class="page-head">
           <span class="kicker">Step 1 / 5</span>
           <h2>先认识一下你</h2>
-          <p>信息只保存在你的浏览器中，用于生成报告封面。</p>
+          <p>信息默认保存在此浏览器中；仅在你主动上传报告时发送至本校服务。</p>
         </div>
         <form class="card form-card" id="infoForm" autocomplete="off">
           <label class="field">
@@ -152,6 +155,7 @@
           <button class="btn ghost sm" id="editReportBtn" aria-expanded="false" aria-controls="reportEditor">编辑建议</button>
           <button class="btn ghost sm" id="archiveReportBtn">归档报告</button>
           <button class="btn ghost sm" id="openLibraryBtn">本机报告库</button>
+          <button class="btn ghost sm" id="openCloudBtn">账号报告服务</button>
           <button class="btn ghost sm" id="restartBtn">重新测试</button>
           <button class="btn primary sm" id="pdfBtn">导出 PDF</button>
         </div>
@@ -171,10 +175,12 @@
           </div>
           <button class="btn ghost" id="libraryBackBtn">返回</button>
         </div>
-        <p class="library-privacy">归档仅保存在当前设备的此浏览器中，不会上传学生资料，也不会在设备间同步。清除浏览器数据可能丢失归档，请定期导出 JSON 备份并妥善保管含学生资料的文件。</p>
+        <p class="library-privacy">本机归档保存在当前设备的此浏览器中，不会自动上传或在设备间同步。若需要服务端保存，请在「账号报告服务」中单独选择并确认上传。清除浏览器数据可能丢失归档，请定期导出 JSON 备份并妥善保管含学生资料的文件。</p>
         <div class="library-tools">
           <button class="btn ghost sm" id="libraryExportBtn">导出 JSON 备份</button>
           <button class="btn ghost sm" id="libraryCsvBtn">导出 CSV 汇总</button>
+          <button class="btn ghost sm" id="libraryStatisticsBtn">学术汇总与校准准备</button>
+          <button class="btn ghost sm" id="libraryOutcomesBtn">后续成绩配对</button>
           <label class="btn ghost sm library-file-button" for="libraryImportFile">导入 JSON 备份
             <input id="libraryImportFile" type="file" accept=".json,application/json" />
           </label>
@@ -182,6 +188,8 @@
         </div>
         <p class="library-help">JSON 只备份已归档报告的作答及顾问修改，请先归档当前报告；可在本系统导入恢复。CSV 仅供查看汇总。导入前会校验并预览，归档编号或报告编号重复时默认跳过。</p>
         <p id="libraryStatus" class="library-status" role="status" aria-live="polite"></p>
+        <div id="libraryStatistics" hidden></div>
+        <div id="libraryOutcomes" hidden></div>
         <section id="libraryImportPreview" class="library-import" aria-labelledby="libraryImportHeading" hidden>
           <h3 id="libraryImportHeading" tabindex="-1">确认导入内容</h3>
           <p id="libraryImportSummary"></p>
@@ -199,6 +207,149 @@
           <p id="libraryCount" aria-live="polite"></p>
         </div>
         <div id="libraryList" class="library-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ 显式连接的账号报告服务 ============ -->
+    <section class="screen no-print" id="screen-cloud" aria-labelledby="cloudHeading">
+      <div class="wrap cloud-wrap">
+        <div class="cloud-heading">
+          <h2 id="cloudHeading" tabindex="-1">账号报告服务</h2>
+          <button type="button" class="btn ghost" id="cloudBackBtn">返回</button>
+        </div>
+        <p class="cloud-privacy">连接本校服务后，可查看自己账号中的报告。每次上传都会先让你选择并确认一份报告，包含姓名、作答及顾问修改；本机报告库不会自动上传。此处操作不会删除本机归档。</p>
+        <p id="cloudStatus" class="cloud-status" role="status" aria-live="polite"></p>
+        <section id="cloudConnection" class="cloud-connect" aria-label="连接本校服务">
+          <p>本机模式始终可用。网站开通报告服务后，点击连接可恢复现有会话或登录；返回本页不会自动重连。</p>
+          <button type="button" class="btn primary" id="cloudConnectBtn">连接本校报告服务</button>
+        </section>
+        <form id="cloudLoginForm" class="cloud-login" hidden>
+          <h3>登录本校账号</h3>
+          <p class="cloud-help">账号由学校维护者创建。请在自己的设备登录，共用设备使用完毕后退出账号。</p>
+          <label for="cloudUsername">账号
+            <input id="cloudUsername" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="64" required />
+          </label>
+          <label for="cloudPassword">密码
+            <input id="cloudPassword" name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" required />
+          </label>
+          <button type="submit" class="btn primary">登录</button>
+        </form>
+        <section id="cloudWorkspace" hidden aria-label="账号中的报告">
+          <div class="cloud-account-row">
+            <p id="cloudAccount"></p>
+            <div class="cloud-actions">
+              <button type="button" class="btn ghost sm" id="cloudRefreshBtn">刷新名单</button>
+              <button type="button" class="btn ghost sm" id="cloudLogoutBtn">退出账号</button>
+            </div>
+          </div>
+          <section class="cloud-upload" aria-labelledby="cloudUploadHeading">
+            <h3 id="cloudUploadHeading">选择一份本机报告</h3>
+            <label for="cloudUploadSource">上传或更新的资料来源
+              <select id="cloudUploadSource"></select>
+            </label>
+            <p id="cloudSourceNote" class="cloud-help"></p>
+            <button type="button" class="btn primary sm" id="cloudUploadBtn">上传为服务端新报告</button>
+            <p class="cloud-help">相同报告编号已存在时不会自动替换。需要更新时，请先读取下方服务端报告的详情并核对。</p>
+          </section>
+          <div class="cloud-list-heading">
+            <h3>服务端报告</h3>
+            <p id="cloudCount" aria-live="polite"></p>
+          </div>
+          <div id="cloudList" class="cloud-list"></div>
+          <section id="cloudDetail" class="cloud-detail" hidden aria-labelledby="cloudDetailHeading">
+            <h3 id="cloudDetailHeading" tabindex="-1">已读取的报告</h3>
+            <div id="cloudDetailSummary"></div>
+            <p id="cloudVersionNote" class="cloud-version"></p>
+            <div class="cloud-actions">
+              <button type="button" class="btn primary sm" id="cloudOpenBtn">打开到本机</button>
+              <button type="button" class="btn ghost sm" id="cloudUpdateBtn">用所选本机报告更新</button>
+            </div>
+            <p id="cloudUpdateNote" class="cloud-help"></p>
+            <section class="owner-share advice-draft" aria-labelledby="adviceDraftHeading">
+              <h3 id="adviceDraftHeading">建议文案草稿</h3>
+              <p class="cloud-help">可选功能，默认保留当前规则建议。本阶段可在本校开发服务中预览本地模拟文案；生成与预览均不会更改报告。草稿 15 分钟内有效，应用前需逐段核对并署名。</p>
+              <button type="button" class="btn ghost sm" id="adviceGenerateBtn" disabled>生成建议草稿</button>
+              <div id="advicePreview" class="advice-preview" hidden>
+                <h4 id="draftSource"></h4>
+                <p id="draftExpiry" class="cloud-help"></p>
+                <p class="cloud-help">勾选需要应用的变更。草稿仅供核对，不代表已经人工审校；分数、测评结果和规划方向不会改变。</p>
+                <div id="adviceChoices"></div>
+                <label for="adviceReviewer">核对人姓名<input id="adviceReviewer" type="text" maxlength="40" autocomplete="off" placeholder="逐段核对后填写" /></label>
+                <div class="cloud-actions">
+                  <button type="button" class="btn primary sm" id="adviceApplyBtn" disabled>确认应用到服务端</button>
+                  <button type="button" class="btn ghost sm" id="adviceDiscardBtn" disabled>关闭草稿</button>
+                </div>
+                <p class="cloud-help">只更新这份服务端报告所选段落，并保留来源和修改记录。本机当前报告及本机报告库不会自动替换。</p>
+              </div>
+            </section>
+            <section class="owner-share" aria-labelledby="teacherOwnerHeading">
+              <h3 id="teacherOwnerHeading">指定顾问的完整报告只读授权</h3>
+              <p class="cloud-help">仅向学校已创建的顾问账号授权此报告修订。包含姓名、逐题答卷、顾问建议与修改历史及授权者账号；与家长摘要权限分别管理。先预览范围再确认，不创建账号或发送消息，不能编辑或转授原报告。</p>
+              <label for="teacherRecipient">接收顾问账号<input id="teacherRecipient" type="text" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="填写学校提供的顾问账号" /></label>
+              <label for="teacherTtl">只读有效期<select id="teacherTtl"><option value="24">24 小时</option><option value="72">3 天</option><option value="168">7 天</option></select></label>
+              <div class="cloud-actions">
+                <button type="button" class="btn ghost sm" id="teacherPreviewBtn">预览完整只读范围</button>
+                <button type="button" class="btn primary sm" id="teacherCreateBtn" disabled>确认授权顾问只读</button>
+                <button type="button" class="btn ghost sm" id="teacherListBtn">查看顾问授权历史</button>
+                <a class="btn ghost sm" href="teacher.html" target="_blank" rel="noopener noreferrer">打开顾问只读入口</a>
+                <a class="btn ghost sm" href="teacher-summary.html" target="_blank" rel="noopener noreferrer">打开顾问完成度清单</a>
+              </div>
+              <p class="cloud-help">报告更新后旧授权关闭，需重新确认。到期、撤销或账号停用阻止新的读取，已读或复制的内容不能收回。每报告最多10份、每账号参与100份历史授权；顾问角色不授予全校报告权限。</p>
+              <div id="teacherOwnerPreview" class="share-preview" hidden></div>
+              <div id="teacherOwnerList"></div>
+            </section>
+            <section class="owner-share" aria-labelledby="editOwnerHeading">
+              <h3 id="editOwnerHeading">另行授权顾问修改建议文字</h3>
+              <p class="cloud-help">与顾问只读授权分开。指定学校既有顾问账号，在此修订上一次提交最多四段建议；不能修改答卷、成绩、身份或规则排序。先核对完整报告范围及四段当前文字，再明确授权，不创建账号或发送消息。</p>
+              <label for="editRecipient">接收顾问账号<input id="editRecipient" type="text" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="填写学校提供的顾问账号" /></label>
+              <label for="editTtl">编辑有效期<select id="editTtl"><option value="24">24 小时</option><option value="72">3 天</option><option value="168">7 天</option></select></label>
+              <div class="cloud-actions">
+                <button type="button" class="btn ghost sm" id="editPreviewBtn">预览编辑范围及文字基线</button>
+                <button type="button" class="btn primary sm" id="editCreateBtn" disabled>确认另行授权文字编辑</button>
+                <button type="button" class="btn ghost sm" id="editListBtn">查看编辑授权历史</button>
+                <button type="button" class="btn ghost sm" id="editAuditBtn">读取服务端编辑记录</button>
+                <a class="btn ghost sm" href="advisor-edit.html" target="_blank" rel="noopener noreferrer">打开顾问文字编辑入口</a>
+              </div>
+              <p class="cloud-help">实际修改使修订递增并关闭旧授权；其他设备更新也需重新核对授权。不自动替换本机报告。服务端记录实际登录顾问账号及前后文；便携修改历史不等于防篡改凭证。到期/撤销不能收回已复制的资料，已经保存的修改保留。每报告10份、每账号参与100份编辑授权历史，独立于只读。</p>
+              <div id="editOwnerPreview" class="share-preview" hidden></div>
+              <div id="editOwnerList"></div>
+              <div id="editOwnerAudit"></div>
+            </section>
+            <section class="owner-share" aria-labelledby="ownerShareHeading">
+              <h3 id="ownerShareHeading">家长只读分享</h3>
+              <p class="cloud-help">分享当前已读取的服务端报告摘要。先预览并确认；不含逐题答卷、解析和顾问审计。任何持链接者可读，可设置期限或撤销；不会自动发送。</p>
+              <label for="shareTtl">有效期
+                <select id="shareTtl"><option value="24">24 小时</option><option value="72">3 天</option><option value="168">7 天</option></select>
+              </label>
+              <div class="cloud-actions">
+                <button type="button" class="btn ghost sm" id="sharePreviewBtn">预览分享摘要</button>
+                <button type="button" class="btn primary sm" id="shareCreateBtn" disabled>确认生成只读链接</button>
+                <button type="button" class="btn ghost sm" id="shareListBtn">查看已有分享</button>
+              </div>
+              <div id="sharePreview" class="share-preview" hidden></div>
+              <div id="shareLinkBox" hidden>
+                <label for="shareLink">本次只读链接（离开页面后不保留）<input id="shareLink" type="text" readonly autocomplete="off" /></label>
+                <button type="button" class="btn ghost sm" id="shareCopyBtn">复制链接</button>
+              </div>
+              <div id="ownerShareList"></div>
+            </section>
+            <section class="owner-share" aria-labelledby="ownerAccessHeading">
+              <h3 id="ownerAccessHeading">邀请家长批注</h3>
+              <p class="cloud-help">需要学校已创建的账号。邀请只允许该账号读取这份固定摘要并追加批注，不授予答卷或报告修改权限；匿名只读链接不能写批注。</p>
+              <label for="accessRecipient">接收账号<input id="accessRecipient" type="text" maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="填写学校提供的完整账号名" /></label>
+              <label for="accessTtl">授权有效期<select id="accessTtl"><option value="24">24 小时</option><option value="72">3 天</option><option value="168">7 天</option></select></label>
+              <div class="cloud-actions">
+                <button type="button" class="btn ghost sm" id="accessPreviewBtn">预览邀请摘要</button>
+                <button type="button" class="btn primary sm" id="accessCreateBtn" disabled>确认邀请账号</button>
+                <button type="button" class="btn ghost sm" id="accessListBtn">查看批注邀请</button>
+                <a class="btn ghost sm" href="family.html" target="_blank" rel="noopener noreferrer">打开家长批注页面</a>
+              </div>
+              <p class="cloud-help">批注与原报告分开保存。每报告最多 10 份邀请，每账号最多参与 100 份（含已撤销或过期的历史）。报告更新不改变已有邀请摘要；删除报告将同时删除相关批注。</p>
+              <div id="accessPreview" class="share-preview" hidden></div>
+              <div id="ownerAccessList"></div>
+            </section>
+          </section>
+        </section>
       </div>
     </section>
   </main>
@@ -221,7 +372,20 @@
   <script src="js/report-print.js"></script>
   <script src="js/report-view.js"></script>
   <script src="js/report-store.js"></script>
+  <script src="js/report-statistics.js"></script>
+  <script src="js/report-statistics-ui.js"></script>
+  <script src="js/outcome-review.js"></script>
+  <script src="js/outcome-review-ui.js"></script>
   <script src="js/report-library.js"></script>
+  <script src="js/cloud-config.js"></script>
+  <script src="js/cloud-client.js"></script>
+  <script src="js/share-summary.js"></script>
+  <script src="js/advice-draft.js"></script>
+  <script src="js/share-owner.js"></script>
+  <script src="js/comment-owner.js"></script>
+  <script src="js/teacher-owner.js"></script>
+  <script src="js/advisor-edit-owner.js"></script>
+  <script src="js/cloud-ui.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

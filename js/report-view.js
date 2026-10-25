@@ -7,7 +7,12 @@
   const countryFlag = { '英国': '🇬🇧', '美国': '🇺🇸', '加拿大': '🇨🇦', '澳大利亚': '🇦🇺', '中国香港': '🇭🇰', '新加坡': '🇸🇬', '欧洲大陆': '🇪🇺' };
   const bounded = value => Math.round(Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0)));
   const edited = (r, section) => Object.hasOwn(r.advisor?.sections || {}, section);
-  const editedMark = (r, section) => edited(r, section) ? '<span class="advisor-label">顾问已编辑</span>' : '';
+  const editedMark = (r, section) => {
+    if (!edited(r, section)) return '';
+    const latest = [...(r.advisor?.history || [])].reverse().find(entry => entry.section === section);
+    const label = (latest?.after === r.advisor.sections[section] ? window.reportEditing?.originLabel(latest.origin) : '') || '顾问已编辑';
+    return `<span class="advisor-label">${esc(label)}</span>`;
+  };
   const advice = (r, section, fallback) => window.reportEditing ? window.reportEditing.getText(r, section) : fallback;
   const adviceHtml = (r, section, fallback) => `<p class="advice-text">${esc(advice(r, section, fallback))}</p>${editedMark(r, section)}`;
   const personalityTraits = r => (r.mbti.traits || []).filter(t => t.pct != null).sort((a, b) => b.pct - a.pct);

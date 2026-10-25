@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <title>顾问建议编辑 · BIC 学业规划系统</title>
+  <link rel="icon" href="img/favicon-128.png" type="image/png" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/advisor-edit.css" />
+</head>
+<body>
+  <header class="edit-brand"><img src="img/bic-logo-blue.png" alt="BIC 湾区国际书院" /><span>BIC 学业规划系统</span><a href="index.html">返回测评</a></header>
+  <main class="edit-wrap">
+    <h1>顾问建议编辑</h1>
+    <p class="edit-intro">仅处理所有者另行授予当前顾问账号的单报告建议编辑。可读取完整报告及历史，只能基于核对的修订一次提交所选四段建议文字，不能改答卷、成绩、身份或转授；普通只读链接、顾问只读授权和家长批注不授予编辑权。</p>
+    <section id="editConnectPanel" class="edit-panel"><p>本页尚未连接账号服务，不会自动读取名单或学生资料。</p><button type="button" class="btn primary" id="editConnectBtn">连接本校账号服务</button></section>
+    <button type="button" class="btn ghost sm" id="editDisconnectBtn" hidden>断开本页连接并清除草稿</button>
+    <p id="editStatus" class="edit-status" role="status" aria-live="polite">尚未连接。</p>
+    <form id="editLoginForm" class="edit-panel edit-login" hidden>
+      <h2>学校顾问账号登录</h2>
+      <label for="editUsername">账号<input id="editUsername" autocomplete="username" minlength="3" maxlength="64" required /></label>
+      <label for="editPassword">密码<input id="editPassword" type="password" autocomplete="current-password" minlength="12" maxlength="128" required /></label>
+      <button type="submit" class="btn primary">登录</button>
+    </form>
+    <section id="editWorkspace" hidden>
+      <div class="edit-account"><p id="editAccount"></p><div class="edit-actions"><button type="button" class="btn ghost sm" id="editRefreshBtn">刷新编辑授权名单</button><button type="button" class="btn ghost sm" id="editLogoutBtn">退出账号并清除草稿</button></div></div>
+      <section aria-labelledby="editListHeading"><h2 id="editListHeading">有效的建议编辑授权</h2><div id="editList"></div></section>
+      <article id="editDetail" hidden aria-labelledby="editHeading">
+        <h2 id="editHeading" tabindex="-1"></h2><p id="editNote" class="edit-note"></p>
+        <div id="editReport"></div>
+        <section class="edit-panel" aria-labelledby="editFieldsHeading"><h3 id="editFieldsHeading">选择需要修改的建议</h3><p>未勾选的段落不提交。输入只留在本页内存，离开或断开会清除；请核对后一次提交。</p><div id="editFields"></div>
+          <div class="edit-actions"><button type="button" class="btn ghost" id="editPreviewChangesBtn" disabled>预览所选修改</button><button type="button" class="btn primary" id="editSubmitBtn" disabled>确认并提交所选修改</button></div><div id="editChangesPreview" hidden></div>
+        </section>
+      </article>
+    </section>
+    <p class="edit-disclaimer">实际写入后，当前修订的编辑和只读授权关闭，需所有者复核再授权。无后台轮询，请主动刷新；网络结果不确定时不会自动重试覆盖。已读取或复制的资料不能收回。本页按同版本当前规则展示，规则基线由所有者确认；报告仅供规划沟通。</p>
+  </main>
+  <script src="js/cloud-config.js"></script><script src="js/cloud-client.js"></script>
+  <script src="js/bank.js"></script><script src="js/mbti.js"></script><script src="data/universities.js"></script><script src="js/majors.js"></script><script src="js/plan.js"></script>
+  <script src="js/report.js"></script><script src="js/report-editing.js"></script><script src="js/report-view.js"></script><script src="js/report-store.js"></script><script src="js/advisor-edit.js"></script>
+</body>
+</html>

@@ -18,6 +18,8 @@
     let pendingImport = null;
     let selection = 0;
     let rawRecovery = null;
+    let statistics = null;
+    let outcomes = null;
     try { store = window.ReportStore.create(window.localStorage); }
     catch (error) { storageError = error; }
 
@@ -58,6 +60,8 @@
     function setToolsAvailable(available, count = 0) {
       $('#libraryExportBtn').disabled = !available || !count;
       $('#libraryCsvBtn').disabled = !available || !count;
+      $('#libraryStatisticsBtn').disabled = !available;
+      $('#libraryOutcomesBtn').disabled = !available;
       importFile.disabled = !available;
       importFile.parentElement.classList.toggle('is-disabled', !available);
       $('#librarySearch').disabled = !available;
@@ -126,6 +130,8 @@
     }
 
     function render(text) {
+      statistics?.clear();
+      outcomes?.clear();
       try {
         records = requireStore().list();
         setToolsAvailable(true, records.length);
@@ -261,7 +267,19 @@
       archiveStatus.textContent = '';
       archiveStatus.hidden = true;
     }
-    return { render, onReportRendered };
+    statistics = window.ReportStatisticsUI?.init({
+      getRecords: () => requireStore().list(),
+      download(text) { download(text, 'json', 'application/json;charset=utf-8', 'bic-academic-aggregate'); }
+    });
+    outcomes = window.OutcomeReviewUI?.init({
+      getRecords: () => requireStore().list(),
+      download(text, kind) {
+        const prefix = kind === 'template' ? 'bic-followup-results-template' : kind === 'summary' ? 'bic-followup-review' : null;
+        if (!prefix) throw new Error('下载格式不受支持');
+        download(text, 'json', 'application/json;charset=utf-8', prefix);
+      }
+    });
+    return { render, onReportRendered, onScreenLeft() { statistics?.clear(); outcomes?.clear(); } };
   }
 
   window.ReportLibrary = { init };

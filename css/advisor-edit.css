@@ -1,0 +1,27 @@
+/* Isolated authenticated advice editing; no main assessment storage or controls. */
+[hidden] { display: none !important; }
+.edit-brand { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 18px max(16px, calc((100% - 1180px)/2)); border-bottom: 1px solid var(--border); }
+.edit-brand img { width: 100px; height: auto; }
+.edit-brand a { margin-left: auto; color: var(--text-2); }
+main.edit-wrap { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 64px; }
+.edit-intro, .edit-note, .edit-disclaimer { color: var(--text-2); font-size: 14px; }
+.edit-panel, .edit-grant { padding: 18px; margin: 14px 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-wrap: anywhere; }
+.edit-login { display: grid; gap: 14px; max-width: 500px; }
+.edit-login label, .edit-field { display: grid; gap: 8px; }
+.edit-login input, .edit-field textarea { width: 100%; min-width: 0; padding: 10px; font: inherit; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-2); color: var(--text); }
+.edit-field { margin: 20px 0; }
+.edit-field textarea { min-height: 130px; resize: vertical; line-height: 1.6; }
+.edit-field textarea[readonly] { border-style: dashed; }
+.edit-select { display: flex; align-items: center; gap: 8px; }
+.edit-account, .edit-actions, .edit-grant { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.edit-grant > div { flex: 1 1 260px; min-width: 0; }
+.edit-grant h3, .edit-grant p { margin: 5px 0; }
+.edit-grant p, .edit-status { font-size: 13px; color: var(--text-2); }
+.edit-status { min-height: 1.5em; }
+.edit-status.is-error { color: var(--red); }
+#editHeading, #editReport { min-width: 0; overflow-wrap: anywhere; }
+#editChangesPreview article { border-top: 1px solid var(--border); padding: 12px 0; }
+#editChangesPreview pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; }
+.edit-disclaimer { border-top: 1px solid var(--border); margin-top: 30px; padding-top: 18px; font-size: 13px; }
+@media (max-width: 600px) { .edit-brand { gap: 10px; font-size: 12px; } .edit-brand img { width: 74px; } .edit-panel, .edit-grant { padding: 14px; } main.edit-wrap { width: calc(100% - 24px); } }
+@media print { .edit-brand, .edit-wrap > h1, .edit-intro, #editConnectPanel, #editDisconnectBtn, #editLoginForm, #editStatus, .edit-account, #editListHeading, #editList, #editFields, #editPreviewChangesBtn, #editSubmitBtn, #editChangesPreview, .edit-disclaimer { display: none !important; } }

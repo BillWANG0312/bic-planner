@@ -2,11 +2,11 @@
 
 import sqlite3
 import time
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, field_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
@@ -14,6 +14,16 @@ from .db import Database, StorageError
 from .models import ArchiveRecord
 from .security import AuthError, AuthService
 from .settings import Settings
+from .share_models import ShareContent
+from .sharing import ShareService
+from .comment_models import CommentText, RequestId
+from .comments import CommentService
+from .draft_models import DraftContext, DraftSections
+from .drafts import AdviceDraftService
+from .teacher_access import TeacherAccessService
+from .advisor_edit import AdvisorEditService
+from .teacher_summary import TeacherSummaryService
+from .share_models import plain_text
 
 
 class StrictBody(BaseModel):
@@ -33,6 +43,72 @@ class UpdateReportBody(CreateReportBody):
     revision: Annotated[StrictInt, Field(ge=1)]
 
 
+class CreateShareBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1)]
+    ttl_hours: Literal[24, 72, 168]
+    content: ShareContent
+
+
+class CreateParentAccessBody(CreateShareBody):
+    recipient_username: Annotated[StrictStr, Field(min_length=3, max_length=64)]
+
+
+class AddCommentBody(StrictBody):
+    body: CommentText
+    client_request_id: RequestId
+
+
+class CreateTeacherAccessBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+    recipient_username: Annotated[StrictStr, Field(min_length=3, max_length=64)]
+    ttl_hours: Literal[24, 72, 168]
+    scope: Literal['full_report_read_only']
+
+
+class CreateAdvisorEditBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+    recipient_username: Annotated[StrictStr, Field(min_length=3, max_length=64)]
+    ttl_hours: Literal[24, 72, 168]
+    scope: Literal['full_report_advice_edit']
+    baseline: DraftSections
+
+
+class TeacherSummaryBody(StrictBody):
+    grant_ids: Annotated[list[Annotated[StrictStr, Field(pattern=r'^[A-Za-z0-9_-]{1,128}$')]], Field(min_length=1, max_length=20)]
+    academic: StrictBool = False
+    preferences: StrictBool = False
+
+    @field_validator('grant_ids')
+    @classmethod
+    def unique_grants(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError('Select each authorization at most once.')
+        return value
+
+
+class ApplyAdvisorEditBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+    changes: Annotated[dict[Literal['summary', 'academic', 'plan', 'personality'], plain_text(4000, required=True)], Field(min_length=1, max_length=4)]
+
+
+class CreateAdviceDraftBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1)]
+    context: DraftContext
+    fallback: DraftSections
+
+
+class ApplyAdviceDraftBody(StrictBody):
+    sections: Annotated[list[Literal['summary', 'academic', 'plan', 'personality']], Field(min_length=1, max_length=4)]
+    reviewer: plain_text(40, required=True)
+
+    @field_validator('sections')
+    @classmethod
+    def unique_sections(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError('Select each advice section at most once.')
+        return value
+
+
 class ApiBoundary:
     """Validate the browser boundary and cap bytes before JSON parsing."""
 
@@ -49,6 +125,8 @@ class ApiBoundary:
                 headers = [(k, v) for k, v in message.get('headers', []) if k.lower() not in
                            (b'cache-control', b'x-content-type-options')]
                 headers.extend([(b'cache-control', b'no-store'), (b'x-content-type-options', b'nosniff')])
+                headers.extend([(b'referrer-policy', b'no-referrer'),
+                                (b'x-robots-tag', b'noindex, nofollow, noarchive')])
                 message = {**message, 'headers': headers}
             await send(message)
 
@@ -93,19 +171,33 @@ class ApiBoundary:
         async def replay():
             nonlocal delivered
             if delivered:
-                return {'type': 'http.disconnect'}
+                # File responses listen for a real client disconnect while streaming.
+                # Fabricating one here would cancel the response before its body is sent.
+                return await receive()
             delivered = True
             return {'type': 'http.request', 'body': buffered, 'more_body': False}
 
         await self.app(scope, replay, secured_send)
 
 
-def create_app(settings: Settings, *, clock=time.time):
-    app = FastAPI(title='BIC private report API', version='1.0.0', docs_url=None,
+def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
+    app = FastAPI(title='BIC private report API', version='2.0.0', docs_url=None,
                   redoc_url=None, openapi_url='/api/openapi.json' if settings.development else None)
     db = Database(settings.database_path, clock=clock)
     auth = AuthService(db, session_ttl=settings.session_ttl, clock=clock)
     app.state.db, app.state.auth, app.state.settings = db, auth, settings
+    sharing = ShareService(db, clock=clock)
+    app.state.sharing = sharing
+    comments = CommentService(db, clock=clock)
+    app.state.comments = comments
+    advice_drafts = AdviceDraftService(db, mode=settings.draft_mode, provider=draft_provider, clock=clock)
+    app.state.advice_drafts = advice_drafts
+    teachers = TeacherAccessService(db, clock=clock)
+    app.state.teachers = teachers
+    advisor_edits = AdvisorEditService(db, clock=clock)
+    app.state.advisor_edits = advisor_edits
+    teacher_summaries = TeacherSummaryService(db, clock=clock)
+    app.state.teacher_summaries = teacher_summaries
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -128,7 +220,13 @@ def create_app(settings: Settings, *, clock=time.time):
         return JSONResponse({'detail': 'Storage is temporarily unavailable.'}, status_code=503)
 
     def current_session(request: Request):
-        return auth.session(request.cookies.get('bic_session'))
+        session = auth.session(request.cookies.get('bic_session'))
+        # A different tab can replace this browser's shared Cookie. Bound reads
+        # must not return that new account's data under a stale page identity.
+        supplied = request.headers.get('X-CSRF-Token')
+        if supplied is not None and not auth.verify_csrf(session, supplied):
+            raise HTTPException(403, 'The page session changed; reconnect before continuing.')
+        return session
 
     def writable_session(request: Request, session=Depends(current_session)):
         if not auth.verify_csrf(session, request.headers.get('X-CSRF-Token')):
@@ -140,7 +238,7 @@ def create_app(settings: Settings, *, clock=time.time):
 
     @app.get('/api/health')
     def health():
-        return {'status': 'ok', 'api_version': '1'}
+        return {'status': 'ok', 'api_version': '2'}
 
     @app.post('/api/auth/login')
     def login(body: LoginBody, request: Request, response: Response):
@@ -187,6 +285,119 @@ def create_app(settings: Settings, *, clock=time.time):
     def delete_report(report_id: str, revision: int = Query(ge=1), session=Depends(writable_session)):
         db.delete_report(session['user']['id'], report_id, revision)
         return Response(status_code=204)
+
+    @app.post('/api/reports/{report_id}/shares', status_code=201)
+    def create_share(report_id: str, body: CreateShareBody, session=Depends(writable_session)):
+        return sharing.create(session['user']['id'], report_id, body.revision, body.ttl_hours,
+                              body.content.model_dump(mode='json'))
+
+    @app.get('/api/reports/{report_id}/shares')
+    def list_shares(report_id: str, session=Depends(current_session)):
+        return sharing.list(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/shares/{share_id}', status_code=204)
+    def revoke_share(report_id: str, share_id: str, session=Depends(writable_session)):
+        sharing.revoke(session['user']['id'], report_id, share_id)
+        return Response(status_code=204)
+
+    @app.get('/api/public/share')
+    def read_share(request: Request):
+        return sharing.read(request.headers.get('X-BIC-Share'), request.client.host if request.client else 'unknown')
+
+    @app.post('/api/reports/{report_id}/parent-access', status_code=201)
+    def create_parent_access(report_id: str, body: CreateParentAccessBody, session=Depends(writable_session)):
+        return comments.create_grant(session['user']['id'], report_id, body.revision,
+                                     body.recipient_username, body.ttl_hours, body.content.model_dump(mode='json'))
+
+    @app.get('/api/reports/{report_id}/parent-access')
+    def report_parent_access(report_id: str, session=Depends(current_session)):
+        return comments.list_for_report(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/parent-access/{grant_id}', status_code=204)
+    def revoke_parent_access(report_id: str, grant_id: str, session=Depends(writable_session)):
+        comments.revoke(session['user']['id'], report_id, grant_id)
+        return Response(status_code=204)
+
+    @app.get('/api/parent-access')
+    def family_access(session=Depends(current_session)):
+        return comments.list_for_user(session['user']['id'])
+
+    @app.get('/api/parent-access/{grant_id}')
+    def family_thread(grant_id: str, session=Depends(current_session)):
+        return comments.thread(session['user']['id'], grant_id)
+
+    @app.post('/api/parent-access/{grant_id}/comments', status_code=201)
+    def add_family_comment(grant_id: str, body: AddCommentBody, session=Depends(writable_session)):
+        return comments.add_comment(session['user']['id'], grant_id, body.body, body.client_request_id)
+
+    @app.post('/api/reports/{report_id}/advice-drafts', status_code=201)
+    def create_advice_draft(report_id: str, body: CreateAdviceDraftBody, session=Depends(writable_session)):
+        return advice_drafts.create(session['user']['id'], report_id, body.revision,
+                                     body.context.model_dump(mode='json'), body.fallback.model_dump(mode='json'))
+
+    @app.post('/api/reports/{report_id}/advice-drafts/{draft_id}/apply')
+    def apply_advice_draft(report_id: str, draft_id: str, body: ApplyAdviceDraftBody, session=Depends(writable_session)):
+        return advice_drafts.apply(session['user']['id'], report_id, draft_id, body.sections, body.reviewer)
+
+    @app.post('/api/reports/{report_id}/teacher-access', status_code=201)
+    def create_teacher_access(report_id: str, body: CreateTeacherAccessBody, session=Depends(writable_session)):
+        return teachers.create_grant(session['user']['id'], report_id, body.revision, body.recipient_username, body.ttl_hours)
+
+    @app.get('/api/reports/{report_id}/teacher-access')
+    def owner_teacher_access(report_id: str, session=Depends(current_session)):
+        return teachers.list_for_report(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/teacher-access/{grant_id}', status_code=204)
+    def revoke_teacher_access(report_id: str, grant_id: str, session=Depends(writable_session)):
+        teachers.revoke(session['user']['id'], report_id, grant_id)
+        return Response(status_code=204)
+
+    @app.get('/api/teacher-access')
+    def teacher_reports(session=Depends(current_session)):
+        return teachers.list_for_user(session['user']['id'])
+
+    @app.get('/api/teacher-access/{grant_id}')
+    def read_teacher_report(grant_id: str, session=Depends(current_session)):
+        return teachers.read(session['user']['id'], grant_id)
+
+    @app.post('/api/teacher-summaries')
+    def teacher_completion_summaries(body: TeacherSummaryBody, session=Depends(writable_session)):
+        options = {}
+        if body.academic:
+            options['academic'] = True
+        if body.preferences:
+            options['preferences'] = True
+        return teacher_summaries.read(session['user']['id'], body.grant_ids, **options)
+
+    @app.post('/api/reports/{report_id}/advisor-edit-access', status_code=201)
+    def create_advisor_edit_access(report_id: str, body: CreateAdvisorEditBody, session=Depends(writable_session)):
+        return advisor_edits.create_grant(session['user']['id'], report_id, body.revision,
+                                          body.recipient_username, body.ttl_hours, body.baseline.model_dump(mode='json'))
+
+    @app.get('/api/reports/{report_id}/advisor-edit-access')
+    def owner_advisor_edit_access(report_id: str, session=Depends(current_session)):
+        return advisor_edits.list_for_report(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/advisor-edit-access/{grant_id}', status_code=204)
+    def revoke_advisor_edit_access(report_id: str, grant_id: str, session=Depends(writable_session)):
+        advisor_edits.revoke(session['user']['id'], report_id, grant_id)
+        return Response(status_code=204)
+
+    @app.get('/api/reports/{report_id}/advisor-edits')
+    def owner_advisor_edits(report_id: str, session=Depends(current_session)):
+        return advisor_edits.list_audit(session['user']['id'], report_id)
+
+    @app.get('/api/advisor-edit-access')
+    def editable_advisor_reports(session=Depends(current_session)):
+        return advisor_edits.list_for_user(session['user']['id'])
+
+    @app.get('/api/advisor-edit-access/{grant_id}')
+    def read_editable_advisor_report(grant_id: str, session=Depends(current_session)):
+        return advisor_edits.read(session['user']['id'], grant_id)
+
+    @app.put('/api/advisor-edit-access/{grant_id}')
+    def apply_advisor_edit(grant_id: str, body: ApplyAdvisorEditBody, session=Depends(writable_session)):
+        return advisor_edits.apply(session['user']['id'], grant_id, body.revision, body.changes)
 
     return app
 

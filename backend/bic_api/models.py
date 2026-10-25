@@ -1,4 +1,7 @@
-"""Strict saved-response records; grades and recommendations are computed in the client.
+"""Strict saved-response records; browser rules generate reports and recommendations.
+
+Optional academic summary v2 uses a separate generated backend scoring snapshot;
+this archive schema remains an input/shape boundary, not certified school marks.
 
 The small assessment schema is generated from the browser scripts with Node's VM.
 It contains answer shapes and option identifiers, never prompts or answer keys.
@@ -13,7 +16,7 @@ from pathlib import Path
 import re
 from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictStr, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator, model_validator
 
 
 ASSESSMENT_SCHEMA = json.loads(
@@ -292,6 +295,58 @@ class AdvisorSections(StrictModel):
     personality: SectionText = None
 
 
+DraftKind = Literal["rule", "local_mock", "provider"]
+PositiveSafeInteger = Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+
+
+def canonical_draft_id(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", value):
+        raise ValueError("draft identifier must be a canonical UUID")
+    return value
+
+
+def safe_generator(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", value):
+        raise ValueError("generator must be a safe ASCII identifier")
+    return value
+
+
+DraftIdText = Annotated[StrictStr, AfterValidator(canonical_draft_id)]
+DraftGeneratorText = Annotated[StrictStr, AfterValidator(safe_generator)]
+
+
+class DraftOrigin(StrictModel):
+    """Source of one human-reviewed edit, separate from the human author's identity."""
+
+    kind: DraftKind
+    draft_id: DraftIdText
+    generator: DraftGeneratorText
+    source_revision: PositiveSafeInteger
+
+
+def canonical_actor_username(value: str) -> str:
+    if not re.fullmatch(r"[a-z0-9._@+\-]{3,64}", value, re.ASCII):
+        raise ValueError("school actor username must be canonical")
+    return value
+
+
+class SchoolAdvisorActor(StrictModel):
+    """Portable attribution; trusted write evidence lives in server audit rows."""
+
+    kind: Literal["school_advisor"]
+    user_id: DraftIdText
+    username: Annotated[StrictStr, AfterValidator(canonical_actor_username)]
+    grant_id: DraftIdText
+    source_revision: PositiveSafeInteger
+    result_revision: PositiveSafeInteger
+
+    @model_validator(mode="after")
+    def one_revision_write(self) -> SchoolAdvisorActor:
+        if self.result_revision != self.source_revision + 1:
+            raise ValueError("school edit must advance exactly one revision")
+        return self
+
+
 class AdvisorHistoryEntry(StrictModel):
     id: Required100
     at: TimestampText
@@ -301,6 +356,14 @@ class AdvisorHistoryEntry(StrictModel):
     after: SectionText
     action: Literal["edit", "reset", "restore"]
     reportId: Required100
+    origin: DraftOrigin = None
+    actor: SchoolAdvisorActor = None
+
+    @model_validator(mode="after")
+    def school_actor_is_an_edit(self) -> AdvisorHistoryEntry:
+        if self.actor is not None and (self.action != 'edit' or self.origin is not None):
+            raise ValueError("school actor records a manual server edit without draft provenance")
+        return self
 
 
 class AdvisorEditing(StrictModel):
