@@ -321,6 +321,29 @@ class DraftOrigin(StrictModel):
     source_revision: PositiveSafeInteger
 
 
+def canonical_actor_username(value: str) -> str:
+    if not re.fullmatch(r"[a-z0-9._@+\-]{3,64}", value, re.ASCII):
+        raise ValueError("school actor username must be canonical")
+    return value
+
+
+class SchoolAdvisorActor(StrictModel):
+    """Portable attribution; trusted write evidence lives in server audit rows."""
+
+    kind: Literal["school_advisor"]
+    user_id: DraftIdText
+    username: Annotated[StrictStr, AfterValidator(canonical_actor_username)]
+    grant_id: DraftIdText
+    source_revision: PositiveSafeInteger
+    result_revision: PositiveSafeInteger
+
+    @model_validator(mode="after")
+    def one_revision_write(self) -> SchoolAdvisorActor:
+        if self.result_revision != self.source_revision + 1:
+            raise ValueError("school edit must advance exactly one revision")
+        return self
+
+
 class AdvisorHistoryEntry(StrictModel):
     id: Required100
     at: TimestampText
@@ -331,6 +354,13 @@ class AdvisorHistoryEntry(StrictModel):
     action: Literal["edit", "reset", "restore"]
     reportId: Required100
     origin: DraftOrigin = None
+    actor: SchoolAdvisorActor = None
+
+    @model_validator(mode="after")
+    def school_actor_is_an_edit(self) -> AdvisorHistoryEntry:
+        if self.actor is not None and (self.action != 'edit' or self.origin is not None):
+            raise ValueError("school actor records a manual server edit without draft provenance")
+        return self
 
 
 class AdvisorEditing(StrictModel):

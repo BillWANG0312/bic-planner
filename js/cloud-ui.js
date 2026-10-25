@@ -22,6 +22,7 @@
     let commentOwner = null;
     let adviceDraft = null;
     let teacherOwner = null;
+    let advisorEditOwner = null;
     const localOnly = window.location.protocol === 'file:';
 
     function active() { return options.isActive ? options.isActive() : screen.classList.contains('active'); }
@@ -99,6 +100,7 @@
       commentOwner?.clear();
       adviceDraft?.clear();
       teacherOwner?.clear();
+      advisorEditOwner?.clear();
       selected = null;
       $('#cloudDetail').hidden = true;
       $('#cloudDetailSummary').replaceChildren();
@@ -140,6 +142,7 @@
       commentOwner?.setBusy(busy);
       adviceDraft?.setBusy(busy);
       teacherOwner?.setBusy(busy);
+      advisorEditOwner?.setBusy(busy);
     }
     function handleError(error) {
       if (!client.user || error?.status === 401 || error?.status === 403) clearPrivate();
@@ -195,6 +198,7 @@
       commentOwner?.setReport(item);
       adviceDraft?.setReport(item);
       teacherOwner?.setReport(item);
+      advisorEditOwner?.setReport(item);
       $('#cloudDetailSummary').replaceChildren(
         node('p', '', `${item.record.state.info.name} · ${item.record.reportMeta.batchId}`),
         node('p', '', `报告日期 ${item.record.reportMeta.date} · 已读取修订 ${item.revision}`),
@@ -224,7 +228,7 @@
       });
     }
     function deleteReport(record) {
-      if (busy || !window.confirm(`删除服务端的「${record.name}」报告 ${record.report_ref}（修订 ${record.revision}）吗？相关分享、批注邀请和顾问只读授权将失效，关联批注记录也会删除；本机归档和当前作答会保留。`)) return;
+      if (busy || !window.confirm(`删除服务端的「${record.name}」报告 ${record.report_ref}（修订 ${record.revision}）吗？相关分享、批注邀请和顾问只读/编辑授权将失效，关联批注及服务端编辑记录也会删除；本机归档和当前作答会保留。`)) return;
       return run('正在删除服务端报告…', async current => {
         await client.remove(record.id, record.revision);
         if (!current()) return;
@@ -354,6 +358,7 @@
     shareOwner = window.ParentShareOwner?.init({ client, run, message });
     commentOwner = window.CommentOwner?.init({ client, run, message });
     teacherOwner = window.TeacherOwner?.init({ client, run, message });
+    advisorEditOwner = window.AdvisorEditOwner?.init({ client, run, message });
     adviceDraft = window.AdviceDraft?.init({ client, run, message,
       onSaved(result) {
         if (!selected) throw new Error('当前报告已切换，请重新读取服务端记录。');

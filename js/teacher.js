@@ -88,6 +88,10 @@
     for (const entry of [...record.advisor.history].reverse()) {
       const row = node('article'); row.append(node('h3', labels[entry.section] || '建议修改'), node('small', `${entry.author} · ${new Date(entry.at).toLocaleString('zh-CN')} · ${{ edit: '编辑', restore: '恢复旧内容', reset: '恢复系统建议' }[entry.action] || '建议修改'}`));
       if (entry.origin) row.append(node('p', `${window.reportEditing.originLabel(entry.origin)} · ${entry.origin.generator} · 源修订 ${entry.origin.source_revision}`));
+      if (entry.actor) {
+        const actor = window.reportEditing.normalizeActor(entry.actor);
+        row.append(node('p', `学校顾问账号 ${actor.username} · 修订 ${actor.source_revision} → ${actor.result_revision}（便携记录，服务端审计由报告所有者另行读取）`));
+      }
       row.append(node('p', '修改前'), node('pre', entry.before), node('p', '修改后'), node('pre', entry.after)); root.append(row);
     }
   }

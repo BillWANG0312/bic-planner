@@ -445,24 +445,24 @@
       return result;
     }
 
-    function teacherMeta(value, expectedReport) {
+    function teacherMeta(value, expectedReport, scope = 'full_report_read_only') {
       if (!exactKeys(value, ['id', 'report_id', 'report_revision', 'report_name', 'report_ref', 'owner_username',
         'recipient_username', 'scope', 'created_at', 'expires_at', 'revoked_at', 'status'])
           || !identifier(value.id) || !identifier(value.report_id) || expectedReport && value.report_id !== expectedReport
           || !revisionNumber(value.report_revision) || !boundedText(value.report_name, 24, true) || !boundedText(value.report_ref, 100, true)
           || !username(value.owner_username) || !username(value.recipient_username) || value.owner_username === value.recipient_username
-          || value.scope !== 'full_report_read_only' || !Number.isSafeInteger(value.created_at) || value.created_at <= 0
+          || value.scope !== scope || !Number.isSafeInteger(value.created_at) || value.created_at <= 0
           || !Number.isSafeInteger(value.expires_at) || value.expires_at <= value.created_at
           || value.revoked_at !== null && (!Number.isSafeInteger(value.revoked_at) || value.revoked_at <= 0)
           || !['active', 'revoked', 'expired', 'unavailable', 'source_changed'].includes(value.status)
           || (value.status === 'revoked') !== (value.revoked_at !== null)) throw protocolError();
       return value;
     }
-    function teacherList(value, expectedReport, recipient = false) {
+    function teacherList(value, expectedReport, recipient = false, scope = 'full_report_read_only') {
       if (!exactKeys(value, ['items']) || !Array.isArray(value.items) || value.items.length > 100) throw protocolError();
       const seen = new Set();
       value.items.forEach(item => {
-        teacherMeta(item, expectedReport);
+        teacherMeta(item, expectedReport, scope);
         if (seen.has(item.id) || (recipient ? item.recipient_username !== user.username || item.status !== 'active'
           : item.owner_username !== user.username)) throw protocolError();
         seen.add(item.id);
@@ -519,11 +519,106 @@
       return result;
     }
 
+    const editScope = 'full_report_advice_edit';
+    const editSections = ['summary', 'academic', 'plan', 'personality'];
+    function editTexts(value, complete = false, server = true) {
+      const keys = object(value) ? Object.keys(value) : [];
+      if (!object(value) || !keys.length || keys.length > 4 || complete && keys.length !== 4
+          || keys.some(key => !editSections.includes(key) || !boundedText(value[key], 4000, true))) {
+        if (server) throw protocolError();
+        throw new CloudError('VALIDATION', '请选择1–4段建议，每段为1–4000字；授权基线需包含完整四段。', 422);
+      }
+      return value;
+    }
+    function editFull(value) {
+      if (!exactKeys(value, ['id', 'revision', 'created_at', 'updated_at', 'record']) || !identifier(value.id) || !revisionNumber(value.revision)
+          || !boundedText(value.created_at, 40, true) || !Number.isFinite(Date.parse(value.created_at))
+          || !boundedText(value.updated_at, 40, true) || !Number.isFinite(Date.parse(value.updated_at))) throw protocolError();
+      try {
+        let raw = null;
+        const memory = window.ReportStore.create({ getItem: () => raw, setItem: (_, text) => { raw = text; } });
+        memory.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records: [value.record] }));
+      } catch (_) { throw protocolError(); }
+      return value;
+    }
+    async function createAdvisorEditAccess(id, expectedRevision, recipient, ttlHours, baseline) {
+      requireConnection(true); revision(expectedRevision); editTexts(baseline, true, false);
+      if (typeof recipient !== 'string' || !username(recipient.toLowerCase()) || ![24, 72, 168].includes(ttlHours)) {
+        throw new CloudError('VALIDATION', '请填写既有顾问账号并选择支持的期限。', 422);
+      }
+      const target = recipient.toLowerCase();
+      const value = teacherMeta(await request('reports/' + reportId(id) + '/advisor-edit-access', { method: 'POST', authenticated: true,
+        body: { revision: expectedRevision, recipient_username: target, ttl_hours: ttlHours, scope: editScope, baseline } }), id, editScope);
+      if (value.report_revision !== expectedRevision || value.owner_username !== user.username || value.recipient_username !== target || value.status !== 'active') throw protocolError();
+      return value;
+    }
+    async function listAdvisorEditAccess(id) {
+      requireConnection(true);
+      return teacherList(await request('reports/' + reportId(id) + '/advisor-edit-access', { authenticated: true }), id, false, editScope);
+    }
+    async function revokeAdvisorEditAccess(id, grantId) {
+      requireConnection(true);
+      return request('reports/' + reportId(id) + '/advisor-edit-access/' + reportId(grantId), { method: 'DELETE', authenticated: true });
+    }
+    async function listAdvisorEditable() {
+      requireAdvisor();
+      return teacherList(await request('advisor-edit-access', { authenticated: true }), null, true, editScope);
+    }
+    async function readAdvisorEditable(grantId) {
+      requireAdvisor();
+      const result = await request('advisor-edit-access/' + reportId(grantId), { authenticated: true });
+      if (!exactKeys(result, ['grant', 'report', 'baseline'])) throw protocolError();
+      const grant = teacherMeta(result.grant, null, editScope), full = editFull(result.report);
+      editTexts(result.baseline, true);
+      if (grant.id !== grantId || grant.status !== 'active' || grant.recipient_username !== user.username || full.id !== grant.report_id
+          || full.revision !== grant.report_revision || full.record.state.info.name !== grant.report_name || full.record.reportMeta.batchId !== grant.report_ref) throw protocolError();
+      for (const [key, text] of Object.entries(full.record.advisor?.sections || {})) if (result.baseline[key] !== text) throw protocolError();
+      return result;
+    }
+    async function applyAdvisorEdit(grantId, expectedRevision, changes) {
+      requireAdvisor(); revision(expectedRevision); editTexts(changes, false, false);
+      const result = await request('advisor-edit-access/' + reportId(grantId), { method: 'PUT', authenticated: true, body: { revision: expectedRevision, changes } });
+      if (!exactKeys(result, ['report', 'changed_sections', 'audit_id']) || !Array.isArray(result.changed_sections)
+          || result.changed_sections.length > 4 || new Set(result.changed_sections).size !== result.changed_sections.length
+          || result.changed_sections.some(key => !Object.hasOwn(changes, key))) throw protocolError();
+      const full = editFull(result.report), changed = result.changed_sections;
+      if (full.revision !== expectedRevision + (changed.length ? 1 : 0) || (changed.length ? !identifier(result.audit_id) : result.audit_id !== null)) throw protocolError();
+      if (changed.length) {
+        const history = full.record.advisor?.history || [], latest = history.slice(-changed.length);
+        if (latest.length !== changed.length || latest.some((entry, index) => entry.section !== changed[index] || entry.action !== 'edit'
+          || entry.after !== changes[entry.section].trim() || full.record.advisor.sections[entry.section] !== entry.after
+          || entry.actor?.user_id !== user.id || entry.actor?.username !== user.username || entry.actor?.grant_id !== grantId
+          || entry.actor?.source_revision !== expectedRevision || entry.actor?.result_revision !== full.revision)) throw protocolError();
+      }
+      return result;
+    }
+    async function listAdvisorAudit(id) {
+      requireConnection(true);
+      const result = await request('reports/' + reportId(id) + '/advisor-edits', { authenticated: true });
+      if (!exactKeys(result, ['items']) || !Array.isArray(result.items) || result.items.length > 10) throw protocolError();
+      const seen = new Set();
+      for (const row of result.items) {
+        if (!exactKeys(row, ['id', 'grant_id', 'report_id', 'actor_id', 'actor_username', 'source_revision', 'result_revision', 'created_at', 'changes'])
+          || !identifier(row.id) || seen.has(row.id) || !identifier(row.grant_id) || row.report_id !== id || !identifier(row.actor_id) || !username(row.actor_username)
+          || !revisionNumber(row.source_revision) || !revisionNumber(row.result_revision) || row.result_revision !== row.source_revision + 1
+          || !Number.isSafeInteger(row.created_at) || row.created_at <= 0 || !Array.isArray(row.changes) || !row.changes.length || row.changes.length > 4) throw protocolError();
+        const keys = new Set();
+        for (const change of row.changes) {
+          if (!exactKeys(change, ['section', 'before', 'after']) || !editSections.includes(change.section) || keys.has(change.section)
+            || !boundedText(change.before, 4000) || !boundedText(change.after, 4000, true)) throw protocolError();
+          keys.add(change.section);
+        }
+        seen.add(row.id);
+      }
+      return result;
+    }
+
     return { connect, login, list, get, create: createReport, update, remove, logout, disconnect,
       createShare, listShares, revokeShare,
       createParentAccess, listParentAccess, revokeParentAccess, listFamilyAccess, familyThread, addFamilyComment,
       createAdviceDraft, applyAdviceDraft,
       createTeacherAccess, listTeacherAccess, revokeTeacherAccess, listTeacherReports, readTeacherReport,
+      createAdvisorEditAccess, listAdvisorEditAccess, revokeAdvisorEditAccess, listAdvisorEditable, readAdvisorEditable, applyAdvisorEdit, listAdvisorAudit,
       get user() { return user ? copy(user) : null; }, get connected() { return connected; } };
   }
 

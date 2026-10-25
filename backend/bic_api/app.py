@@ -21,6 +21,7 @@ from .comments import CommentService
 from .draft_models import DraftContext, DraftSections
 from .drafts import AdviceDraftService
 from .teacher_access import TeacherAccessService
+from .advisor_edit import AdvisorEditService
 from .share_models import plain_text
 
 
@@ -61,6 +62,19 @@ class CreateTeacherAccessBody(StrictBody):
     recipient_username: Annotated[StrictStr, Field(min_length=3, max_length=64)]
     ttl_hours: Literal[24, 72, 168]
     scope: Literal['full_report_read_only']
+
+
+class CreateAdvisorEditBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+    recipient_username: Annotated[StrictStr, Field(min_length=3, max_length=64)]
+    ttl_hours: Literal[24, 72, 168]
+    scope: Literal['full_report_advice_edit']
+    baseline: DraftSections
+
+
+class ApplyAdvisorEditBody(StrictBody):
+    revision: Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)]
+    changes: Annotated[dict[Literal['summary', 'academic', 'plan', 'personality'], plain_text(4000, required=True)], Field(min_length=1, max_length=4)]
 
 
 class CreateAdviceDraftBody(StrictBody):
@@ -166,6 +180,8 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     app.state.advice_drafts = advice_drafts
     teachers = TeacherAccessService(db, clock=clock)
     app.state.teachers = teachers
+    advisor_edits = AdvisorEditService(db, clock=clock)
+    app.state.advisor_edits = advisor_edits
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -327,6 +343,36 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     @app.get('/api/teacher-access/{grant_id}')
     def read_teacher_report(grant_id: str, session=Depends(current_session)):
         return teachers.read(session['user']['id'], grant_id)
+
+    @app.post('/api/reports/{report_id}/advisor-edit-access', status_code=201)
+    def create_advisor_edit_access(report_id: str, body: CreateAdvisorEditBody, session=Depends(writable_session)):
+        return advisor_edits.create_grant(session['user']['id'], report_id, body.revision,
+                                          body.recipient_username, body.ttl_hours, body.baseline.model_dump(mode='json'))
+
+    @app.get('/api/reports/{report_id}/advisor-edit-access')
+    def owner_advisor_edit_access(report_id: str, session=Depends(current_session)):
+        return advisor_edits.list_for_report(session['user']['id'], report_id)
+
+    @app.delete('/api/reports/{report_id}/advisor-edit-access/{grant_id}', status_code=204)
+    def revoke_advisor_edit_access(report_id: str, grant_id: str, session=Depends(writable_session)):
+        advisor_edits.revoke(session['user']['id'], report_id, grant_id)
+        return Response(status_code=204)
+
+    @app.get('/api/reports/{report_id}/advisor-edits')
+    def owner_advisor_edits(report_id: str, session=Depends(current_session)):
+        return advisor_edits.list_audit(session['user']['id'], report_id)
+
+    @app.get('/api/advisor-edit-access')
+    def editable_advisor_reports(session=Depends(current_session)):
+        return advisor_edits.list_for_user(session['user']['id'])
+
+    @app.get('/api/advisor-edit-access/{grant_id}')
+    def read_editable_advisor_report(grant_id: str, session=Depends(current_session)):
+        return advisor_edits.read(session['user']['id'], grant_id)
+
+    @app.put('/api/advisor-edit-access/{grant_id}')
+    def apply_advisor_edit(grant_id: str, body: ApplyAdvisorEditBody, session=Depends(writable_session)):
+        return advisor_edits.apply(session['user']['id'], grant_id, body.revision, body.changes)
 
     return app
 

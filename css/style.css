@@ -709,6 +709,7 @@ body.in-test .test-shell { margin: 16px auto 0; min-height: calc(100vh - 100px);
 .owner-share .cloud-actions { margin: 12px 0; }
 .share-preview { margin: 16px 0; padding: 16px; background: rgba(13,25,43,.6); border-left: 3px solid #5797ff; overflow-wrap: anywhere; }
 .share-preview p { white-space: pre-wrap; }
+#editOwnerPreview pre, #editOwnerAudit pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .owner-share-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; }
 .owner-share-row p { flex: 1 1 240px; overflow-wrap: anywhere; }
 .advice-preview { margin-top: 18px; min-width: 0; }

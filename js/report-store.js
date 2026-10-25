@@ -99,7 +99,7 @@
     if (value.history.length > LIMITS.MAX_HISTORY) fail(`顾问修改记录最多 ${LIMITS.MAX_HISTORY} 条，请先保留原始备份`, 'LIMIT');
     const ids = new Set();
     const history = value.history.map(entry => {
-      shape(entry, ['id', 'at', 'author', 'section', 'before', 'after', 'action', 'reportId', 'origin'], '顾问修改记录');
+      shape(entry, ['id', 'at', 'author', 'section', 'before', 'after', 'action', 'reportId', 'origin', 'actor'], '顾问修改记录');
       const id = text(entry.id, 100, '修改编号', true);
       if (ids.has(id)) fail('顾问修改编号重复');
       ids.add(id);
@@ -115,6 +115,18 @@
             || typeof origin.generator !== 'string' || !/^[A-Za-z0-9._-]{1,80}$/.test(origin.generator)
             || !Number.isSafeInteger(origin.source_revision) || origin.source_revision < 1) fail('草稿来源格式不正确');
         result.origin = { kind: origin.kind, draft_id: origin.draft_id, generator: origin.generator, source_revision: origin.source_revision };
+      }
+      if (Object.hasOwn(entry, 'actor')) {
+        const actor = entry.actor;
+        shape(actor, ['kind', 'user_id', 'username', 'grant_id', 'source_revision', 'result_revision'], '学校账号记录');
+        const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+        if (entry.action !== 'edit' || Object.hasOwn(entry, 'origin') || actor.kind !== 'school_advisor'
+            || !uuid(actor.user_id) || !uuid(actor.grant_id) || typeof actor.username !== 'string'
+            || !/^[a-z0-9._@+\-]{3,64}$/.test(actor.username)
+            || !Number.isSafeInteger(actor.source_revision) || actor.source_revision < 1
+            || !Number.isSafeInteger(actor.result_revision) || actor.result_revision !== actor.source_revision + 1) fail('学校账号记录格式不正确');
+        result.actor = { kind: actor.kind, user_id: actor.user_id, username: actor.username, grant_id: actor.grant_id,
+          source_revision: actor.source_revision, result_revision: actor.result_revision };
       }
       return result;
     });

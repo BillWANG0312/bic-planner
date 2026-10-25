@@ -67,7 +67,7 @@ def test_exact_legacy_upgrade_preserves_every_original_row_and_declaration(tmp_p
     original = snapshot(path)
     Database(path)
     upgraded = snapshot(path)
-    assert upgraded['version'] == 4
+    assert upgraded['version'] == 5
     assert upgraded['application'] == original['application'] == 1112097585
     for table, rows in original['rows'].items():
         assert upgraded['rows'][table] == rows
@@ -93,7 +93,7 @@ def test_teacher_upgrade_failure_rolls_back_all_ddl_rows_and_version(tmp_path, m
         def deny(action, name, argument, *unused):
             blocked = (failure == 'table' and action == sqlite3.SQLITE_CREATE_TABLE and name == 'teacher_grants'
                        or failure == 'index' and action == sqlite3.SQLITE_CREATE_INDEX and name == 'teacher_grants_recipient_idx'
-                       or failure == 'version' and action == sqlite3.SQLITE_PRAGMA and name == 'user_version' and argument == '4')
+                       or failure == 'version' and action == sqlite3.SQLITE_PRAGMA and name == 'user_version' and argument == '5')
             return sqlite3.SQLITE_DENY if blocked else sqlite3.SQLITE_OK
 
         connection.set_authorizer(deny)
@@ -130,7 +130,7 @@ def test_unknown_or_modified_legacy_is_rejected_before_teacher_ddl(tmp_path, alt
 def test_new_database_uses_v4_and_teacher_constraints_and_cascades(tmp_path):
     path = tmp_path / 'new.sqlite3'
     db = Database(path)
-    assert snapshot(path)['version'] == 4
+    assert snapshot(path)['version'] == 5
     owner = db.create_user('owner', 'not-a-real-login-hash', 'student')['id']
     teacher = db.create_user('teacher', 'not-a-real-login-hash', 'advisor')['id']
     from backend.tests.test_sharing import record
