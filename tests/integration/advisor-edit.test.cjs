@@ -1,14 +1,16 @@
-/* Real school-account edit authorization, fictional records in a private temporary DB. */
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
 const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
+const { actionResponse, readNewest } = require('../helpers/response.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve('D:/Codex/work/bic-advisor-edit-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-advisor-edit-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'advisor-edit-test-only-password';
 let directory, server, browser, origin, logs = '';
@@ -41,17 +43,21 @@ async function ownerPage(label) {
   value.report = w.generateReport(value); value.report.meta.batchId = 'EDIT-CASE-' + label;
   w.reportEditing.applyEdit(value.report, 'summary', '所有者确认的原核心建议', '原顾问');
   value.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await useConfirmHooks(context);
+  const page = await context.newPage(); page.setDefaultTimeout(7000); const confirm = useConfirm(page);
   await page.addInitScript(value => { if (!localStorage.getItem('pathwise.state.v1')) localStorage.setItem('pathwise.state.v1', JSON.stringify(value)); }, value);
   await page.goto(origin);
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#profileContinueBtn').click();
+  await confirm.confirmAt(true); await page.locator('#profileContinueBtn').click();
   assert.equal(await page.evaluate(() => window.__pathwise.state.assessmentProfile), 'legacy-2026.10');
   await page.locator('#openCloudBtn').click(); await page.locator('#cloudConnectBtn').click();
   await page.locator('#cloudUsername').fill('edit.owner'); await page.locator('#cloudPassword').fill(password);
   await page.locator('#cloudLoginForm button[type=submit]').click(); await page.locator('#cloudWorkspace').waitFor({ state: 'visible' });
   await page.locator('#cloudRefreshBtn:enabled').waitFor();
-  const uploaded = page.waitForResponse(response => response.request().method() === 'POST' && response.url() === origin + '/api/reports');
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#cloudUploadBtn').click(); const saved = await (await uploaded).json();
+  await confirm.confirmAt(true);
+  const uploaded = await actionResponse(page, response => response.request().method() === 'POST' && response.url() === origin + '/api/reports',
+    () => page.locator('#cloudUploadBtn').click(),
+    () => readNewest(context, origin + '/api/reports', origin + '/api/reports/'));
+  const saved = uploaded.value; assert.equal(uploaded.status, 201);
   await page.locator(`[data-cloud-read="${saved.id}"]:enabled`).waitFor(); await page.locator(`[data-cloud-read="${saved.id}"]`).click();
   await page.locator('#editRecipient:enabled').waitFor();
   return { context, page, saved };
@@ -60,12 +66,21 @@ async function createGrant(owner) {
   await owner.page.locator('#editRecipient').fill('edit.advisor'); await owner.page.locator('#editPreviewBtn').click();
   await owner.page.locator('#editOwnerPreview').waitFor({ state: 'visible' });
   assert.match(await owner.page.locator('#editOwnerPreview').textContent(), /所有者确认的原核心建议/);
-  const created = owner.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/advisor-edit-access'));
-  owner.page.once('dialog', dialog => dialog.accept()); await owner.page.locator('#editCreateBtn').click();
-  const response = await created; assert.equal(response.status(), 201); await owner.page.locator('#editRecipient:enabled').waitFor(); return response.json();
+  await useConfirm(owner.page).confirmAt(true);
+  // The creation response is the grant itself. Headless Chromium does not always hand its body back to
+  // Node, so the page keeps the reviewed grant it read from that response for the test to collect.
+  const pending = owner.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/advisor-edit-access'));
+  await owner.page.locator('#editCreateBtn').click();
+  assert.equal((await pending).status(), 201);
+  await owner.page.locator('#editRecipient:enabled').waitFor();
+  await owner.page.waitForFunction(() => window.__editCreated !== null);
+  const grant = await owner.page.evaluate(() => window.__editCreated);
+  assert.match(grant.id, /^[A-Za-z0-9-]{1,64}$/);
+  return grant;
 }
 async function editorPage(grant) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await useConfirmHooks(context);
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
   const requests = []; page.on('request', request => { if (request.url().includes('/api/')) requests.push(request.url()); });
   await page.goto(origin + '/advisor-edit.html'); assert.deepEqual(requests, []);
   await page.locator('#editConnectBtn').click(); await page.locator('#editUsername').fill('edit.advisor'); await page.locator('#editPassword').fill(password);
@@ -88,12 +103,16 @@ test('owner separately confirms edit scope; advisor selected text is audited onc
     const localBefore = await owner.page.evaluate(() => localStorage.getItem('pathwise.state.v1'));
     await owner.page.locator('#editRecipient').fill('edit.advisor'); await owner.page.locator('#editPreviewBtn').click();
     await owner.page.locator('#editOwnerPreview').waitFor({ state: 'visible' });
-    owner.page.once('dialog', dialog => dialog.dismiss()); await owner.page.locator('#editCreateBtn').click();
+    // The confirmation is what sends the request: declining it must leave no grant behind.
+    await useConfirm(owner.page).confirmAt(false); const askedBefore = (await useConfirm(owner.page).asked()).length;
+    await owner.page.locator('#editCreateBtn').click();
+    const askedAfter = await useConfirm(owner.page).asked(); assert.equal(askedAfter.length, askedBefore + 1); assert.match(askedAfter.at(-1), /授权账号/); assert.equal(await owner.page.locator('#editCreateBtn').isEnabled(), true);
     assert.deepEqual((await (await owner.context.request.get(origin + '/api/reports/' + owner.saved.id + '/advisor-edit-access', { headers: await csrf(owner.context) })).json()).items, []);
     const grant = await createGrant(owner); editor = await editorPage(grant);
     const puts = []; editor.page.on('request', request => { if (request.method() === 'PUT') puts.push(request); });
     await typeSummary(editor, '<b>顾问已核对的新建议</b>');
-    editor.page.once('dialog', dialog => dialog.dismiss()); await editor.page.locator('#editSubmitBtn').click(); assert.equal(puts.length, 0);
+    // The confirmation is what sends the request: declining it must not send the edit.
+    await useConfirm(editor.page).confirmAt(false); await editor.page.locator('#editSubmitBtn').click(); assert.equal(puts.length, 0);
     if (process.env.BIC_CAPTURE === '1') {
       await editor.page.locator('#editChangesPreview').evaluate(element => element.scrollIntoView({ block: 'start' }));
       await editor.page.screenshot({ path: path.join(root, 'test-results/advisor-edit-desktop.png') });
@@ -101,10 +120,13 @@ test('owner separately confirms edit scope; advisor selected text is audited onc
       await editor.page.locator('#editChangesPreview').evaluate(element => element.scrollIntoView({ block: 'start' }));
       await editor.page.screenshot({ path: path.join(root, 'test-results/advisor-edit-mobile.png') });
     }
-    const written = editor.page.waitForResponse(response => response.request().method() === 'PUT');
-    editor.page.once('dialog', dialog => dialog.accept()); await editor.page.locator('#editSubmitBtn').click(); const result = await (await written).json();
-    assert.equal(puts.length, 1); assert.deepEqual(result.changed_sections, ['summary']); assert.equal(result.report.revision, 2);
-    await editor.page.locator('#editDetail').waitFor({ state: 'hidden' });
+    await useConfirm(editor.page).confirmAt(true);
+    const written = editor.page.waitForResponse(response => response.request().method() === 'PUT' && response.url().endsWith('/advisor-edit-access/' + grant.id));
+    await editor.page.locator('#editSubmitBtn').click(); assert.equal((await written).status(), 200);
+    assert.equal(puts.length, 1); await editor.page.locator('#editDetail').waitFor({ state: 'hidden' });
+    assert.match(await editor.page.locator('#editStatus').textContent(), /服务端修订为 2/);
+    await editor.page.waitForFunction(() => document.querySelector('#editList').textContent.includes('没有有效的建议编辑授权'));
+    assert.equal(await editor.page.locator(`[data-edit-read="${grant.id}"]`).count(), 0);
     const current = await (await owner.context.request.get(origin + '/api/reports/' + owner.saved.id)).json();
     assert.deepEqual(current.record.state, owner.saved.record.state); assert.deepEqual(current.record.reportMeta, owner.saved.record.reportMeta);
     assert.equal(current.record.advisor.sections.summary, '<b>顾问已核对的新建议</b>');
@@ -124,8 +146,9 @@ test('an intervening owner revision stops old advisor edits and clears the old p
     const grant = await createGrant(owner); editor = await editorPage(grant); await typeSummary(editor, '待提交旧建议');
     const changed = structuredClone(owner.saved.record); changed.state.info.name = '所有者更新资料';
     assert.equal((await owner.context.request.put(origin + '/api/reports/' + owner.saved.id, { headers: await csrf(owner.context), data: { revision: 1, record: changed } })).status(), 200);
-    const denied = editor.page.waitForResponse(response => response.request().method() === 'PUT');
-    editor.page.once('dialog', dialog => dialog.accept()); await editor.page.locator('#editSubmitBtn').click(); assert.equal((await denied).status(), 404);
+    await useConfirm(editor.page).confirmAt(true);
+    const denied = editor.page.waitForResponse(response => response.request().method() === 'PUT' && response.url().endsWith('/advisor-edit-access/' + grant.id));
+    await editor.page.locator('#editSubmitBtn').click(); assert.equal((await denied).status(), 404);
     await editor.page.locator('#editDetail').waitFor({ state: 'hidden' });
     assert.equal(await editor.page.locator('#editReport').textContent(), ''); assert.equal(await editor.page.locator('#editFields').textContent(), '');
     const current = await (await owner.context.request.get(origin + '/api/reports/' + owner.saved.id)).json(); assert.deepEqual(current.record, changed);
@@ -142,7 +165,7 @@ test('a lost committed edit response is not retried and retains only the advisor
       if (route.request().method() !== 'PUT') return route.continue();
       writes++; const response = await route.fetch(); assert.equal(response.status(), 200); await route.abort('failed');
     });
-    editor.page.once('dialog', dialog => dialog.accept()); await editor.page.locator('#editSubmitBtn').click();
+    await useConfirm(editor.page).confirmAt(true); await editor.page.locator('#editSubmitBtn').click();
     await editor.page.waitForFunction(() => /无法确认|不确定|尚未确认|中断|超时/.test(document.querySelector('#editStatus').textContent));
     assert.equal(writes, 1); assert.equal(await editor.page.locator('#editReport').textContent(), ''); assert.equal(await editor.page.locator('#editSubmitBtn').isDisabled(), true);
     assert.ok(await editor.page.locator('textarea').evaluateAll(elements => elements.some(element => element.value === '响应丢失仍需保留的本人建议' && element.readOnly)));

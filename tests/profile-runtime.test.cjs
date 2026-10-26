@@ -127,7 +127,8 @@ test('frozen source manifest and generated bundle check offline without browser 
 });
 
 test('offline bundle check works after extraction with CRLF and rejects modified frozen source or stale output', () => {
-  const tempRoot = path.join('D:/Codex/tmp', 'profile-offline-'); fs.mkdirSync(path.dirname(tempRoot), { recursive: true });
+  const scratch = path.join(require('node:os').tmpdir(), 'bic-tests'), tempRoot = path.join(scratch, 'profile-offline-');
+  fs.mkdirSync(path.dirname(tempRoot), { recursive: true });
   const extracted = fs.mkdtempSync(tempRoot);
   try {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'js/legacy/manifest.json'), 'utf8'));
@@ -138,5 +139,5 @@ test('offline bundle check works after extraction with CRLF and rejects modified
     const source = path.join(extracted, manifest.files[0].file); fs.appendFileSync(source, '\n// changed'); assert.notEqual(check().status, 0);
     fs.writeFileSync(source, fs.readFileSync(path.join(root, manifest.files[0].file), 'utf8'));
     fs.appendFileSync(path.join(extracted, 'js/legacy-assessment.js'), '\n// stale'); assert.equal(check().status, 1);
-  } finally { assert.ok(path.resolve(extracted).toLowerCase().startsWith(path.resolve('D:/Codex/tmp').toLowerCase() + path.sep)); fs.rmSync(extracted, { recursive: true, force: true }); }
+  } finally { assert.ok(path.resolve(extracted).toLowerCase().startsWith(path.resolve(scratch).toLowerCase() + path.sep)); fs.rmSync(extracted, { recursive: true, force: true }); }
 });

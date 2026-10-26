@@ -2,13 +2,15 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve('D:/Codex/work/bic-teacher-academic-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-teacher-academic-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'teacher-browser-test-only-password';
 let directory, server, browser, origin, logs = '';
@@ -55,7 +57,12 @@ async function setup(label, academic = false) {
       data: { revision: 1, recipient_username: 'summary.advisor', ttl_hours: 24, scope: 'full_report_read_only' } });
     assert.equal(permission.status(), 201); grants.push(await permission.json());
   }
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  // Lets the page publish the exact reviewed batch for the CSV comparison, and answer confirmations without
+  // a native dialog; both are off outside the tests. The hooks must exist before the page does, or its
+  // own navigations bypass them.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  await useConfirmHooks(context);
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
   const requests = []; page.on('request', request => { if (request.url().includes('/api/')) requests.push(request); });
   await page.goto(origin + '/teacher-summary.html'); assert.equal(requests.length, 0);
   await page.locator('#summaryConnectBtn').click(); await page.locator('#summaryUsername').fill('summary.advisor'); await page.locator('#summaryPassword').fill(password);
@@ -67,9 +74,12 @@ async function setup(label, academic = false) {
 }
 async function select(f, index) { await f.page.locator(`[data-summary-grant="${f.grants[index].id}"]`).check(); }
 async function preview(f) {
-  const reply = f.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/teacher-summaries'));
-  await f.page.locator('#summaryPreviewBtn').click(); const response = await reply; assert.equal(response.status(), 200);
-  const batch = await response.json(); await f.page.locator('#summaryPreview').waitFor({ state: 'visible' }); return batch;
+  // The batch body cannot be read from the page reliably (see helpers/response.cjs), so the page keeps
+  // its reviewed preview on window for the test and the assertions run against that same object.
+  const pending = f.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/teacher-summaries'));
+  await f.page.locator('#summaryPreviewBtn').click(); assert.equal((await pending).status(), 200);
+  await f.page.locator('#summaryPreview').waitFor({ state: 'visible' });
+  return f.page.evaluate(() => window.__summaryPreview);
 }
 async function close(f) { await f.context.close(); await f.owner.close(); }
 
@@ -95,7 +105,7 @@ test('explicit academic v2 keeps v1 stable and downloads only complete zero/full
       await f.page.locator('#summaryTable').evaluate(table => { table.parentElement.scrollLeft = table.rows[0].cells[21].offsetLeft; });
       await f.page.screenshot({ path: path.join(root, 'test-results/academic-summary-mobile.png') });
     }
-    const file = f.page.waitForEvent('download'); f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#summaryExportBtn').click(); const download = await file;
+    await useConfirm(f.page).confirmAt(true); const file = f.page.waitForEvent('download'); await f.page.locator('#summaryExportBtn').click(); const download = await file;
     assert.equal(download.suggestedFilename(), 'bic-teacher-academic-v2.csv'); assert.equal(await fs.readFile(await download.path(), 'utf8'), expected);
     const batches = f.requests.filter(request => request.url().endsWith('/api/teacher-summaries'));
     assert.equal(batches[0].postDataJSON().academic, undefined); assert.ok(batches.slice(1).every(request => request.postDataJSON().academic === true));
@@ -127,7 +137,7 @@ test('a programmatic mode change during the final academic check stops an old re
       if (checks === 2) await f.page.evaluate(() => { document.querySelector('#summaryAcademic').checked = false; });
       await route.continue();
     });
-    f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#summaryExportBtn').click();
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#summaryExportBtn').click();
     await f.page.locator('#summaryPreview').waitFor({ state: 'hidden' }); assert.equal(checks, 2); assert.equal(downloads, 0);
     assert.equal(await f.page.locator('#summaryTable').textContent(), ''); assert.equal(await f.page.locator('#summaryExportBtn').isDisabled(), true);
   } finally { await close(f); }

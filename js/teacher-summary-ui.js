@@ -114,6 +114,8 @@
       $('#summaryPreferencesMeta').hidden = false;
     }
     table.append(head, body); $('#summaryPreview').hidden = false; $('#summaryPreviewHeading').focus();
+    // The export test compares the downloaded CSV with the exact batch that was reviewed.
+    if (window.BIC_TEST_HOOKS === 1) window.__summaryPreview = value.payload;
     armSelectionExpiry();
   }
   $('#summaryConnectBtn').onclick = () => run('正在连接学校账号服务…', async current => { clearPrivate(); await client.connect(); if (current()) message(client.user ? '已恢复会话，请主动刷新授权名单。' : '已连接，请登录学校顾问账号。'); });

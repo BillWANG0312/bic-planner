@@ -38,7 +38,7 @@ test('isolated account page source exists', () => assert.equal(fs.existsSync(pat
 
 test('account page is disconnected with exactly three safe scripts and no initial reads or storage', () => withAccount(async page => {
   assert.deepEqual(await page.evaluate(() => __accountTest.calls), []); assert.equal(await page.locator('#accountWorkspace').isHidden(), true);
-  assert.deepEqual(await page.locator('script[src]').evaluateAll(nodes => nodes.map(node => node.getAttribute('src'))), ['js/cloud-config.js', 'js/cloud-client.js', 'js/account.js']);
+  assert.deepEqual(await page.locator('script[src]:not([data-test-only])').evaluateAll(nodes => nodes.map(node => node.getAttribute('src'))), ['js/cloud-config.js', 'js/cloud-client.js', 'js/account.js']);
   assert.equal(await page.locator('#accountPassword').getAttribute('maxlength'), '256');
   assert.ok((await page.locator('#accountPasswordForm input').evaluateAll(nodes => nodes.map(node => node.maxLength))).every(value => value === 256));
 }));

@@ -56,8 +56,11 @@ $env:BIC_PORT = '9001'
 
 ```powershell
 $env:BIC_TEST_PYTHON = 'D:\Codex\work\bic-backend-venv\Scripts\python.exe'
-$env:BIC_TEST_TEMP = 'D:\Codex\work\bic-cloud-browser-tests'
 pnpm run test:cloud
 ```
 
-未设 BIC_TEST_PYTHON 时用系统 python（非 Windows 为 python3），缺依赖明确失败，不把未运行当通过。只用临时虚构账号/数据库，默认 D 盘，结束关闭自建进程并校验目录后清理。覆盖无自动上传、取消、最新快照、刷新恢复、修订冲突、配额保护、账号切换、断线不重试和真实多标签。Windows 未授予符号链接权限时对应后端案例明确跳过，其余路径边界仍独立验证。
+```sh
+BIC_TEST_PYTHON=/path/to/venv/bin/python npm run test:cloud
+```
+
+临时目录默认放在系统临时目录下的 `bic-tests/`（Windows 为 `%TEMP%`，macOS/Linux 为 `$TMPDIR`），可用 `BIC_TEST_TEMP` 指定；必须位于网站与源码目录之外。未设 BIC_TEST_PYTHON 时用系统 python（非 Windows 为 python3），缺依赖明确失败，不把未运行当通过。只用临时虚构账号/数据库，结束关闭自建进程并校验目录后清理。覆盖无自动上传、取消、最新快照、刷新恢复、修订冲突、配额保护、账号切换、断线不重试和真实多标签。Windows 未授予符号链接权限时对应后端案例明确跳过，其余路径边界仍独立验证。
