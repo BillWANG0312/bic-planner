@@ -6,10 +6,10 @@
 
 - 本地源码：`D:/Codex/work/bic-planner`。
 - 原仓库：`BillWANG0312/bic-planner`；个人 fork：`paoludehuaxuesheng/bic-planner`。
-- 当前分支：`feat/self-service-password`。
+- 当前分支：`feat/versioned-assessment-architecture`。
 - PR #5 已由仓库所有者 BillWANG0312 于 2026-10-24 08:05:33 UTC 合并，合并提交 `3175694`；不是本代理执行合并。
 - PR #6 已由仓库所有者于 2026-10-25 08:46:51 UTC 合并，合并提交 `6f8687217945b874de3cfda30ea0e37d0262e673`；不是本代理执行合并。
-- 当前草稿 PR：[#8](https://github.com/BillWANG0312/bic-planner/pull/8)，包含本人改密、旧档案/续答保护和测评版本隔离，基于上述 main。
+- PR #8已由所有者于2026-10-26 04:41:27 UTC合并，合并提交`1ec08a03dcda3ef9103a954947293711727e306a`；本轮从最新main `6d533f0`的新分支推进，不向已合并PR推送。
 - 源码、临时文件和主要交付使用 D 盘；最终主要交付放 `D:/Codex/outputs`，聊天下载副本放本聊天的 outputs。
 - 可自主实现、测试、审查、提交和推送个人 fork、更新/创建草稿 PR。不得直接合并 main、改生产、购买服务或向他人发送消息。
 
@@ -299,13 +299,25 @@ app在任何自动save/导航/flush前识别并锁住原始续答，合法旧或
 
 本次只有Markdown变更，业务源码保持83bc637，不重复全套运行并虚增测试数。独立审查修复交接表误写auth.py为实际security.py，补充集成脚本D盘临时路径前提；文档目标/锚点、模块路径、Git diff及远程PR/提交状态检查通过。交接源码与说明主要交付D:/Codex/outputs/bic-planner-20261025-handoff，聊天outputs/handoff-20261025为副本。原阶段源码/静态包和实际日志保持原校验和。未实现新版云归档、未部署公司环境或接触真实学生资料；准确下一步仍如下，定时任务保持既有PAUSED。
 
-## 当前下一项：新版游戏/特质严格云归档
+## 已完成：架构整理、版本合同与服务端操作策略（2026-10-26）
 
-先核对最新聊天/Git/fetch后的main、PR状态及反馈，不重复owner正在做或已做的修复。当前feat/self-service-password草稿PR #8若已合并则从更新main建新阶段分支，不向旧PR继续推。先单独定义games-traits-v1归档严格模型与独立生成快照/版本：13规划/12必答、30个value/ms对象、完整游戏格及枚举；旧v1归档/摘要/偏好口径与历史记录保持。不得通过更改旧assessment-schema或截断/过滤答案伪装兼容。先支持用户明确选择、预览确认的新归档创建/读取/更新/本机打开，保持所有者隔离、修订CAS、限额、身份/取消/未知结果等边界；未定义的新分享/批注/建议/顾问摘要/统计入口仍拒绝，随后独立推进。
+本轮核对PR #8已由所有者合并，main6d533f0业务代码仍与83bc637一致，额外仅修改CONTRIBUTING线上地址；从最新main建feat/versioned-assessment-architecture，不推已合并PR。用户要求继续并评估合适架构，授权必要skill/MCP且第三方skill须高star。已核实两上游仓库均超过30万star，五份现有SKILL.md逐字匹配；现有能力足够，未新增安装，来源记录见tooling-policy.md与本机provenance JSON。
 
-无表变化保持schema5/API2；必要变更须精确已知版本单事务迁移并保留全部哈希/会话/报告/授权/审计，失败回滚、未知拒绝。任何初始化入口前停相关服务，在网站目录外做私有一致备份并保存匹配旧源码，不访问公司真实数据库和学生浏览器。管理员恢复/身份复核、公司HTTPS/反代/ACL/备份与容量、题库审校及真实样本/考试可比性/常模/阈值校准/A-B仍准确记录依赖，不虚构验证。
+采用“静态离线前端+可选FastAPI模块化单体”，本轮集中后端合同/操作策略，保留前端既有恢复保护、SQLite与旧API。新增GLOSSARY、架构总览、ADR和实施约定，统一完成情况、边界与分段修改顺序；不为架构整理同时重写页面/数据库/部署。v1.17.0新增独立CurrentArchiveRecord、私有语义快照与公开8键metadata；有序题目/量表文字/规划与游戏含义、枚举容量均冻结，语义hash与LF来源hash分离，空/部分/完整、0/null/省略/ms有限数与顾问history/actor原样保留。新合同懒加载，坏新文件不破坏旧模型/操作。
 
-真正本地需求与真实缺陷完成、余项仅外部环境/资料时转静默监测PR反馈，不为续做虚构需求。本轮检查时bic定时任务已为PAUSED（18:59外部更新），保持此状态、不自行恢复；周期配置仍2小时。通知仅有意义完成/失败/重要变化或确需操作。
+contracts.py统一辨认profile、完整验证、9项操作支持与能力描述；认证GET /api/report-capabilities沿用会话/已提供CSRF绑定与no-store，旧health精确API2和默认客户端请求保持。legacy沿用既有操作，CURRENT operations本轮全部为空，owner API仍旧ArchiveRecord、继续拒绝新版。本轮完成合同基础而非新版云CRUD。共同家长snapshot/new批注邀请、顾问读取/编辑、文案及汇总/偏好按操作检查；原所有者/角色/源修订/期限/撤销/CAS在先，旧严格验证与公共白名单保留。既发legacy快照和已授权线程按原生命周期读取、续写与撤销，不受源版本策略误伤。无新表/迁移，schema5/API2保持。
+
+先TDD与两次独立审查。修复极大MBTI整数可能OverflowError、guard改变缺metadata旧异常，以及两个实证P2：量表label等含义未进指纹、私有基线丢失后可重定义profile。补完整meaning与双锚；一锚丢失只允许同fp恢复，两锚全缺普通生成失败，--init仅首次引入，不能重置已发布profile。本轮未交付草稿保留后重新首次生成，未操作真实学生资料或手改数据库版本。第一轮后端884过/1失败日志保留；全部修复后591前端、885后端、36真实Chromium→API共1512项通过，另94参数子案例通过、1Windows权限跳过、1原弃用提示。最终日志architecture-{frontend,backend,api-integration}-final.log。独立定向/原始RED/首轮415夹具错误与缺依赖审查记录均保留，未虚构CI或全平台通过。
+
+额外核对当前Chromium题序/量表与Node合同一致且file零HTTP；现personality.js的有状态sort不保证跨引擎一致，下一段上云前必须核对/设计稳定题目ID和题序，不直接重排已有v1。ECMAScript依据与范围已写architecture-overview.md。详细测试口径见verification-2026-10-26.md。
+
+主要交付D:/Codex/outputs/bic-planner-20261026-architecture，聊天outputs/architecture-20261026为副本，含源码/静态包/补丁/架构和术语/ADR/实际日志及来源核对/校验和；解压检查见verification-package.log。没有访问真实学生浏览器/数据库、创建密钥、付费/真实模型调用、发送消息、合并main或改生产；线上main自动拉取机制来自owner文档，本机未核验实际生产版本。
+
+## 当前下一项：新版owner云归档端到端接入
+
+先核对最新聊天/Git/fetch main与本轮PR反馈，已合并则新建阶段分支，不推旧PR。基于已完成独立合同/操作注册层，先核对浏览器题序并确定稳定ID/题序版本策略，再支持显式能力/指纹核对、用户选择/预览确认的新创建/读取/修订更新/本机打开。更新事务必须拒绝跨profile覆写同一报告，保持所有权、启用、CSRF、CAS、配额、取消/身份/源变化与未知结果不重试；旧端/未知能力拒新版。未定义的新分享/批注/顾问/摘要/统计仍关闭，不把旧明确兴趣与新版派生字段混用。
+
+随后逐项实现新版分享/协作，再独立版本化汇总/配对。保留旧合同与原始资料，任何必要schema变化须精确已知版本事务迁移保全所有哈希/会话/报告/授权/审计、失败回滚未知拒绝；初始化入口前停服务、网站根目录外私有一致备份并保存匹配源码。公司环境/身份复核/人工审校/真实样本与模型批准等依赖准确记录。本轮定时任务仍保持既有PAUSED，用户明确恢复后续做；不为续做虚构需求。
 
 ## 随后顺序
 

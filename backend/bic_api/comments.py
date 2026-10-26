@@ -11,6 +11,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from .comment_models import CommentText, RequestId
 from .db import StorageError
+from .contracts import require_operation
 from .security import AuthError, canonical_username
 from .share_models import ParentSnapshot, ShareContent, build_parent_snapshot
 
@@ -116,6 +117,7 @@ class CommentService:
             except (TypeError, ValueError):
                 raise StorageError(503, 'The source report is temporarily unavailable.', 'STORAGE') from None
             try:
+                require_operation(record, 'family_comments_v1')
                 snapshot = build_parent_snapshot(record, report['revision'], at, expiry, content)
                 serialized = json.dumps(snapshot, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
                 serialized.encode('utf-8')

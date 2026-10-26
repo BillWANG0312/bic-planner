@@ -110,7 +110,7 @@ class AdvisorEditService(TeacherAccessService):
                 raise self._invalid()
             if recipient is None or recipient['disabled'] or recipient['role'] != 'advisor':
                 raise self._unavailable()
-            record = self._validated_record(report, joined=False)
+            record = self._validated_record(report, joined=False, operation='advisor_edit_v1')
             self._consistent_baseline(record, baseline)
             at = int(self.clock())
             if connection.execute(
@@ -175,7 +175,7 @@ class AdvisorEditService(TeacherAccessService):
     def read(self, recipient_id, grant_id):
         with self.db._connection() as connection:
             row, at = self._active(connection, recipient_id, grant_id)
-        record = self._validated_record(row, joined=True)
+        record = self._validated_record(row, joined=True, operation='advisor_edit_v1')
         return {'grant': self._metadata(row, at), 'report': self._full(row, record), 'baseline': self._baseline(row, record)}
 
     def apply(self, recipient_id, grant_id, revision, changes):
@@ -187,7 +187,7 @@ class AdvisorEditService(TeacherAccessService):
             row, at = self._active(connection, recipient_id, grant_id)
             if revision != row['current_revision']:
                 raise StorageError(409, 'The requested source revision differs from this authorization.', 'REVISION')
-            record = self._validated_record(row, joined=True)
+            record = self._validated_record(row, joined=True, operation='advisor_edit_v1')
             baseline = self._baseline(row, record)
             modifications = [{'section': key, 'before': baseline[key], 'after': text.strip(JS_WHITESPACE)}
                              for key, text in changes.items() if text.strip(JS_WHITESPACE) != baseline[key].strip(JS_WHITESPACE)]

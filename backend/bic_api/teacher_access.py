@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from .db import StorageError
 from .models import ArchiveRecord
+from .contracts import require_operation
 from .security import AuthError, canonical_username
 
 
@@ -75,9 +76,12 @@ class TeacherAccessService:
         return {**result, 'scope': _SCOPE, 'status': self._status(row, now)}
 
     @staticmethod
-    def _validated_record(row, *, joined):
+    def _validated_record(row, *, joined, operation='advisor_read_v1'):
         try:
             record = json.loads(row['record_json'])
+            if type(record) is not dict or type(record.get('state')) is not dict:
+                raise ValueError('Stored record is malformed')
+            require_operation(record, operation)
             ArchiveRecord.model_validate(record)
             # Do not reserialize model defaults into a legacy archive. Validate
             # the exact stored object, then return that object unchanged.

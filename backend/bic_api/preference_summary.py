@@ -7,6 +7,7 @@ import re
 
 from .db import StorageError
 from .models import ASSESSMENT_SCHEMA, JS_WHITESPACE, utf16_length
+from .contracts import require_operation
 
 
 _PATH = Path(__file__).resolve().parents[1] / 'preference-schema.json'
@@ -81,6 +82,7 @@ def metadata(schema):
 
 def project(record, schema):
     """Keep the two original choices, in dictionary order rather than rank."""
+    require_operation(record, 'teacher_preferences_v3')
     try:
         if record['bankVersion'] != schema['bank_version']:
             raise StorageError(409, 'The question-bank version is unsupported for explicit preferences.', 'VERSION')

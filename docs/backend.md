@@ -91,3 +91,11 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 v1.16.0已恢复旧报告原义与新旧profile隔离，完整本地回归1377项通过；新游戏/特质报告仍不能通过现有严格云归档模型，前端明确阻止发送，后端保持拒绝。完整回归通过不表示新版云归档/分享/摘要已实现，见 [测评版本说明](assessment-profiles.md) 和 [兼容性记录](upstream-assessment-compatibility.md)。
 
 旧API结构生成器现从固定旧版plan/mbti与共享学术bank生成，先运行legacy-assessment.cjs --check；旧assessment-schema.json内容保持。新profile需要独立严格模型，不能通过重生成旧形状或手改JSON扩展。
+
+## 版本合同与能力发现（v1.17.0）
+
+独立current_models.py验证games-traits-v1；contracts.py集中profile辨认、严格归档校验及9项操作策略，不改变旧ArchiveRecord或schema5。新版模型是后续接入基础，当前owner API仍拒绝新版，所有新版业务操作为空。
+
+认证GET /api/report-capabilities返回bic-report-capabilities/version1、api_version2和两profile的operations；CURRENT附八键安全合同元数据，legacy沿用已支持操作。若读取带X-CSRF-Token，必须匹配当前Cookie；过期/停用/匿名拒绝。响应no-store，无答卷/账号/密钥；旧health保持原样，客户端默认连接不增加探测请求。
+
+共同家长snapshot builder、批注新邀请、顾问/文案/汇总按操作检查；旧严格验证和公共白名单保留。既发legacy快照/线程按原授权生命周期读写与撤销，不因识别新合同失去清理能力。新合同损坏只使新模型/能力发现安全失败，旧服务可继续。详见 [架构说明](architecture-overview.md) 与 [本轮计划](architecture-plan-2026-10-26.md)。

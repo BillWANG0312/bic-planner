@@ -1,0 +1,1778 @@
+{
+  "format": "bic-current-assessment-contract",
+  "version": 1,
+  "semantics": {
+    "profile": "games-traits-v1",
+    "contract_version": "games-traits-contract-v1",
+    "bank_version": "2026.10",
+    "personality_version": "2026.11-trait",
+    "grades": [
+      "8",
+      "9",
+      "10",
+      "11"
+    ],
+    "academic": [
+      {
+        "id": "en1",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en2",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en3",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en4",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en5",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en6",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en7",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en8",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en9",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en10",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma1",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma2",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma3",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma4",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma5",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma6",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma7",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma8",
+        "type": "numeric"
+      },
+      {
+        "id": "ma9",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma10",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph1",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph2",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph3",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph4",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph5",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch1",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch2",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch3",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch4",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch5",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en11",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en12",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en13",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en14",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "en15",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma11",
+        "type": "numeric"
+      },
+      {
+        "id": "ma12",
+        "type": "numeric"
+      },
+      {
+        "id": "ma13",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma14",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ma15",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph6",
+        "type": "numeric"
+      },
+      {
+        "id": "ph7",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph8",
+        "type": "numeric"
+      },
+      {
+        "id": "ph9",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph10",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph11",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph12",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph13",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph14",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ph15",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch6",
+        "type": "numeric"
+      },
+      {
+        "id": "ch7",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch8",
+        "type": "numeric"
+      },
+      {
+        "id": "ch9",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch10",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch11",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch12",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch13",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch14",
+        "type": "choice",
+        "option_count": 4
+      },
+      {
+        "id": "ch15",
+        "type": "choice",
+        "option_count": 4
+      }
+    ],
+    "planning": [
+      {
+        "key": "grade",
+        "type": "single",
+        "optional": false,
+        "options": [
+          "8",
+          "9",
+          "10",
+          "11"
+        ]
+      },
+      {
+        "key": "interests",
+        "type": "tags",
+        "optional": false,
+        "options": [
+          "coding",
+          "math",
+          "puzzles",
+          "logic",
+          "physics",
+          "space",
+          "experiment",
+          "science",
+          "chemistry",
+          "biology",
+          "health",
+          "help",
+          "people",
+          "psych",
+          "business",
+          "news",
+          "deal",
+          "lead",
+          "history",
+          "read",
+          "debate",
+          "art",
+          "design",
+          "photo",
+          "create",
+          "build",
+          "volunteer",
+          "economy",
+          "environment",
+          "talk"
+        ],
+        "max": 3,
+        "multi_free": false
+      },
+      {
+        "key": "subjectBoard",
+        "type": "game",
+        "optional": false,
+        "game": "campus"
+      },
+      {
+        "key": "career",
+        "type": "game",
+        "optional": false,
+        "game": "dart"
+      },
+      {
+        "key": "clubs",
+        "type": "tags",
+        "optional": false,
+        "options": [
+          "debate",
+          "modelun",
+          "mathclub",
+          "coding",
+          "journalism",
+          "drama",
+          "sports",
+          "volunteer",
+          "art",
+          "music",
+          "env",
+          "business"
+        ],
+        "max": 12,
+        "multi_free": false
+      },
+      {
+        "key": "majorBoard",
+        "type": "game",
+        "optional": false,
+        "game": "planet"
+      },
+      {
+        "key": "team",
+        "type": "game",
+        "optional": false,
+        "game": "race"
+      },
+      {
+        "key": "selfImage",
+        "type": "tags",
+        "optional": false,
+        "options": [
+          "rational",
+          "empathic",
+          "creative",
+          "practical",
+          "leader",
+          "explorer"
+        ],
+        "max": 2,
+        "multi_free": false
+      },
+      {
+        "key": "freeTime",
+        "type": "tags",
+        "optional": false,
+        "options": [
+          "internet",
+          "books",
+          "games",
+          "sports",
+          "volunteer2",
+          "music",
+          "make",
+          "hangout"
+        ],
+        "max": 3,
+        "multi_free": false
+      },
+      {
+        "key": "countries",
+        "type": "tags",
+        "optional": false,
+        "options": [
+          "uk",
+          "us",
+          "ca",
+          "au",
+          "hk",
+          "sg",
+          "eu",
+          "unsure"
+        ],
+        "max": 3,
+        "multi_free": false
+      },
+      {
+        "key": "subjectPerf",
+        "type": "single",
+        "optional": false,
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      {
+        "key": "preferredLength",
+        "type": "single",
+        "optional": false,
+        "options": [
+          "short",
+          "long",
+          "flex"
+        ]
+      },
+      {
+        "key": "weakSubjects",
+        "type": "tags",
+        "optional": true,
+        "options": [
+          "数学",
+          "进阶数学",
+          "物理",
+          "化学",
+          "生物",
+          "经济学",
+          "商科",
+          "计算机",
+          "心理学",
+          "英语文学",
+          "历史",
+          "地理",
+          "社会学",
+          "艺术",
+          "设计",
+          "音乐",
+          "戏剧",
+          "中文",
+          "法语",
+          "西班牙语"
+        ],
+        "max": 30,
+        "multi_free": true
+      }
+    ],
+    "games": {
+      "campus": {
+        "lanes": [
+          "like",
+          "try",
+          "avoid"
+        ],
+        "items": [
+          "数学",
+          "物理",
+          "化学",
+          "生物",
+          "计算机",
+          "经济",
+          "历史",
+          "英语文学",
+          "心理学",
+          "设计"
+        ],
+        "capacity": 4
+      },
+      "planet": {
+        "lanes": [
+          "heart",
+          "watch",
+          "skip"
+        ],
+        "items": [
+          "cs",
+          "math",
+          "eng",
+          "med",
+          "econ",
+          "law",
+          "psych",
+          "design",
+          "media",
+          "intl"
+        ],
+        "capacity": 3
+      },
+      "dart": {
+        "options": [
+          "ideas",
+          "people",
+          "systems",
+          "science",
+          "build",
+          "market"
+        ],
+        "max": 2
+      },
+      "race": {
+        "pace": [
+          "deep",
+          "varied",
+          "steady",
+          "deadline"
+        ],
+        "partner": [
+          "star",
+          "maker",
+          "artist",
+          "captain",
+          "caretaker"
+        ]
+      }
+    },
+    "compatibility_planning": {
+      "schoolSubjects": {
+        "type": "tags",
+        "max": 30,
+        "multi_free": true,
+        "options": []
+      },
+      "preferredMajor": {
+        "type": "tags",
+        "max": 8,
+        "multi_free": false,
+        "options": [
+          "science",
+          "math",
+          "eng",
+          "tech",
+          "business",
+          "econ",
+          "med",
+          "social",
+          "humanities",
+          "art",
+          "media",
+          "unsure",
+          "cs",
+          "phys",
+          "chem",
+          "bio",
+          "biz",
+          "law",
+          "psych",
+          "design",
+          "intl"
+        ]
+      }
+    },
+    "personality": {
+      "scale": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "questions": [
+        {
+          "trait": "numbers",
+          "text": "需要用 Excel / 表格做统计",
+          "statement": "我觉得挺有意思",
+          "reversed": false
+        },
+        {
+          "trait": "create",
+          "text": "看到普通的教室",
+          "statement": "我脑子里会浮现“如果改成这样会更好”",
+          "reversed": false
+        },
+        {
+          "trait": "analyze",
+          "text": "小组作业给了一堆杂乱的数据",
+          "statement": "我会先想办法找出其中的规律",
+          "reversed": false
+        },
+        {
+          "trait": "persuade",
+          "text": "需要在全班面前汇报",
+          "statement": "我只希望快点讲完",
+          "reversed": true
+        },
+        {
+          "trait": "empathy",
+          "text": "同学在课上被老师批评后很沮丧",
+          "statement": "课后我想去问问他的感受",
+          "reversed": false
+        },
+        {
+          "trait": "execute",
+          "text": "需要长时间专注做一件事",
+          "statement": "我很难安静超过半小时",
+          "reversed": true
+        },
+        {
+          "trait": "empathy",
+          "text": "小组里有同学一直不说话",
+          "statement": "我专注于把任务做完就好",
+          "reversed": true
+        },
+        {
+          "trait": "empathy",
+          "text": "自己有两小时空余时间",
+          "statement": "帮低年级同学讲题会让我有成就感",
+          "reversed": false
+        },
+        {
+          "trait": "create",
+          "text": "写一篇自由题目的作文",
+          "statement": "我会参考范文的写法更稳妥",
+          "reversed": true
+        },
+        {
+          "trait": "analyze",
+          "text": "遇到一个完全看不懂的物理题",
+          "statement": "我会等着看老师的讲解",
+          "reversed": true
+        },
+        {
+          "trait": "resilience",
+          "text": "离截止日期只剩一天",
+          "statement": "我还能保持节奏完成任务",
+          "reversed": false
+        },
+        {
+          "trait": "curiosity",
+          "text": "看到一篇关于外星海洋的文章",
+          "statement": "看完标题就够了",
+          "reversed": true
+        },
+        {
+          "trait": "analyze",
+          "text": "朋友问我一个复杂的问题",
+          "statement": "我更想听他讲清来龙去脉再做判断",
+          "reversed": false
+        },
+        {
+          "trait": "organize",
+          "text": "要组织一次班级活动",
+          "statement": "我会主动排时间表和分工",
+          "reversed": false
+        },
+        {
+          "trait": "rules",
+          "text": "老师讲解了一个标准步骤",
+          "statement": "我更喜欢自己摸索",
+          "reversed": true
+        },
+        {
+          "trait": "execute",
+          "text": "给自己定好每天练题的计划",
+          "statement": "我基本能坚持执行下去",
+          "reversed": false
+        },
+        {
+          "trait": "curiosity",
+          "text": "有我从未参加过的讲座",
+          "statement": "即使和课程无关我也想去听",
+          "reversed": false
+        },
+        {
+          "trait": "organize",
+          "text": "小组项目刚开始",
+          "statement": "我觉得边做边看更自然",
+          "reversed": true
+        },
+        {
+          "trait": "resilience",
+          "text": "练习了很久还是学不会",
+          "statement": "我会先放一段时间",
+          "reversed": true
+        },
+        {
+          "trait": "curiosity",
+          "text": "课上听到一个没讲透的概念",
+          "statement": "我会下课后自己查资料弄清它",
+          "reversed": false
+        },
+        {
+          "trait": "numbers",
+          "text": "面对一串数字表格",
+          "statement": "我会想算一算或画个图看看",
+          "reversed": false
+        },
+        {
+          "trait": "persuade",
+          "text": "我的想法和别人不一样",
+          "statement": "我会试着有条理地说服大家",
+          "reversed": false
+        },
+        {
+          "trait": "create",
+          "text": "社团的海报没人设计",
+          "statement": "我会冒出一个新点子并试着做出来",
+          "reversed": false
+        },
+        {
+          "trait": "persuade",
+          "text": "小组对方案有分歧",
+          "statement": "我愿意站出来引导讨论",
+          "reversed": false
+        },
+        {
+          "trait": "rules",
+          "text": "学习资料整理",
+          "statement": "我会把页面整理得整洁有序",
+          "reversed": false
+        },
+        {
+          "trait": "execute",
+          "text": "老师布置了一项几周后才交的任务",
+          "statement": "我会稳步推进",
+          "reversed": false
+        },
+        {
+          "trait": "rules",
+          "text": "交作业之前",
+          "statement": "我习惯逐项检查有没有遗漏",
+          "reversed": false
+        },
+        {
+          "trait": "organize",
+          "text": "一个重要的汇报截止日临近",
+          "statement": "我能同时盯住几件关键的事",
+          "reversed": false
+        },
+        {
+          "trait": "resilience",
+          "text": "一次重要考试没考好",
+          "statement": "我会复盘原因并继续推进",
+          "reversed": false
+        },
+        {
+          "trait": "numbers",
+          "text": "看到新闻里的统计数据",
+          "statement": "我直接接受结论",
+          "reversed": true
+        }
+      ],
+      "timing": "optional_null_or_finite_js_number"
+    },
+    "meaning": {
+      "personality_scale": [
+        {
+          "value": 0,
+          "label": "完全不像我"
+        },
+        {
+          "value": 1,
+          "label": "不太像"
+        },
+        {
+          "value": 2,
+          "label": "不确定"
+        },
+        {
+          "value": 3,
+          "label": "比较像"
+        },
+        {
+          "value": 4,
+          "label": "非常像我"
+        }
+      ],
+      "planning": [
+        {
+          "key": "grade",
+          "id": "grade",
+          "title": "你目前所在的年级是？",
+          "sub": "用于确定规划的时间窗口",
+          "options": [
+            {
+              "id": "8",
+              "label": "8 年级",
+              "desc": "还有充足时间探索"
+            },
+            {
+              "id": "9",
+              "label": "9 年级",
+              "desc": "开始形成方向感"
+            },
+            {
+              "id": "10",
+              "label": "10 年级",
+              "desc": "面临 A-Level 正式选科"
+            },
+            {
+              "id": "11",
+              "label": "11 年级 / 预科",
+              "desc": "已选科，需确认方向"
+            }
+          ]
+        },
+        {
+          "key": "interests",
+          "id": "interests",
+          "title": "用一句话描述：什么话题会让你忘记时间？",
+          "sub": "选出最多 3 个最贴近你的",
+          "options": [
+            {
+              "id": "coding",
+              "label": "编程与科技"
+            },
+            {
+              "id": "math",
+              "label": "数学推理"
+            },
+            {
+              "id": "puzzles",
+              "label": "解谜与逻辑"
+            },
+            {
+              "id": "logic",
+              "label": "逻辑与辩论"
+            },
+            {
+              "id": "physics",
+              "label": "物理探索"
+            },
+            {
+              "id": "space",
+              "label": "天文与太空"
+            },
+            {
+              "id": "experiment",
+              "label": "动手实验"
+            },
+            {
+              "id": "science",
+              "label": "科学求知"
+            },
+            {
+              "id": "chemistry",
+              "label": "化学探究"
+            },
+            {
+              "id": "biology",
+              "label": "生命与自然"
+            },
+            {
+              "id": "health",
+              "label": "健康与医疗"
+            },
+            {
+              "id": "help",
+              "label": "帮助他人"
+            },
+            {
+              "id": "people",
+              "label": "与人交流"
+            },
+            {
+              "id": "psych",
+              "label": "人文心理"
+            },
+            {
+              "id": "business",
+              "label": "商业与投资"
+            },
+            {
+              "id": "news",
+              "label": "时事与新闻"
+            },
+            {
+              "id": "deal",
+              "label": "谈判与说服"
+            },
+            {
+              "id": "lead",
+              "label": "领导与组织"
+            },
+            {
+              "id": "history",
+              "label": "历史与文化"
+            },
+            {
+              "id": "read",
+              "label": "阅读与写作"
+            },
+            {
+              "id": "debate",
+              "label": "演讲与辩论"
+            },
+            {
+              "id": "art",
+              "label": "绘画与视觉艺术"
+            },
+            {
+              "id": "design",
+              "label": "设计与创意"
+            },
+            {
+              "id": "photo",
+              "label": "摄影与影像"
+            },
+            {
+              "id": "create",
+              "label": "动手创作"
+            },
+            {
+              "id": "build",
+              "label": "模型与建造"
+            },
+            {
+              "id": "volunteer",
+              "label": "志愿服务"
+            },
+            {
+              "id": "economy",
+              "label": "经济与社会"
+            },
+            {
+              "id": "environment",
+              "label": "环境保护"
+            },
+            {
+              "id": "talk",
+              "label": "沟通与表达"
+            }
+          ]
+        },
+        {
+          "key": "subjectBoard",
+          "id": "campus",
+          "title": "校园匹配 · 把学科卡片拖进格子",
+          "sub": "哪些学科你喜欢、想试试，或者想避开？每格最多放 4 个",
+          "options": []
+        },
+        {
+          "key": "career",
+          "id": "dart",
+          "title": "职业飞镖 · 你会命中哪个方向？",
+          "sub": "想象你站在人生靶盘前，点击最想命中的两个靶环",
+          "options": []
+        },
+        {
+          "key": "clubs",
+          "id": "club",
+          "title": "你在学校或课外参加过哪类社团 / 活动？",
+          "sub": "选择所有符合的（可多选）",
+          "options": [
+            {
+              "id": "debate",
+              "label": "辩论社"
+            },
+            {
+              "id": "modelun",
+              "label": "模拟联合国"
+            },
+            {
+              "id": "mathclub",
+              "label": "数学 / 科学竞赛社"
+            },
+            {
+              "id": "coding",
+              "label": "编程 / 机器人社"
+            },
+            {
+              "id": "journalism",
+              "label": "校报 / 新媒体"
+            },
+            {
+              "id": "drama",
+              "label": "戏剧 / 表演"
+            },
+            {
+              "id": "sports",
+              "label": "运动队"
+            },
+            {
+              "id": "volunteer",
+              "label": "志愿服务"
+            },
+            {
+              "id": "art",
+              "label": "美术 / 设计"
+            },
+            {
+              "id": "music",
+              "label": "乐队 / 乐团"
+            },
+            {
+              "id": "env",
+              "label": "环保 / 公益"
+            },
+            {
+              "id": "business",
+              "label": "模拟股市 / 商业社团"
+            }
+          ]
+        },
+        {
+          "key": "majorBoard",
+          "id": "planet",
+          "title": "星球排序 · 把专业星球分到三边",
+          "sub": "心动、观望、排除 —— 每边最多 3 个，凭第一直觉",
+          "options": []
+        },
+        {
+          "key": "team",
+          "id": "race",
+          "title": "团队竞速 · 选你的节奏与搭档",
+          "sub": "一场班级项目要开跑了，你希望怎么跑、和谁一起？",
+          "options": []
+        },
+        {
+          "key": "selfImage",
+          "id": "mood",
+          "title": "以下哪几个最像\"你\"？",
+          "sub": "最多选 2 个 · 这是一道开放的想象题，没有对错",
+          "options": [
+            {
+              "id": "rational",
+              "label": "理性的科学家",
+              "desc": "用逻辑和证据看世界"
+            },
+            {
+              "id": "empathic",
+              "label": "温暖的倾听者",
+              "desc": "关心人的感受和关系"
+            },
+            {
+              "id": "creative",
+              "label": "天马行空的创作者",
+              "desc": "用想象力打破常规"
+            },
+            {
+              "id": "practical",
+              "label": "务实的建设者",
+              "desc": "把事情真正做出来"
+            },
+            {
+              "id": "leader",
+              "label": "目标的领导者",
+              "desc": "组织资源、带着团队达成目标"
+            },
+            {
+              "id": "explorer",
+              "label": "好奇的探索者",
+              "desc": "不断发现新的领域和可能"
+            }
+          ]
+        },
+        {
+          "key": "freeTime",
+          "id": "free",
+          "title": "平时空闲时，你更喜欢做什么？",
+          "sub": "最多选 3 个",
+          "options": [
+            {
+              "id": "internet",
+              "label": "刷视频 / 上网探索"
+            },
+            {
+              "id": "books",
+              "label": "阅读书籍"
+            },
+            {
+              "id": "games",
+              "label": "打游戏 / 桌游"
+            },
+            {
+              "id": "sports",
+              "label": "运动与户外"
+            },
+            {
+              "id": "volunteer2",
+              "label": "社团 / 志愿服务"
+            },
+            {
+              "id": "music",
+              "label": "音乐 / 艺术创作"
+            },
+            {
+              "id": "make",
+              "label": "手工 / 编程小项目"
+            },
+            {
+              "id": "hangout",
+              "label": "和朋友聚会聊天"
+            }
+          ]
+        },
+        {
+          "key": "countries",
+          "id": "country",
+          "title": "你更想去哪个国家或地区读大学？",
+          "sub": "最多选 3 个",
+          "options": [
+            {
+              "id": "uk",
+              "label": "英国",
+              "desc": "A-Level 体系的主场，三年制本科，认可度最高"
+            },
+            {
+              "id": "us",
+              "label": "美国",
+              "desc": "需 SAT / AP 等补充材料，四年制，灵活度高"
+            },
+            {
+              "id": "ca",
+              "label": "加拿大",
+              "desc": "接受 A-Level，学费相对适中，移民政策友好"
+            },
+            {
+              "id": "au",
+              "label": "澳大利亚",
+              "desc": "接受 A-Level 换算，认可 ATA 工程师认证"
+            },
+            {
+              "id": "hk",
+              "label": "中国香港",
+              "desc": "英联邦体系认可 A-Level，离家近、文化接近"
+            },
+            {
+              "id": "sg",
+              "label": "新加坡",
+              "desc": "NUS / NTU 世界排名高，认可 A-Level"
+            },
+            {
+              "id": "eu",
+              "label": "欧洲大陆",
+              "desc": "德国、荷兰等学费低，部分专业需语言要求"
+            },
+            {
+              "id": "unsure",
+              "label": "还没想好",
+              "desc": "系统将结合专业方向给出建议"
+            }
+          ]
+        },
+        {
+          "key": "subjectPerf",
+          "id": "perf",
+          "title": "请选择你对自己的学习感受描述最接近的一项",
+          "sub": "不需要精确，凭直觉选择",
+          "options": [
+            {
+              "id": "0",
+              "label": "很轻松 / 擅长"
+            },
+            {
+              "id": "1",
+              "label": "还不错"
+            },
+            {
+              "id": "2",
+              "label": "一般"
+            },
+            {
+              "id": "3",
+              "label": "比较吃力"
+            }
+          ]
+        },
+        {
+          "key": "preferredLength",
+          "id": "length",
+          "title": "关于学制，你的偏好是？",
+          "sub": null,
+          "options": [
+            {
+              "id": "short",
+              "label": "短学制，快速就业",
+              "desc": "如英国三年制本科"
+            },
+            {
+              "id": "long",
+              "label": "愿意为长期专业投入",
+              "desc": "如医学、建筑、读博"
+            },
+            {
+              "id": "flex",
+              "label": "希望路径灵活可调整",
+              "desc": "如美国四年制、可转专业"
+            }
+          ]
+        },
+        {
+          "key": "weakSubjects",
+          "id": "weak",
+          "title": "以下哪些科目你学起来比较吃力？",
+          "sub": "选择所有符合的（选填，这会帮助我们评估选科风险）",
+          "options": [
+            {
+              "id": "数学",
+              "label": "数学"
+            },
+            {
+              "id": "进阶数学",
+              "label": "进阶数学"
+            },
+            {
+              "id": "物理",
+              "label": "物理"
+            },
+            {
+              "id": "化学",
+              "label": "化学"
+            },
+            {
+              "id": "生物",
+              "label": "生物"
+            },
+            {
+              "id": "经济学",
+              "label": "经济学"
+            },
+            {
+              "id": "商科",
+              "label": "商科"
+            },
+            {
+              "id": "计算机",
+              "label": "计算机"
+            },
+            {
+              "id": "心理学",
+              "label": "心理学"
+            },
+            {
+              "id": "英语文学",
+              "label": "英语文学"
+            },
+            {
+              "id": "历史",
+              "label": "历史"
+            },
+            {
+              "id": "地理",
+              "label": "地理"
+            },
+            {
+              "id": "社会学",
+              "label": "社会学"
+            },
+            {
+              "id": "艺术",
+              "label": "艺术"
+            },
+            {
+              "id": "设计",
+              "label": "设计"
+            },
+            {
+              "id": "音乐",
+              "label": "音乐"
+            },
+            {
+              "id": "戏剧",
+              "label": "戏剧"
+            },
+            {
+              "id": "中文",
+              "label": "中文"
+            },
+            {
+              "id": "法语",
+              "label": "法语"
+            },
+            {
+              "id": "西班牙语",
+              "label": "西班牙语"
+            }
+          ]
+        }
+      ],
+      "games": {
+        "campus": {
+          "items": [
+            {
+              "id": "数学",
+              "label": "数学"
+            },
+            {
+              "id": "物理",
+              "label": "物理"
+            },
+            {
+              "id": "化学",
+              "label": "化学"
+            },
+            {
+              "id": "生物",
+              "label": "生物"
+            },
+            {
+              "id": "计算机",
+              "label": "计算机"
+            },
+            {
+              "id": "经济",
+              "label": "经济"
+            },
+            {
+              "id": "历史",
+              "label": "历史"
+            },
+            {
+              "id": "英语文学",
+              "label": "英语文学"
+            },
+            {
+              "id": "心理学",
+              "label": "心理学"
+            },
+            {
+              "id": "设计",
+              "label": "设计"
+            }
+          ],
+          "lanes": [
+            {
+              "id": "like",
+              "label": "我喜欢",
+              "desc": "愿意花时间钻研"
+            },
+            {
+              "id": "try",
+              "label": "想试试",
+              "desc": "好奇，但还不确定"
+            },
+            {
+              "id": "avoid",
+              "label": "不想学",
+              "desc": "尽量避开"
+            }
+          ],
+          "capacity": 4,
+          "poolSize": 8
+        },
+        "planet": {
+          "majors": [
+            "cs",
+            "math",
+            "eng",
+            "med",
+            "econ",
+            "law",
+            "psych",
+            "design",
+            "media",
+            "intl"
+          ],
+          "lanes": [
+            {
+              "id": "heart",
+              "label": "心动",
+              "desc": "很想深入了解"
+            },
+            {
+              "id": "watch",
+              "label": "观望",
+              "desc": "先记下来"
+            },
+            {
+              "id": "skip",
+              "label": "排除",
+              "desc": "暂时不考虑"
+            }
+          ],
+          "capacity": 3,
+          "poolSize": 6
+        },
+        "dart": {
+          "rings": [
+            {
+              "id": "ideas",
+              "label": "创意与表达",
+              "careers": [
+                "creative"
+              ],
+              "traits": [
+                "create",
+                "empathy"
+              ],
+              "desc": "文字、视觉、故事、声音"
+            },
+            {
+              "id": "people",
+              "label": "与人打交道",
+              "careers": [
+                "medicine",
+                "law",
+                "entrepreneur"
+              ],
+              "traits": [
+                "empathy",
+                "persuade"
+              ],
+              "desc": "帮助、沟通、影响他人"
+            },
+            {
+              "id": "systems",
+              "label": "系统与规则",
+              "careers": [
+                "law"
+              ],
+              "traits": [
+                "organize",
+                "rules"
+              ],
+              "desc": "流程、制度、政策"
+            },
+            {
+              "id": "science",
+              "label": "研究与发现",
+              "careers": [
+                "researcher"
+              ],
+              "traits": [
+                "analyze",
+                "curiosity"
+              ],
+              "desc": "实验、数据、探索未知"
+            },
+            {
+              "id": "build",
+              "label": "动手构建",
+              "careers": [
+                "tech"
+              ],
+              "traits": [
+                "execute",
+                "numbers"
+              ],
+              "desc": "产品、工程、技术实现"
+            },
+            {
+              "id": "market",
+              "label": "商业与增长",
+              "careers": [
+                "finance",
+                "entrepreneur"
+              ],
+              "traits": [
+                "numbers",
+                "persuade"
+              ],
+              "desc": "数字、交易、把想法变成生意"
+            }
+          ],
+          "max": 2
+        },
+        "race": {
+          "pace": [
+            {
+              "id": "deep",
+              "label": "长跑型",
+              "traits": [
+                "execute",
+                "resilience"
+              ],
+              "desc": "慢热但持久，越跑越稳"
+            },
+            {
+              "id": "varied",
+              "label": "接力型",
+              "traits": [
+                "curiosity",
+                "create"
+              ],
+              "desc": "多线切换，灵活应战"
+            },
+            {
+              "id": "steady",
+              "label": "匀速型",
+              "traits": [
+                "organize",
+                "rules"
+              ],
+              "desc": "节奏稳定，按计划推进"
+            },
+            {
+              "id": "deadline",
+              "label": "冲刺型",
+              "traits": [
+                "resilience",
+                "persuade"
+              ],
+              "desc": "关键时刻爆发"
+            }
+          ],
+          "partners": [
+            {
+              "id": "star",
+              "label": "全能学霸",
+              "traits": [
+                "analyze"
+              ],
+              "desc": "知识储备强，能快速算出最优解"
+            },
+            {
+              "id": "maker",
+              "label": "动手达人",
+              "traits": [
+                "execute"
+              ],
+              "desc": "动手能力最强，任务完成度最高"
+            },
+            {
+              "id": "artist",
+              "label": "创意之魂",
+              "traits": [
+                "create"
+              ],
+              "desc": "点子多，能让作品眼前一亮"
+            },
+            {
+              "id": "captain",
+              "label": "带队队长",
+              "traits": [
+                "organize",
+                "persuade"
+              ],
+              "desc": "擅长组织协调，把大家拧成一股绳"
+            },
+            {
+              "id": "caretaker",
+              "label": "暖心伙伴",
+              "traits": [
+                "empathy"
+              ],
+              "desc": "照顾每个人的状态，团队士气稳定"
+            }
+          ]
+        }
+      },
+      "planet_labels": [
+        {
+          "id": "cs",
+          "label": "计算机科学",
+          "desc": "Computer Science"
+        },
+        {
+          "id": "math",
+          "label": "数学",
+          "desc": "Mathematics"
+        },
+        {
+          "id": "eng",
+          "label": "工程学",
+          "desc": "Engineering"
+        },
+        {
+          "id": "med",
+          "label": "医学 / 健康科学",
+          "desc": "Medicine / Health Sciences"
+        },
+        {
+          "id": "econ",
+          "label": "经济学",
+          "desc": "Economics"
+        },
+        {
+          "id": "law",
+          "label": "法律",
+          "desc": "Law"
+        },
+        {
+          "id": "psych",
+          "label": "心理学",
+          "desc": "Psychology"
+        },
+        {
+          "id": "design",
+          "label": "设计 / 建筑 / 艺术",
+          "desc": "Design / Architecture / Art"
+        },
+        {
+          "id": "media",
+          "label": "传媒 / 新闻",
+          "desc": "Media / Journalism"
+        },
+        {
+          "id": "intl",
+          "label": "国际关系 / 政治学",
+          "desc": "International Relations / Politics"
+        }
+      ],
+      "interest_options": [
+        {
+          "id": "science",
+          "label": "自然科学",
+          "desc": "物理 / 化学 / 生物",
+          "major": "phys"
+        },
+        {
+          "id": "math",
+          "label": "数学",
+          "desc": "纯数学 / 应用数学 / 统计",
+          "major": "math"
+        },
+        {
+          "id": "eng",
+          "label": "工程",
+          "desc": "机械 / 电子 / 土木",
+          "major": "eng"
+        },
+        {
+          "id": "tech",
+          "label": "计算机与人工智能",
+          "desc": "软件 / 算法 / AI",
+          "major": "cs"
+        },
+        {
+          "id": "business",
+          "label": "商科与管理",
+          "desc": "会计 / 金融 / 管理",
+          "major": "biz"
+        },
+        {
+          "id": "econ",
+          "label": "经济与金融",
+          "desc": "经济学 / 金融",
+          "major": "econ"
+        },
+        {
+          "id": "med",
+          "label": "医学与健康",
+          "desc": "临床 / 药学 / 公卫",
+          "major": "med"
+        },
+        {
+          "id": "social",
+          "label": "社会科学",
+          "desc": "心理 / 社会学 / 政治",
+          "major": "psych"
+        },
+        {
+          "id": "humanities",
+          "label": "人文与法律",
+          "desc": "法律 / 历史 / 文学",
+          "major": "law"
+        },
+        {
+          "id": "art",
+          "label": "艺术与设计",
+          "desc": "设计 / 建筑 / 艺术史",
+          "major": "design"
+        },
+        {
+          "id": "media",
+          "label": "传媒",
+          "desc": "新闻 / 传播 / 影视",
+          "major": "media"
+        },
+        {
+          "id": "unsure",
+          "label": "还不确定",
+          "desc": "希望系统帮我想一想",
+          "major": null
+        }
+      ],
+      "traits": [
+        {
+          "id": "analyze",
+          "label": "分析思考",
+          "desc": "喜欢拆解问题、找规律、用证据说话"
+        },
+        {
+          "id": "create",
+          "label": "创造想象",
+          "desc": "点子多、喜欢做新的东西、对审美敏感"
+        },
+        {
+          "id": "empathy",
+          "label": "共情助人",
+          "desc": "关心他人的感受，愿意帮助身边人"
+        },
+        {
+          "id": "persuade",
+          "label": "表达沟通",
+          "desc": "擅长把想法讲清楚，能带动别人"
+        },
+        {
+          "id": "organize",
+          "label": "统筹组织",
+          "desc": "擅长把事情排好顺序、协调资源与人"
+        },
+        {
+          "id": "execute",
+          "label": "专注执行",
+          "desc": "说到做到，能长时间沉下心完成一件事"
+        },
+        {
+          "id": "curiosity",
+          "label": "好奇探索",
+          "desc": "对新知识、新领域有持续兴趣"
+        },
+        {
+          "id": "resilience",
+          "label": "抗压坚韧",
+          "desc": "遇到挫折不轻易放弃，能在压力下继续推进"
+        },
+        {
+          "id": "numbers",
+          "label": "数字论证",
+          "desc": "喜欢用数字、模型和数据来判断事情"
+        },
+        {
+          "id": "rules",
+          "label": "严谨规则",
+          "desc": "重视准确、规则和细节，追求把事情做对"
+        }
+      ]
+    }
+  },
+  "sources": {
+    "js/bank.js": "1e7e4db2c403e04625ef89b103794329038fbc98fab7674d4cd2d6eb18a3231d",
+    "js/majors.js": "bbafa2988d3ff52fa5481653fb42a2c4a8c13dec6be477123c27681f60888b97",
+    "js/plan.js": "06ed3a82a32328a5a1788a585b1500d6f302007ea9eabf83745d4c3c9ce048f8",
+    "js/personality.js": "66ad29258141fe6f9c1fbcfd40be859fdd4eb648ce4f0b7151add4a3faf5ac39",
+    "js/games.js": "f78a488f188874727b7c43e5198623364c13ec95f541611c6ca896c122e842fc",
+    "js/assessment-profile.js": "b2ee6b67ad0393452f3940b2f328c10fcebd6340270b3ac8355e736fb3010673"
+  },
+  "contract_fingerprint": "f924e95098af8683d0941c1714f9d78efa974f86d6ee05cce0191d5bad43fcbf"
+}

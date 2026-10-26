@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt, StrictStr, model_validator
 
 from .models import bounded_text, utf16_length
+from .contracts import require_operation
 
 
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
@@ -130,6 +131,9 @@ def build_parent_snapshot(record: dict, revision: int, shared_at: int,
         }
     except (KeyError, TypeError, AttributeError):
         raise ValueError('stored report metadata cannot produce a public snapshot') from None
+    # Preserve the existing malformed-metadata validation contract, then check
+    # profile support before creating any snapshot or persistent authorization.
+    require_operation(record, 'parent_summary_v1')
     return ParentSnapshot.model_validate({
         'format': 'bic-parent-summary', 'version': 1,
         'shared_at': shared_at, 'expires_at': expires_at,

@@ -12,6 +12,7 @@ from starlette.responses import JSONResponse
 
 from .db import Database, StorageError
 from .models import ArchiveRecord
+from .contracts import report_capabilities
 from .security import AuthError, AuthService
 from .settings import Settings
 from .share_models import ShareContent
@@ -244,6 +245,10 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     @app.get('/api/health')
     def health():
         return {'status': 'ok', 'api_version': '2'}
+
+    @app.get('/api/report-capabilities')
+    def assessment_capabilities(session=Depends(current_session)):
+        return report_capabilities()
 
     @app.post('/api/auth/login')
     def login(body: LoginBody, request: Request, response: Response):

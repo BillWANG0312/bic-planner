@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from .db import StorageError
 from .draft_models import DraftContext, DraftResponse, DraftSections
 from .models import ArchiveRecord, JS_WHITESPACE, bounded_text
+from .contracts import require_operation
 
 
 _SECTIONS = ('summary', 'academic', 'plan', 'personality')
@@ -74,6 +75,9 @@ class AdviceDraftService:
             raise StorageError(409, 'The report changed; reload it before generating or applying advice.', 'REVISION')
         try:
             result = self.db._full_report(row)
+            if type(result['record']) is not dict or type(result['record'].get('state')) is not dict:
+                raise ValueError('Stored record is malformed')
+            require_operation(result['record'], 'advice_draft_v1')
             ArchiveRecord.model_validate(result['record'])
             return result
         except (ValidationError, TypeError, ValueError, KeyError):
@@ -241,6 +245,7 @@ class AdviceDraftService:
                 # Validate without reserializing through model defaults: preserve all
                 # original grade, state, metadata, version and optional field values.
                 try:
+                    require_operation(record, 'advice_draft_v1')
                     ArchiveRecord.model_validate(record)
                 except ValidationError:
                     raise self._invalid() from None

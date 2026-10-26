@@ -1,10 +1,12 @@
 # BIC 学业规划系统
 
-默认纯静态的 A-Level 学术规划互动测评，面向 8–11 年级学生。另提供可选的账号与服务端报告连接，默认关闭，尚未部署公司生产环境。线上地址：[BIC Academic Planner](https://tlwl-bic.com/academic-planner/)。更新须通过 PR，由所有者合并；本地修改不代表线上已经更新。
+默认纯静态的 A-Level 学术规划互动测评，面向 8–11 年级学生。另提供可选的账号与服务端报告连接，默认关闭，本任务尚未核验公司生产后端部署。线上地址：[BIC Academic Planner](https://tlwl-bic.com/academic-planner/)。更新须通过 PR，由所有者合并；本地修改不代表线上已经更新。
 
-当前集成状态（v1.16.0）：旧档案原义、续答保护和新旧profile隔离已恢复，完整回归1377项通过。新游戏/30题特质仍可在本机使用及JSON备份；其云归档、分享和汇总尚未适配，入口明确拒绝。既有云端及摘要功能继续处理旧版14/13/24合同。操作见 [测评版本与保护说明](docs/assessment-profiles.md)，历史问题与后续见 [兼容性记录](docs/upstream-assessment-compatibility.md)。
+当前集成状态（v1.17.0）：旧档案原义、续答保护和新旧profile隔离已恢复，本轮完整回归1512项通过。新游戏/30题特质仍可在本机使用及JSON备份；其云归档、分享和汇总尚未适配，入口明确拒绝。既有云端及摘要功能继续处理旧版14/13/24合同。操作见 [测评版本与保护说明](docs/assessment-profiles.md)，历史问题与后续见 [兼容性记录](docs/upstream-assessment-compatibility.md)。
 
-团队接手请先读 [开发交接与下一步修改](docs/development-handoff.md)：包含已合并/待审PR、两代测评支持范围、模块入口和分段验收。可复跑命令与准确测试口径见 [验证记录](docs/verification-2026-10-25.md)。
+团队接手请先读 [开发交接与下一步修改](docs/development-handoff.md)：包含已合并/待审PR、两代测评支持范围、模块入口和分段验收。可复跑命令与准确测试口径见 [验证记录](docs/verification-2026-10-26.md)。
+
+本轮架构调整见 [架构现状与调整顺序](docs/architecture-overview.md)：保留离线前端与模块化单体，集中profile合同、服务端操作策略和认证能力发现。新版独立模型已经提供，云归档/协作操作仍关闭，待下一段完整接入。工具来源与安装筛选见 [Skill/MCP约定](docs/tooling-policy.md)。
 
 ## 本地版功能
 

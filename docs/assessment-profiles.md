@@ -43,3 +43,5 @@ node backend/tools/preference-schema.cjs --check
 ```
 
 最终574项Node/Chromium、770项Python及33项真实Chromium→API通过，共1377项，另94个参数子案例通过；1项Windows符号链接权限跳过，1条原弃用提示保留。均使用虚构资料。首次回归失败记录与修复后完整日志保留，实际证据及准确下一步见 [持续台账](progress.md)。新profile尚未支持的入口仍按上述范围拒绝，不能把全套测试通过解释为这些功能已经实现。
+
+v1.17.0补充：新版独立后端模型、语义合同和认证能力发现已提供；这些是接入基础，CURRENT的全部业务operations仍为空，现有owner API继续拒绝新版。共享学术核心保持，原profile/JSON保护和旧云权限不变，见 [架构说明](architecture-overview.md)。
