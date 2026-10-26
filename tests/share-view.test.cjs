@@ -26,7 +26,7 @@ function options(settings = {}) {
     },
     prepare: async context => {
       await context.addCookies([{ name: 'bic_session', value: 'private-owner-cookie', domain: '127.0.0.1', path: '/', httpOnly: true }]);
-      await context.route('**/js/cloud-config.js', route => route.fulfill({ contentType: 'application/javascript', body: 'window.BIC_CLOUD_CONFIG=' + JSON.stringify(settings.config || { enabled: true, apiBase: './api/' }) + ';' }));
+      await context.route('**/js/cloud-config.js*', route => route.fulfill({ contentType: 'application/javascript', body: 'window.BIC_CLOUD_CONFIG=' + JSON.stringify(settings.config || { enabled: true, apiBase: './api/' }) + ';' }));
       await context.route('**/api/public/share', route => settings.respond ? settings.respond(route) : route.fulfill({ json: snapshot() }));
     }
   };
