@@ -39,7 +39,7 @@ async function setup(page, origin) {
     t.ui = AdvisorEditOwner.init({ client, run, message });
   });
 }
-const options = { prepare: context => context.route('**/js/app.js', route => route.fulfill({ contentType: 'application/javascript', body: '' })) };
+const options = { prepare: context => context.route('**/js/app.js*', route => route.fulfill({ contentType: 'application/javascript', body: '' })) };
 async function select(page) { await page.evaluate(() => __editOwner.ui.setReport(__editOwner.full)); await page.locator('#editRecipient').fill('teacher.test'); }
 async function preview(page) { await select(page); await page.locator('#editPreviewBtn').click(); await page.locator('#editOwnerPreview').waitFor({state:'visible'}); }
 

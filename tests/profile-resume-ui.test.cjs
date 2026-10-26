@@ -143,7 +143,7 @@ test('legacy report redraw keeps batch date neutral24 answers and advisor histor
     const prefix = `{const key='pathwise.state.v1',s=JSON.parse(localStorage.getItem(key));s.report=window.generateReport(s);s.report.meta.batchId='PRESERVED-OLD-REPORT';s.report.meta.date='2026-10-01';
       window.reportEditing.applyEdit(s.report,'summary','旧版顾问建议','张老师');s.report.advisor.history[0].actor={kind:'school_advisor',user_id:'11111111-1111-1111-1111-111111111111',username:'teacher.local',grant_id:'22222222-2222-2222-2222-222222222222',source_revision:1,result_revision:2};
       window.__profileOriginalRaw=JSON.stringify(s,null,2);localStorage.setItem(key,window.__profileOriginalRaw);}\n`;
-    await context.route('**/js/app.js', route => route.fulfill({ contentType: 'application/javascript', body: prefix + fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8') }));
+    await context.route('**/js/app.js*', route => route.fulfill({ contentType: 'application/javascript', body: prefix + fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8') }));
   } }));
 });
 

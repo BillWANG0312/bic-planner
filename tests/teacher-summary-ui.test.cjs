@@ -41,7 +41,7 @@ function options(extra = {}) {
       if (extra.beforeLoad) await extra.beforeLoad(page);
     },
     prepare: async context => {
-      await context.route('**/js/cloud-client.js', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient }));
+      await context.route('**/js/cloud-client.js*', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient }));
       if (extra.prepare) await extra.prepare(context);
     }
   };
