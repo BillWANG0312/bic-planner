@@ -203,3 +203,63 @@ test('a missing planning grade displays basic-info fallback without adding it to
     await page.evaluate(() => window.dispatchEvent(new Event('beforeunload'))); assert.equal(await rawValue(page), raw);
   }, seeded(raw));
 });
+
+/* ---------------- 公用电脑：清空本机进度 ---------------- */
+const LIB_KEY = 'bic.report-library.v1';
+// 页面载入时会恢复 ui.screen；让存档停在首页以便直接点击首页按钮。
+const atHome = value => { value.ui = { screen: 'home', idx: 0, resumeScreen: 'mbti' }; return value; };
+const libraryRaw = raw => JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: '2026-10-02T00:00:00Z',
+  records: [{ ...oldRecord(), state: { ...oldRecord().state, assessmentProfile: undefined } }] });
+
+test('clearing local progress removes only the resume state and keeps archived reports byte-for-byte', () => {
+  const raw = JSON.stringify(atHome(legacy()));
+  return withPage(async page => {
+    const before = await page.evaluate(key => localStorage.getItem(key), LIB_KEY);
+    page.once('dialog', dialog => { if (!/清空后/.test(dialog.message())) throw new Error('unexpected dialog: ' + dialog.message()); dialog.accept(); });
+    await page.locator('#clearProgressBtn').click();
+    assert.equal(await rawValue(page), null); assert.equal(await page.evaluate(key => localStorage.getItem(key), LIB_KEY), before);
+    assert.equal(await page.evaluate(() => __pathwise.state.assessmentProfile), 'games-traits-v1');
+    assert.equal(await page.evaluate(() => __pathwise.state.info.name), '');
+    assert.match(await page.locator('#toast').textContent(), /删除|清空/);
+    assert.match(await page.locator('#toast').textContent(), /报告库|归档/);
+    assert.equal(await page.locator('#resumeBtn').isHidden(), true);
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    assert.equal(await rawValue(page), null);
+  }, seeded(raw, { beforeLoad: page => page.addInitScript(({ key, raw }) => localStorage.setItem(key, raw), { key: LIB_KEY, raw: libraryRaw(atHome(legacy())) }) }));
+});
+
+test('cancelling the clear confirmation keeps the original progress bytes and answers', () => {
+  const raw = JSON.stringify(atHome(legacy()));
+  return withPage(async page => {
+    page.once('dialog', dialog => { if (!/清空后/.test(dialog.message())) throw new Error('no confirm dialog'); dialog.dismiss(); });
+    await page.locator('#clearProgressBtn').click();
+    assert.equal(await rawValue(page), raw); assert.equal(await page.evaluate(() => __pathwise.state.info.name), '旧版学生');
+  }, seeded(raw));
+});
+
+test('clearing with no stored progress shows an explanatory toast without a confirmation', () => withPage(async page => {
+  await page.evaluate(() => { let seen = 0; window.confirm = () => { seen++; return true; }; window.__confirmSeen = () => seen; });
+  await page.locator('#clearProgressBtn').click();
+  assert.equal(await page.evaluate(() => __confirmSeen()), 0); assert.match(await page.locator('#toast').textContent(), /没有未完成的进度/);
+}));
+
+test('the library-page clear button clears the resume state and returns to the home screen without crashing', () => {
+  const raw = JSON.stringify(atHome(legacy()));
+  return withPage(async page => {
+    await page.locator('#libraryBtn').click(); await page.locator('#screen-library.active').waitFor();
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#libraryClearProgressBtn').click();
+    await page.locator('#screen-home.active').waitFor();
+    assert.equal(await rawValue(page), null); assert.equal(await page.evaluate(() => __pathwise.state.info.name), '');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }, seeded(raw, { viewport: { width: 375, height: 812 } }));
+});
+
+test('clearing unmarked protected progress leaves the raw source intact until confirmed', () => {
+  const raw = JSON.stringify(atHome(legacy()), null, 2);
+  return withPage(async page => {
+    page.once('dialog', dialog => { if (!/清空后/.test(dialog.message())) throw new Error('no confirm dialog'); dialog.dismiss(); });
+    await page.locator('#clearProgressBtn').click();
+    assert.equal(await rawValue(page), raw); assert.equal(await page.locator('#screen-home.active').count(), 1);
+  }, seeded(raw));
+});

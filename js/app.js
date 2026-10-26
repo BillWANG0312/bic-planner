@@ -74,7 +74,7 @@
   function cancelAutoAdvance() { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
   function flush() {
     clearTimeout(saveTimer);
-    if (saveLocked) return false;
+    if (saveLocked || progressCleared) return false;
     const notice = $('#storageNotice');
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
@@ -88,12 +88,17 @@
       return false;
     }
   }
+  // 清空本机进度后不清空存储、只跳过写入，直到出现新的作答；避免离开页面时把空进度写回。
+  let progressCleared = false;
   function save() {
+    // 清空后（例如只剩基本信息）用户的新输入也视为新的进度，恢复自动保存。
+    progressCleared = false;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, 120);
   }
-  window.addEventListener('beforeunload', () => { clearTimeout(saveTimer); flush(); });
-  window.addEventListener('pagehide', flush);
+  const persistPending = () => { if (progressCleared) return; clearTimeout(saveTimer); flush(); };
+  window.addEventListener('beforeunload', persistPending);
+  window.addEventListener('pagehide', persistPending);
 
   function sourceUnchanged() {
     if (!saveLocked) return true;
@@ -120,6 +125,25 @@
     profileNotice(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true;
   }
   $('#profileRestartBtn').onclick = startNew;
+
+  function archivedCount() {
+    try { return window.ReportStore.create(window.localStorage).list().length; } catch (_) { return 0; }
+  }
+  function clearProgress() {
+    if (!progressReadFailed && progressRaw === null && !hasProgress()) { toast('本机没有未完成的进度需要清空。'); return; }
+    if (!window.confirm(`清空后本浏览器里${hasProgress() ? '未完成的作答' : '原始进度'}会被删除，不能恢复；本机报告库中的归档和账号登录状态不受影响。确定清空吗？`)) return;
+    try { localStorage.removeItem(STORAGE_KEY); }
+    catch (_) { toast('浏览器暂时无法删除本机进度，请关闭浏览器或手动清除本站数据。'); return; }
+    // 先停掉待写入与自动跳题，避免计时器把旧进度写回刚清空的存储。
+    clearTimeout(saveTimer); saveTimer = null; cancelAutoAdvance();
+    if (S.ui.screen === 'library') reportLibrary?.onScreenLeft();
+    S = blank(); progressRaw = null; recognizedProfile = null; saveLocked = false; progressReadFailed = false; progressCleared = true;
+    profileNotice(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true;
+    const archived = archivedCount();
+    toast(archived ? `已清空本机进度。本机报告库仍有 ${archived} 份归档，离开前请确认已导出。` : '已清空本机进度。');
+  }
+  $('#clearProgressBtn').onclick = clearProgress;
+  $('#libraryClearProgressBtn').onclick = clearProgress;
 
   function isPlanAnswered(q, v) {
     if (typeof q.isAnswered === 'function') return q.isAnswered(v);
@@ -414,6 +438,7 @@
 
   function startTest(m) {
     if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('原始进度尚不能识别，请先下载原始JSON，再明确开始新版。'); return; }
+    progressCleared = false;
     mode = m;
     const e = engine[m];
     e.idx = Math.min(S.ui.idx || 0, total() - 1);
