@@ -9,6 +9,7 @@
 | [PR #5](https://github.com/BillWANG0312/bic-planner/pull/5) | 所有者已合并，`3175694` | 测评/报告缺陷修复、题库与院校资料、本机报告库、账号及报告 API 基础 |
 | [PR #6](https://github.com/BillWANG0312/bic-planner/pull/6) | 所有者已合并，`6f86872` | 显式账号连接、分享/批注、顾问授权与审计、文案模拟、本地统计与成绩配对、跨报告摘要 |
 | [PR #8](https://github.com/BillWANG0312/bic-planner/pull/8) | 所有者已合并，`1ec08a0` | 本人改密/全会话撤销、旧档案与续答保护、新旧测评版本隔离、交接说明 |
+| [PR #10](https://github.com/BillWANG0312/bic-planner/pull/10) | 草稿，待审阅 | 架构/术语、独立新版严格合同、中央操作策略和认证能力发现；新版业务仍关闭 |
 
 PR #8 的功能提交为 `7f48452`、`4f3d7d5`、`83bc637`；此后的交接整理仅改文档。分支为 `feat/self-service-password`，由个人 fork 向原仓库 main 提交。这三轮已合并内容不需重复 cherry-pick。本轮架构分支为 `feat/versioned-assessment-architecture`，基于main `6d533f0`，范围见 [架构说明](architecture-overview.md)。当前没有直接合并 main、变更生产环境或代表团队批准上线。
 

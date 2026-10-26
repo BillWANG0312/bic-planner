@@ -1,6 +1,6 @@
 # v1.17.0架构基础验证（2026-10-26）
 
-本轮基于main `6d533f0830ed30e843f58c373a1c25bff9ed7681`，PR #8已由所有者合并；新分支为 `feat/versioned-assessment-architecture`。范围是独立新版合同、中央操作策略、认证能力发现和旧投影边界；CURRENT的全部业务操作仍关闭，不代表新版云端CRUD已完成。
+本轮基于main `6d533f0830ed30e843f58c373a1c25bff9ed7681`，PR #8已由所有者合并；新分支为 `feat/versioned-assessment-architecture`，交付 [草稿PR #10](https://github.com/BillWANG0312/bic-planner/pull/10)。范围是独立新版合同、中央操作策略、认证能力发现和旧投影边界；CURRENT的全部业务操作仍关闭，不代表新版云端CRUD已完成。
 
 ## 最终执行结果
 

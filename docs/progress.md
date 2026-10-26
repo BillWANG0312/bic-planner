@@ -10,6 +10,7 @@
 - PR #5 已由仓库所有者 BillWANG0312 于 2026-10-24 08:05:33 UTC 合并，合并提交 `3175694`；不是本代理执行合并。
 - PR #6 已由仓库所有者于 2026-10-25 08:46:51 UTC 合并，合并提交 `6f8687217945b874de3cfda30ea0e37d0262e673`；不是本代理执行合并。
 - PR #8已由所有者于2026-10-26 04:41:27 UTC合并，合并提交`1ec08a03dcda3ef9103a954947293711727e306a`；本轮从最新main `6d533f0`的新分支推进，不向已合并PR推送。
+- 当前草稿PR：[#10](https://github.com/BillWANG0312/bic-planner/pull/10)，统一新版合同、服务端操作策略和架构交接；基线main `6d533f0`。
 - 源码、临时文件和主要交付使用 D 盘；最终主要交付放 `D:/Codex/outputs`，聊天下载副本放本聊天的 outputs。
 - 可自主实现、测试、审查、提交和推送个人 fork、更新/创建草稿 PR。不得直接合并 main、改生产、购买服务或向他人发送消息。
 
@@ -311,7 +312,7 @@ contracts.py统一辨认profile、完整验证、9项操作支持与能力描述
 
 额外核对当前Chromium题序/量表与Node合同一致且file零HTTP；现personality.js的有状态sort不保证跨引擎一致，下一段上云前必须核对/设计稳定题目ID和题序，不直接重排已有v1。ECMAScript依据与范围已写architecture-overview.md。详细测试口径见verification-2026-10-26.md。
 
-主要交付D:/Codex/outputs/bic-planner-20261026-architecture，聊天outputs/architecture-20261026为副本，含源码/静态包/补丁/架构和术语/ADR/实际日志及来源核对/校验和；解压检查见verification-package.log。没有访问真实学生浏览器/数据库、创建密钥、付费/真实模型调用、发送消息、合并main或改生产；线上main自动拉取机制来自owner文档，本机未核验实际生产版本。
+本轮功能提交723d5c3已推fork，并创建附加草稿PR #10供团队审阅，未直接合并main。主要交付D:/Codex/outputs/bic-planner-20261026-architecture，聊天outputs/architecture-20261026为副本，含源码/静态包/补丁/架构和术语/ADR/实际日志及来源核对/校验和；解压检查见verification-package.log。没有访问真实学生浏览器/数据库、创建密钥、付费/真实模型调用、发送消息、合并main或改生产；线上main自动拉取机制来自owner文档，本机未核验实际生产版本。
 
 ## 当前下一项：新版owner云归档端到端接入
 
