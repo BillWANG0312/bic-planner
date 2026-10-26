@@ -36,8 +36,8 @@ function withSummary(fn, extra = {}) {
       if (extra.beforeLoad) await extra.beforeLoad(page);
     },
     prepare: async context => {
-      await context.route('**/js/cloud-client.js', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient }));
-      await context.route('**/js/academic-scoring-meta.js', route => route.fulfill({ contentType: 'application/javascript', body: 'window.BIC_ACADEMIC_SCORING_META=' + JSON.stringify(metadata) + ';' }));
+      await context.route('**/js/cloud-client.js*', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient }));
+      await context.route('**/js/academic-scoring-meta.js*', route => route.fulfill({ contentType: 'application/javascript', body: 'window.BIC_ACADEMIC_SCORING_META=' + JSON.stringify(metadata) + ';' }));
     }
   });
 }

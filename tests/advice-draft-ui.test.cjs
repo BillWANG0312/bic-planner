@@ -39,7 +39,7 @@ const fakeApp = `
   document.querySelector('#cloudWorkspace').hidden=false;document.querySelector('#cloudDetail').hidden=false;ui.setReport(full);
 })();`;
 function setup(extra={}) { return {...extra,beforeLoad:page=>page.addInitScript(value=>{window.__draftState=value;},fixture()),
-  prepare:context=>context.route('**/js/app.js',route=>route.fulfill({contentType:'application/javascript',body:fakeApp}))}; }
+  prepare:context=>context.route('**/js/app.js*',route=>route.fulfill({contentType:'application/javascript',body:fakeApp}))}; }
 async function generate(page) {page.once('dialog',dialog=>dialog.accept());await page.locator('#adviceGenerateBtn').click();await page.locator('#advicePreview').waitFor({state:'visible'});}
 
 test('draft input validates archive and versions while sending only numeric and enum context',()=>withPage(async page=>{

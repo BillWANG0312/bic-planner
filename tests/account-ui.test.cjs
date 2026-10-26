@@ -21,7 +21,7 @@ function withAccount(fn, extra = {}) {
       await page.addInitScript(data => { window.__accountTest = data; for (const key of ['localStorage', 'sessionStorage']) Object.defineProperty(window, key, { get() { throw new Error('No storage on account page'); } }); }, { calls: [], flags: {}, expires: Math.floor(Date.now() / 1000) + 86400 });
       if (extra.beforeLoad) await extra.beforeLoad(page);
     },
-    prepare: async context => { await context.route('**/js/cloud-client.js', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient })); }
+    prepare: async context => { await context.route('**/js/cloud-client.js*', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient })); }
   });
 }
 async function login(page) {

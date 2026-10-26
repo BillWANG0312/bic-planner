@@ -57,8 +57,8 @@ function setup(extra = {}) {
     ...extra,
     beforeLoad: page => page.addInitScript(value => { window.__testState = value; }, fixture()),
     prepare: async context => {
-      await context.route('**/js/cloud-client.js', route => route.fulfill({contentType:'application/javascript',body:fakeClient}));
-      await context.route('**/js/app.js', route => route.fulfill({contentType:'application/javascript',body:fakeApp}));
+      await context.route('**/js/cloud-client.js*', route => route.fulfill({contentType:'application/javascript',body:fakeClient}));
+      await context.route('**/js/app.js*', route => route.fulfill({contentType:'application/javascript',body:fakeApp}));
     }
   };
 }

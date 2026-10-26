@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
 
 function options(extra = {}) {
-  return { ...extra, prepare: context => context.route('**/js/app.js', route => route.fulfill({ contentType: 'application/javascript', body: '' })) };
+  return { ...extra, prepare: context => context.route('**/js/app.js*', route => route.fulfill({ contentType: 'application/javascript', body: '' })) };
 }
 async function setup(page, origin) {
   await page.evaluate(() => {

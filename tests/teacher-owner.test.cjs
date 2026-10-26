@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { withPage } = require('./helpers/browser.cjs');
 
-function options() { return { prepare: context => context.route('**/js/app.js', route => route.fulfill({ contentType: 'application/javascript', body: '' })) }; }
+function options() { return { prepare: context => context.route('**/js/app.js*', route => route.fulfill({ contentType: 'application/javascript', body: '' })) }; }
 async function setup(page, origin) {
   assert.ok(fs.existsSync(path.join(__dirname, '../js/teacher-owner.js')), 'The explicit teacher owner module must exist');
   await page.evaluate(() => {

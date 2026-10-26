@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
 
-const pageOptions = extra => ({ ...extra, prepare: context => context.route('**/js/app.js', route => route.fulfill({ contentType: 'application/javascript', body: '' })) });
+const pageOptions = extra => ({ ...extra, prepare: context => context.route('**/js/app.js*', route => route.fulfill({ contentType: 'application/javascript', body: '' })) });
 const manifest = (source = 'synthetic') => ({ format: 'bic-followup-results', version: 1, subject: 'maths', scale: 'school_percent_0_100',
   examDate: '2020-02-01', bankVersion: '2026.10', source, outcomes: Array.from({ length: 20 }, (_, i) => ({ studyId: 'STUDY-' + i, score: i < 10 ? i === 0 ? 0 : 70 : null })) });
 async function setup(page, origin) {

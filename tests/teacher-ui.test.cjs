@@ -34,7 +34,7 @@ function options(extra = {}) { return { path: '/teacher.html', ...extra,
     window.__teacherTest = data;
     for (const key of ['localStorage', 'sessionStorage']) Object.defineProperty(window, key, { get() { throw new Error('Teacher page must not use browser storage'); } });
   }, fixture()); if (extra.beforeLoad) await extra.beforeLoad(page); },
-  prepare: async context => { await context.route('**/js/cloud-client.js', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient })); if (extra.prepare) await extra.prepare(context); }
+  prepare: async context => { await context.route('**/js/cloud-client.js*', route => route.fulfill({ contentType: 'application/javascript', body: fakeClient })); if (extra.prepare) await extra.prepare(context); }
 }; }
 function withTeacher(fn, extra) { assert.ok(fs.existsSync(path.join(__dirname, '../teacher.html')), 'The isolated teacher portal must exist'); return withPage(fn, options(extra)); }
 async function login(page) {
