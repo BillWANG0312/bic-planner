@@ -35,7 +35,7 @@
     $('#profileNoticeText').textContent = progressReadFailed ? '无法读取浏览器原进度，未覆盖。本次仍可在内存中作答，但不会自动保存；尚未取得原始JSON，不能提供原始导出。请恢复读取后重新载入并核对，再决定继续或重测。' : saveLocked ? recognizedProfile
       ? `已识别${recognizedProfile === window.AssessmentProfiles.LEGACY ? '旧版进度（14道规划、24道数字量表）' : '未标记的新版游戏/特质进度'}。原始JSON已保护，确认继续前不会自动更新此浏览器进度。请先下载原始备份，再明确选择按原版本继续。`
       : '原始进度损坏、版本未知、混合或已转换，已停止自动保存。请下载原始JSON保留资料；当前只能明确开始新版，不能推断旧答案含义。'
-      : legacyMode() ? '当前按旧版14道规划、24道数字量表继续，已允许保存；原答案不转换为新版特质。可保留原始JSON，另行确认开始新版。' : '当前进度已按识别出的新版游戏/特质版本继续，已允许保存。原始JSON仍可下载。';
+      : legacyMode() ? '当前按旧版14道规划、24道数字量表继续，已允许保存；原答案不转换为新版特质。可保留原始JSON，另行确认开始新版。' : '';
     $('#startBtn').textContent = legacyMode() ? '继续旧版测评' : '开始测评';
     $('#restartBtn').textContent = legacyMode() ? '开始新版测评' : '重新测试';
     $('.step[data-step="mbti"] span').textContent = legacyMode() ? '旧版性格24题' : '性格特质';
