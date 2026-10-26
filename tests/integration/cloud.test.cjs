@@ -3,13 +3,15 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const os = require('node:os');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
 
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || 'D:/Codex/work/bic-cloud-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-cloud-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'cloud-browser-test-only-password';
 let directory, processHandle, browser, origin;
@@ -66,13 +68,14 @@ async function pageFor(index) {
   initial.report = w.generateReport(initial);
   initial.report.meta.batchId = 'AP-CLOUD-' + index;
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await useConfirmHooks(context);
   const page = await context.newPage();
   page.setDefaultTimeout(6000);
   await page.addInitScript(initial => {
     if (!localStorage.getItem('pathwise.state.v1')) localStorage.setItem('pathwise.state.v1', JSON.stringify(initial));
   }, initial);
   await page.goto(origin);
-  page.once('dialog', dialog => dialog.accept());
+  await useConfirm(page).confirmAt(true);
   await page.locator('#profileContinueBtn').click();
   assert.equal(await page.evaluate(() => window.__pathwise.state.assessmentProfile), 'legacy-2026.10');
   return { context, page };
@@ -91,7 +94,7 @@ async function signIn(page, index) {
 
 async function upload(page) {
   await page.locator('#cloudUploadSource').selectOption('current');
-  page.once('dialog', dialog => dialog.accept());
+  await useConfirm(page).confirmAt(true);
   await page.locator('#cloudUploadBtn').click();
   await page.locator('[data-cloud-read]').first().waitFor();
   await page.locator('#cloudRefreshBtn:enabled').waitFor();
@@ -114,7 +117,7 @@ test('explicit connection/upload uses the latest student, never auto-uploads, an
     assert.equal(requests.length, 0, 'Opening the panel alone must not contact an account service');
     await signIn(page, 0);
     assert.equal((await (await context.request.get(origin + '/api/reports')).json()).total, 0);
-    page.once('dialog', dialog => dialog.dismiss());
+    await useConfirm(page).confirmAt(false);
     await page.locator('#cloudUploadBtn').click();
     assert.equal((await (await context.request.get(origin + '/api/reports')).json()).total, 0);
     await upload(page);
@@ -156,7 +159,7 @@ test('a stale cloud update preserves a change from another device without retryi
     const saved = await (await context.request.get(origin + '/api/reports/' + id)).json();
     saved.record.state.info.name = '另一设备保留的修改';
     assert.equal((await context.request.put(origin + '/api/reports/' + id, { headers: await csrf(context), data: { record: saved.record, revision: 1 } })).status(), 200);
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#cloudUpdateBtn').click();
     await page.waitForFunction(() => /变化|冲突|重新读取|刷新/.test(document.querySelector('#cloudStatus').textContent));
     const after = await (await context.request.get(origin + '/api/reports/' + id)).json();
@@ -181,7 +184,7 @@ test('cancel and local quota errors while opening a server report preserve the a
     await page.locator('#cloudRefreshBtn').click();
     await page.locator('[data-cloud-read]').click();
     await page.locator('#cloudDetail').waitFor({ state: 'visible' });
-    page.once('dialog', dialog => dialog.dismiss());
+    await useConfirm(page).confirmAt(false);
     await page.locator('#cloudOpenBtn').click();
     await page.locator('#cloudOpenBtn:enabled').waitFor();
     assert.equal(await page.evaluate(() => window.__pathwise.state.info.name), '连接测试同学2');
@@ -193,7 +196,7 @@ test('cancel and local quota errors while opening a server report preserve the a
         return set.call(this, key, value);
       };
     });
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#cloudOpenBtn').click();
     await page.waitForFunction(() => /未替换|无法保存/.test(document.querySelector('#cloudStatus').textContent));
     assert.equal(await page.evaluate(() => window.__pathwise.state.info.name), '连接测试同学2');
@@ -227,7 +230,7 @@ test('an interrupted upload is not called successful or automatically retried', 
       if (route.request().method() === 'POST') { writes++; return route.abort('failed'); }
       return route.continue();
     });
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#cloudUploadBtn').click();
     await page.waitForFunction(() => /连接|网络|未确认|失败/.test(document.querySelector('#cloudStatus').textContent));
     assert.equal(writes, 1);
@@ -293,10 +296,10 @@ test('owner previews a fixed snapshot, anonymous parent reads without cookies, a
     await page.locator('[data-cloud-read]').click();
     await page.locator('#sharePreviewBtn').click();
     await page.locator('#sharePreview').waitFor({ state: 'visible' });
-    page.once('dialog', dialog => dialog.dismiss());
+    await useConfirm(page).confirmAt(false);
     await page.locator('#shareCreateBtn').click();
     assert.equal(await page.locator('#shareLink').inputValue(), '');
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#shareCreateBtn').click();
     await page.waitForFunction(() => document.querySelector('#shareLink').value.includes('#share='));
     const link = await page.locator('#shareLink').inputValue();
@@ -346,7 +349,7 @@ test('owner previews a fixed snapshot, anonymous parent reads without cookies, a
     await page.locator('[data-cloud-read]').click();
     await page.locator('#shareListBtn').click();
     await page.locator('[data-share-revoke]').waitFor();
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('[data-share-revoke]').click();
     await page.waitForFunction(() => /已撤销/.test(document.querySelector('#cloudStatus').textContent));
     await parent.locator('#shareLoadBtn').click();
@@ -367,7 +370,7 @@ test('a changed source revision cannot create a share from an old preview', asyn
     const saved = await (await context.request.get(origin + '/api/reports/' + id)).json();
     saved.record.state.info.name = '新修订测试同学';
     assert.equal((await context.request.put(origin + '/api/reports/' + id, { headers: await csrf(context), data: { record: saved.record, revision: saved.revision } })).status(), 200);
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#shareCreateBtn').click();
     await page.waitForFunction(() => /变化|冲突|重新读取/.test(document.querySelector('#cloudStatus').textContent));
     assert.equal(await page.locator('#shareLink').inputValue(), '');
@@ -399,7 +402,7 @@ test('account-bound family comments preserve edited uncertain drafts, support ow
     await page.locator('#accessRecipient').fill('browser.7');
     await page.locator('#accessPreviewBtn').click();
     await page.locator('#accessPreview').waitFor({ state: 'visible' });
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#accessCreateBtn').click();
     await page.locator('[data-access-revoke]').waitFor();
     const grantId = await page.locator('[data-access-revoke]').getAttribute('data-access-revoke');
@@ -457,7 +460,7 @@ test('account-bound family comments preserve edited uncertain drafts, support ow
       assert.ok(await family.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await family.screenshot({ path: path.join(root, 'test-results/family-mobile.png'), fullPage: true });
     }
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('[data-access-revoke]').click();
     await page.waitForFunction(() => /已撤销/.test(document.querySelector('#cloudStatus').textContent));
     await family.locator('#familyThreadRefreshBtn').click();
@@ -481,7 +484,7 @@ test('local demonstration drafts require review, preserve scores, and carry sour
     const localBefore = await page.evaluate(() => JSON.stringify(window.__pathwise.state.info));
     const requests = [];
     page.on('request', request => { if (request.method() === 'POST' && request.url().includes('/advice-drafts')) requests.push(request); });
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#adviceGenerateBtn').click();
     await page.locator('#advicePreview').waitFor({ state: 'visible' });
     assert.match(await page.locator('#draftSource').textContent(), /本地模拟/);
@@ -496,10 +499,10 @@ test('local demonstration drafts require review, preserve scores, and carry sour
       await page.screenshot({ path: path.join(root, 'test-results/advice-mobile.png'), fullPage: true });
       await page.setViewportSize({ width: 1280, height: 900 });
     }
-    page.once('dialog', dialog => dialog.dismiss());
+    await useConfirm(page).confirmAt(false);
     await page.locator('#adviceApplyBtn').click();
     assert.equal(requests.length, 1, 'Cancel review must not write the report');
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#adviceApplyBtn').click();
     await page.waitForFunction(() => /所选建议已保存/.test(document.querySelector('#cloudStatus').textContent));
     const updated = await (await context.request.get(origin + '/api/reports/' + id)).json();
@@ -509,7 +512,7 @@ test('local demonstration drafts require review, preserve scores, and carry sour
     assert.deepEqual(Object.keys(updated.record.advisor.sections), ['summary']);
     assert.equal(updated.record.advisor.history.at(-1).origin.kind, 'local_mock');
     assert.equal(await page.evaluate(() => JSON.stringify(window.__pathwise.state.info)), localBefore);
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#cloudOpenBtn').click();
     await page.locator('#screen-report.active').waitFor();
     assert.match(await page.locator('#reportRoot').textContent(), /本地模拟草稿/);
@@ -529,13 +532,13 @@ test('a source change after drafting prevents stale application without overridi
     await page.locator('[data-cloud-read]').click();
     const id = await page.locator('[data-cloud-read]').getAttribute('data-cloud-read');
     const original = await (await context.request.get(origin + '/api/reports/' + id)).json();
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#adviceGenerateBtn').click();
     await page.locator('#advicePreview').waitFor({ state: 'visible' });
     original.record.state.info.name = '草稿后另设备的新修订';
     assert.equal((await context.request.put(origin + '/api/reports/' + id, { headers: await csrf(context), data: { record: original.record, revision: original.revision } })).status(), 200);
     await page.locator('#adviceReviewer').fill('测试审核者');
-    page.once('dialog', dialog => dialog.accept());
+    await useConfirm(page).confirmAt(true);
     await page.locator('#adviceApplyBtn').click();
     await page.waitForFunction(() => /变化|冲突|重新读取/.test(document.querySelector('#cloudStatus').textContent));
     const after = await (await context.request.get(origin + '/api/reports/' + id)).json();

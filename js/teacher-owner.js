@@ -70,6 +70,7 @@
       resetPreview(); setBusy(busy);
       options.run('正在创建顾问单报告只读授权…', async current => {
         const grant = await options.client.createTeacherAccess(report.id, captured.revision, captured.recipient, captured.ttl);
+        if (window.BIC_TEST_HOOKS === 1) window.__teacherCreated = grant;
         if (!current() || own !== epoch || selected !== report) return;
         grants = [grant, ...grants.filter(value => value.id !== grant.id)]; drawList();
         options.message('顾问只读授权已创建，没有发送消息；请自行告知接收人使用顾问只读入口。');

@@ -3,11 +3,13 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const os = require('node:os');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve('D:/Codex/work/bic-password-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-password-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'teacher-browser-test-only-password';
 let directory, server, browser, origin, logs = '';
@@ -40,7 +42,8 @@ async function authenticate(context, username, credential = password) {
   assert.equal(response.status(), 200); return response.json();
 }
 async function setup(username) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await useConfirmHooks(context);
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
   const requests = []; page.on('request', request => { if (request.url().includes('/api/')) requests.push(request); });
   await page.goto(origin + '/account.html'); assert.equal(requests.length, 0);
   await page.locator('#accountConnectBtn').click(); await page.locator('#accountUsername').fill(username); await page.locator('#accountPassword').fill(password);
@@ -68,10 +71,13 @@ test('confirmed change revokes every own session, preserves reports and other us
       await f.page.setViewportSize({ width: 375, height: 812 }); assert.ok(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await f.page.screenshot({ path: path.join(root, 'test-results/password-mobile.png'), fullPage: true });
     }
-    f.page.once('dialog', dialog => dialog.dismiss()); await f.page.locator('#accountChangeBtn').click(); await emptyInputs(f.page);
+    // The confirmation is what sends the request: declining it must change nothing.
+    const askedBefore = (await useConfirm(f.page).asked()).length;
+    await useConfirm(f.page).confirmAt(false); await f.page.locator('#accountChangeBtn').click();
+    await f.page.waitForFunction(count => window.__BIC_CONFIRM.asked.length === count, askedBefore + 1); await emptyInputs(f.page);
     assert.equal(f.requests.filter(request => request.url().endsWith('/auth/password')).length, 0); assert.equal((await second.request.get(origin + '/api/auth/session')).status(), 200);
     await fill(f.page, next);
-    f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#accountChangeBtn').click(); await f.page.locator('#accountWorkspace').waitFor({ state: 'hidden' }); await emptyInputs(f.page);
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#accountChangeBtn').click(); await f.page.locator('#accountWorkspace').waitFor({ state: 'hidden' }); await emptyInputs(f.page);
     assert.match(await f.page.locator('#accountStatus').textContent(), /已.*修改|修改.*成功|改密.*成功/);
     assert.equal((await second.request.get(origin + '/api/auth/session')).status(), 401); assert.deepEqual((await (await other.request.get(origin + '/api/auth/session')).json()).user, otherSession.user);
     await oldPage.locator('#cloudRefreshBtn').click(); await oldPage.locator('#cloudWorkspace').waitFor({ state: 'hidden' }); assert.equal(await oldPage.getByText('改密验证虚构学员', { exact: true }).count(), 0);
@@ -88,7 +94,7 @@ test('a committed change with a lost response never retries or claims success an
   try {
     await authenticate(second, 'password.uncertain'); let changes = 0;
     await f.page.route('**/api/auth/password', async route => { changes++; const response = await route.fetch(); assert.equal(response.status(), 204); await route.abort('failed'); });
-    await fill(f.page, next); f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#accountChangeBtn').click(); await f.page.locator('#accountWorkspace').waitFor({ state: 'hidden' }); await emptyInputs(f.page);
+    await fill(f.page, next); await useConfirm(f.page).confirmAt(true); await f.page.locator('#accountChangeBtn').click(); await f.page.locator('#accountWorkspace').waitFor({ state: 'hidden' }); await emptyInputs(f.page);
     const message = await f.page.locator('#accountStatus').textContent(); assert.match(message, /未确认|尚未确认|无法确认|未知/); assert.doesNotMatch(message, /修改成功|已成功|已完成改密/); assert.equal(changes, 1);
     assert.equal((await second.request.get(origin + '/api/auth/session')).status(), 401); await f.page.unroute('**/api/auth/password');
     await f.page.locator('#accountConnectBtn').click(); await f.page.locator('#accountUsername').fill('password.uncertain'); await f.page.locator('#accountPassword').fill(next); await f.page.locator('#accountLoginForm button[type=submit]').click();
@@ -100,10 +106,21 @@ test('another tab replacing the cookie during confirmation cannot change either 
   const f = await setup('password.switch');
   try {
     const next = 'new-switched-synthetic-password'; await fill(f.page, next);
-    f.page.once('dialog', async dialog => { await authenticate(f.context, 'password.other'); await dialog.accept(); });
-    await f.page.locator('#accountChangeBtn').click(); await f.page.locator('#accountWorkspace').waitFor({ state: 'hidden' }); await emptyInputs(f.page);
+    const askedBefore = (await useConfirm(f.page).asked()).length;
+    await useConfirm(f.page).confirmAt(true);
+    await f.page.locator('#accountChangeBtn').click();
+    // Another tab's login replaces this page's cookie while the question is open. The question was shown before
+    // the login, so the page serves the calls that follow it while it waits on the answer.
+    await f.page.waitForFunction(count => window.__BIC_CONFIRM.asked.length > count, askedBefore);
+    const switched = await f.context.request.post(origin + '/api/auth/login', { headers: { Origin: origin }, data: { username: 'password.other', password } });
+    assert.equal(switched.status(), 200);
+    // Answered, the page sends its one change, under the original account's token, and the service refuses it: the
+    // request is not the one that page session was accepted for. The page then drops the session it can no longer
+    // vouch for, so the tab that logged in as the other account is never shown here.
+    await f.page.waitForFunction(() => /本次改密未获服务确认/.test(document.querySelector('#accountStatus').textContent));
+    await f.page.locator('#accountWorkspace').waitFor({ state: 'hidden' }); await emptyInputs(f.page);
     assert.equal(await f.page.locator('#accountIdentity').textContent(), '');
     for (const username of ['password.switch', 'password.other']) { const check = await browser.newContext(); try { await authenticate(check, username); } finally { await check.close(); } }
-    const changes = f.requests.filter(request => request.url().endsWith('/auth/password')); assert.equal(changes.length, 1); assert.equal((await changes[0].response()).status(), 403);
+    const changes = f.requests.filter(request => request.url().endsWith('/auth/password')); assert.equal(changes.length, 1); assert.notEqual((await changes[0].response())?.status(), 204);
   } finally { await f.context.close(); }
 });

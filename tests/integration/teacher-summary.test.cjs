@@ -2,13 +2,15 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve('D:/Codex/work/bic-teacher-summary-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-teacher-summary-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'teacher-browser-test-only-password';
 let directory, server, browser, origin, logs = '';
@@ -53,7 +55,12 @@ async function setup(label) {
       data: { revision: 1, recipient_username: 'summary.advisor', ttl_hours: 24, scope: 'full_report_read_only' } });
     assert.equal(permission.status(), 201); grants.push(await permission.json());
   }
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  // Lets the page publish the exact reviewed batch for the CSV comparison, and answer confirmations without
+  // a native dialog; both are off outside the tests. The hooks must exist before the page does, or its
+  // own navigations bypass them.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  await useConfirmHooks(context);
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
   const requests = []; page.on('request', request => { if (request.url().includes('/api/')) requests.push(request); });
   await page.goto(origin + '/teacher-summary.html'); assert.equal(requests.length, 0);
   await page.locator('#summaryConnectBtn').click(); await page.locator('#summaryUsername').fill('summary.advisor'); await page.locator('#summaryPassword').fill(password);
@@ -65,9 +72,12 @@ async function setup(label) {
 }
 async function select(f, index) { await f.page.locator(`[data-summary-grant="${f.grants[index].id}"]`).check(); }
 async function preview(f) {
-  const reply = f.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/teacher-summaries'));
-  await f.page.locator('#summaryPreviewBtn').click(); const response = await reply; assert.equal(response.status(), 200);
-  const batch = await response.json(); await f.page.locator('#summaryPreview').waitFor({ state: 'visible' }); return batch;
+  // The batch body cannot be read from the page reliably (see helpers/response.cjs), so the page keeps
+  // its reviewed preview on window for the test and the assertions run against that same object.
+  const pending = f.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/teacher-summaries'));
+  await f.page.locator('#summaryPreviewBtn').click(); assert.equal((await pending).status(), 200);
+  await f.page.locator('#summaryPreview').waitFor({ state: 'visible' });
+  return f.page.evaluate(() => window.__summaryPreview);
 }
 async function close(f) { await f.context.close(); await f.owner.close(); }
 
@@ -83,7 +93,7 @@ test('selected readonly summaries produce an exact private CSV after fresh check
     const expected = await f.page.evaluate(value => window.TeacherSummary.build(value, 'summary.advisor').csv, both);
     assert.match(expected, /"'=SUM\(1,1\)"/); assert.equal(expected.includes('"answers"'), false);
     const downloads = []; f.page.on('download', event => downloads.push(event));
-    f.page.once('dialog', dialog => dialog.dismiss()); await f.page.locator('#summaryExportBtn').click(); await f.page.locator('#summaryExportBtn:enabled').waitFor(); assert.equal(downloads.length, 0);
+    await useConfirm(f.page).confirmAt(false); await f.page.locator('#summaryExportBtn').click(); await f.page.locator('#summaryExportBtn:enabled').waitFor(); assert.equal(downloads.length, 0);
     if (process.env.BIC_CAPTURE === '1') {
       await f.page.locator('#summaryPreview').evaluate(element => element.scrollIntoView({ block: 'start' }));
       await f.page.screenshot({ path: path.join(root, 'test-results/summary-desktop.png') });
@@ -91,7 +101,7 @@ test('selected readonly summaries produce an exact private CSV after fresh check
       await f.page.locator('#summaryPreview').evaluate(element => element.scrollIntoView({ block: 'start' }));
       await f.page.screenshot({ path: path.join(root, 'test-results/summary-mobile.png') });
     }
-    const file = f.page.waitForEvent('download'); f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#summaryExportBtn').click(); const download = await file;
+    await useConfirm(f.page).confirmAt(true); const file = f.page.waitForEvent('download'); await f.page.locator('#summaryExportBtn').click(); const download = await file;
     assert.equal(download.suggestedFilename(), 'bic-teacher-completion-v1.csv'); assert.equal(await fs.readFile(await download.path(), 'utf8'), expected);
     assert.equal(downloads.length, 1); assert.equal(await f.page.evaluate(() => localStorage.length + sessionStorage.length), 0);
     assert.equal(f.requests.some(request => /\/api\/teacher-access\/[^/]+$/.test(request.url())), false);
@@ -105,11 +115,12 @@ test('revocation during confirmation rejects the entire reviewed batch and never
   const f = await setup('TWO');
   try {
     await select(f, 0); await select(f, 1); await preview(f); let downloads = 0; f.page.on('download', () => { downloads++; });
-    f.page.once('dialog', async dialog => {
-      assert.equal((await f.owner.request.delete(origin + '/api/reports/' + f.reports[0].id + '/teacher-access/' + f.grants[0].id, { headers: f.headers })).status(), 204); await dialog.accept();
-    });
-    await f.page.locator('#summaryExportBtn').click(); await f.page.locator('#summaryPreview').waitFor({ state: 'hidden' });
-    assert.equal(downloads, 0); assert.equal(await f.page.locator('#summaryTable').textContent(), ''); assert.equal(await f.page.locator('#summaryExportBtn').isDisabled(), true);
+    // The export checks every review once more after the answer, so a batch holding a revoked grant is
+    // refused whole -- the report that is still valid is not exported on its own.
+    assert.equal((await f.owner.request.delete(origin + '/api/reports/' + f.reports[0].id + '/teacher-access/' + f.grants[0].id, { headers: f.headers })).status(), 204);
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#summaryExportBtn').click();
+    await f.page.waitForFunction(() => document.querySelector('#summaryStatus').classList.contains('is-error'));
+    assert.equal(downloads, 0); assert.equal(await f.page.locator('#summaryTable').textContent(), '');
     assert.deepEqual((await (await f.owner.request.get(origin + '/api/reports/' + f.reports[1].id)).json()), f.reports[1]);
   } finally { await close(f); }
 });

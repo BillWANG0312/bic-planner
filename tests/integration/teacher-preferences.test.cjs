@@ -2,13 +2,15 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve('D:/Codex/work/bic-teacher-preferences-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-teacher-preferences-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'teacher-browser-test-only-password';
 let directory, server, browser, origin, logs = '';
@@ -58,7 +60,12 @@ async function setup(label, academic = false) {
       data: { revision: 1, recipient_username: 'summary.advisor', ttl_hours: 24, scope: 'full_report_read_only' } });
     assert.equal(permission.status(), 201); grants.push(await permission.json());
   }
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  // Lets the page publish the exact reviewed batch for the CSV comparison, and answer confirmations without
+  // a native dialog; both are off outside the tests. The hooks must exist before the page does, or its
+  // own navigations bypass them.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  await useConfirmHooks(context);
+  const page = await context.newPage(); page.setDefaultTimeout(7000);
   const requests = []; page.on('request', request => { if (request.url().includes('/api/')) requests.push(request); });
   await page.goto(origin + '/teacher-summary.html'); assert.equal(requests.length, 0);
   await page.locator('#summaryConnectBtn').click(); await page.locator('#summaryUsername').fill('summary.advisor'); await page.locator('#summaryPassword').fill(password);
@@ -66,13 +73,16 @@ async function setup(label, academic = false) {
   await page.locator('#summaryRefreshBtn:enabled').waitFor(); assert.equal(requests.some(request => request.url().endsWith('/api/teacher-access')), false);
   await page.locator('#summaryRefreshBtn').click(); await page.locator(`[data-summary-grant="${grants[0].id}"]:enabled`).waitFor();
   assert.equal(await page.locator('[data-summary-grant]:checked').count(), 0);
-  return { owner, headers, reports, grants, context, page, requests };
+  return { owner, headers, reports, grants, context, page, requests, revoke: (report, grant) => owner.request.delete(origin + '/api/reports/' + report.id + '/teacher-access/' + grant.id, { headers }) };
 }
 async function select(f, index) { await f.page.locator(`[data-summary-grant="${f.grants[index].id}"]`).check(); }
 async function preview(f) {
-  const reply = f.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/teacher-summaries'));
-  await f.page.locator('#summaryPreviewBtn').click(); const response = await reply; assert.equal(response.status(), 200);
-  const batch = await response.json(); await f.page.locator('#summaryPreview').waitFor({ state: 'visible' }); return batch;
+  // The batch body cannot be read from the page reliably (see helpers/response.cjs), so the page keeps
+  // its reviewed preview on window for the test and the assertions run against that same object.
+  const pending = f.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/teacher-summaries'));
+  await f.page.locator('#summaryPreviewBtn').click(); assert.equal((await pending).status(), 200);
+  await f.page.locator('#summaryPreview').waitFor({ state: 'visible' });
+  return f.page.evaluate(() => window.__summaryPreview);
 }
 async function close(f) { await f.context.close(); await f.owner.close(); }
 
@@ -93,7 +103,7 @@ test('four explicit modes preserve old formats and download fixed student choice
     assert.deepEqual(v3.preference_schema, await f.page.evaluate(() => window.BIC_PREFERENCE_SCHEMA.metadata));
     async function download(expectedName, batch) {
       const expected = await f.page.evaluate(value => window.TeacherSummary.build(value, 'summary.advisor').csv, batch);
-      const pending = f.page.waitForEvent('download'); f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#summaryExportBtn').click(); const file = await pending;
+      await useConfirm(f.page).confirmAt(true); const pending = f.page.waitForEvent('download'); await f.page.locator('#summaryExportBtn').click(); const file = await pending;
       assert.equal(file.suggestedFilename(), expectedName); assert.equal(await fs.readFile(await file.path(), 'utf8'), expected);
     }
     await download('bic-teacher-preferences-v3.csv', v3);
@@ -129,17 +139,43 @@ test('a mismatched preference dictionary blocks export without fallback', async 
   } finally { await close(f); }
 });
 
-test('programmatic preference change during final read and revoked grants stop old exports', async () => {
+// The export runs from a click's own task: while it is open nothing else on the page can be told apart from
+// a hung dialog. So the server side alone (never the page) changes while the export's fresh read is in flight.
+// Assertions made in the route handler are collected and rethrown by asserted(), after the page settles.
+async function changeWhileFetching(f, pattern, change) {
+  let hits = 0, failure = null;
+  await f.page.route(pattern, async route => {
+    hits++;
+    try { if (change) await change(hits); await route.continue(); }
+    catch (error) { failure = failure || error; await route.abort().catch(() => {}); }
+  });
+  return { hits: () => hits, asserted: () => { if (failure) throw failure; } };
+}
+
+test('a programmatic preference change after preview stops the reviewed export before it is confirmed', async () => {
   const f = await setup('PREFERENCE-MODE');
   try {
-    await select(f, 0); await f.page.locator('#summaryPreferences').check(); await preview(f); let downloads = 0, checks = 0; f.page.on('download', () => { downloads++; });
-    await f.page.route('**/api/teacher-summaries', async route => { checks++; if (checks === 2) await f.page.evaluate(() => { document.querySelector('#summaryPreferences').checked = false; }); await route.continue(); });
-    f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#summaryExportBtn').click(); await f.page.locator('#summaryPreview').waitFor({ state: 'hidden' });
-    assert.equal(checks, 2); assert.equal(downloads, 0); await f.page.unroute('**/api/teacher-summaries');
-    await f.page.locator('#summaryRefreshBtn').click(); await f.page.locator(`[data-summary-grant="${f.grants[0].id}"]:enabled`).waitFor(); await select(f, 0);
-    await f.page.locator('#summaryPreferences').check(); await preview(f);
-    f.page.once('dialog', async dialog => { const response = await f.owner.request.delete(origin + '/api/reports/' + f.reports[0].id + '/teacher-access/' + f.grants[0].id, { headers: f.headers }); assert.equal(response.status(), 204); await dialog.accept(); });
-    await f.page.locator('#summaryExportBtn').click(); await f.page.locator('#summaryPreview').waitFor({ state: 'hidden' });
-    assert.equal(downloads, 0); assert.equal(await f.page.locator('#summaryTable').textContent(), '');
+    await select(f, 0); await f.page.locator('#summaryPreferences').check(); await preview(f);
+    let downloads = 0; f.page.on('download', () => { downloads++; });
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#summaryPreferences').uncheck();
+    assert.equal(await f.page.locator('#summaryPreview').isHidden(), true); assert.equal(await f.page.locator('#summaryExportBtn').isDisabled(), true);
+    assert.match(await f.page.locator('#summaryStatus').textContent(), /已选择|重新核对/); assert.equal(downloads, 0); assert.deepEqual(await useConfirm(f.page).asked(), []);
+  } finally { await close(f); }
+});
+
+test('a grant revoked during the final export check stops the old reviewed download', async () => {
+  const f = await setup('PREFERENCE-REVOKE');
+  try {
+    await select(f, 0); await f.page.locator('#summaryPreferences').check(); await preview(f);
+    let downloads = 0; f.page.on('download', () => { downloads++; });
+    const hits = await changeWhileFetching(f, '**/api/teacher-summaries', async () => {
+      const response = await f.revoke(f.reports[0], f.grants[0]);
+      assert.equal(response.status(), 204);
+    });
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#summaryExportBtn').click(); await f.page.locator('#summaryPreview').waitFor({ state: 'hidden' });
+    assert.equal(await f.page.locator('#summaryTable').textContent(), ''); await hits.asserted();
+    assert.equal(hits.hits(), 1); assert.equal(downloads, 0);
+    assert.match(await f.page.locator('#summaryStatus').textContent(), /授权|重新|关闭|清除/);
+    await f.page.unroute('**/api/teacher-summaries');
   } finally { await close(f); }
 });

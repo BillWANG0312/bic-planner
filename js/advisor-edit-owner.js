@@ -83,6 +83,7 @@
       resetPreview(); setBusy(busy);
       options.run('正在创建独立的建议编辑授权…', async current => {
         const grant = await options.client.createAdvisorEditAccess(report.id, captured.revision, captured.recipient, captured.ttl, captured.baseline);
+        if (window.BIC_TEST_HOOKS === 1) window.__editCreated = grant;
         if (!current() || own !== epoch || selected !== report) return;
         grants = [grant, ...grants.filter(value => value.id !== grant.id)]; drawList(); options.message('建议编辑授权已创建，没有发送消息；旧只读和家长权限未扩权。请自行告知顾问使用建议编辑入口。');
       });

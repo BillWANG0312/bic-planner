@@ -3,11 +3,13 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const os = require('node:os');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve('D:/Codex/work/bic-assessment-profile-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-assessment-profile-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'teacher-browser-test-only-password';
 let directory, server, browser, origin, logs = '';
@@ -37,6 +39,7 @@ after(async () => {
 
 async function open(initial) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  await useConfirmHooks(context);
   if (initial !== undefined) await page.addInitScript(raw => { if (localStorage.getItem('pathwise.state.v1') === null) localStorage.setItem('pathwise.state.v1', raw); }, initial);
   const requests = []; page.on('request', request => { if (request.url().includes('/api/')) requests.push(request); });
   await page.goto(origin + '/index.html'); return { context, page, requests };
@@ -82,8 +85,8 @@ test('old original progress stays untouched until confirmation and retains its o
       await f.page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
       await f.page.screenshot({ path: path.join(root, 'test-results/profile-mobile.png'), animations: 'disabled' });
     }
-    f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#profileContinueBtn').click();
-    await signIn(f, 'profile.legacy'); f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#cloudUploadBtn').click(); await f.page.locator('[data-cloud-read]').waitFor();
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#profileContinueBtn').click();
+    await signIn(f, 'profile.legacy'); await useConfirm(f.page).confirmAt(true); await f.page.locator('#cloudUploadBtn').click(); await f.page.locator('[data-cloud-read]').waitFor();
     const list = await (await f.context.request.get(origin + '/api/reports')).json(); assert.equal(list.total, 1);
     const saved = await (await f.context.request.get(origin + '/api/reports/' + list.items[0].id)).json();
     assert.equal('assessmentProfile' in saved.record, false); assert.deepEqual(saved.record.state.mbti.answers, expected.mbti.answers); assert.deepEqual(saved.record.state.plan.answers, expected.plan.answers);
@@ -97,8 +100,11 @@ test('converted or unknown progress only exports its original bytes until an exp
     await f.page.locator('#profileNotice').waitFor({ state: 'visible' }); assert.equal(await f.page.locator('#profileContinueBtn').isHidden(), true);
     const pending = f.page.waitForEvent('download'); await f.page.locator('#profileRawDownloadBtn').click(); const file = await pending;
     assert.equal(await fs.readFile(await file.path(), 'utf8'), raw);
-    f.page.once('dialog', dialog => dialog.dismiss()); await f.page.locator('#profileRestartBtn').click(); assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
-    f.page.once('dialog', dialog => dialog.accept()); await f.page.locator('#profileRestartBtn').click();
+    // The confirmation is what starts the new version: declining it must ask once and change nothing.
+    const askedBefore = (await useConfirm(f.page).asked()).length;
+    await useConfirm(f.page).confirmAt(false); await f.page.locator('#profileRestartBtn').click();
+    await f.page.waitForFunction(count => window.__BIC_CONFIRM.asked.length === count, askedBefore + 1); assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#profileRestartBtn').click();
     assert.equal(await f.page.evaluate(() => __pathwise.state.assessmentProfile), 'games-traits-v1'); assert.equal(await f.page.evaluate(() => __pathwise.state.mbti.answers.length), 30);
     assert.equal(f.requests.length, 0);
   } finally { await f.context.close(); }

@@ -2,13 +2,16 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
 const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
+const { actionResponse, readNewest } = require('../helpers/response.cjs');
+const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const root = path.resolve(__dirname, '../..');
-const temporaryRoot = path.resolve('D:/Codex/work/bic-teacher-browser-tests');
+const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-teacher-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 const password = 'teacher-browser-test-only-password';
 let directory, server, browser, origin, logs = '';
@@ -41,26 +44,37 @@ async function ownerPage(label) {
   value.report = w.generateReport(value); value.report.meta.batchId = 'TEACHER-CASE-' + label;
   w.reportEditing.applyEdit(value.report, 'summary', '<img src=x onerror=alert(1)>只读建议', '原顾问');
   value.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage(); page.setDefaultTimeout(7000);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await useConfirmHooks(context);
+  const page = await context.newPage(); page.setDefaultTimeout(7000); const confirm = useConfirm(page);
   await page.addInitScript(value => { if (!localStorage.getItem('pathwise.state.v1')) localStorage.setItem('pathwise.state.v1', JSON.stringify(value)); }, value);
   await page.goto(origin);
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#profileContinueBtn').click();
+  await confirm.confirmAt(true); await page.locator('#profileContinueBtn').click();
   assert.equal(await page.evaluate(() => window.__pathwise.state.assessmentProfile), 'legacy-2026.10');
   await page.locator('#openCloudBtn').click(); await page.locator('#cloudConnectBtn').click();
   await page.locator('#cloudUsername').fill('teacher.owner'); await page.locator('#cloudPassword').fill(password);
   await page.locator('#cloudLoginForm button[type=submit]').click(); await page.locator('#cloudWorkspace').waitFor({ state: 'visible' });
   await page.locator('#cloudRefreshBtn:enabled').waitFor();
-  const uploaded = page.waitForResponse(response => response.request().method() === 'POST' && response.url() === origin + '/api/reports');
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#cloudUploadBtn').click(); const saved = await (await uploaded).json();
+  await confirm.confirmAt(true);
+  const uploaded = await actionResponse(page, response => response.request().method() === 'POST' && response.url() === origin + '/api/reports',
+    () => page.locator('#cloudUploadBtn').click(),
+    () => readNewest(context, origin + '/api/reports', origin + '/api/reports/'));
+  assert.equal(uploaded.status, 201); const saved = uploaded.value;
   await page.locator(`[data-cloud-read="${saved.id}"]:enabled`).waitFor(); await page.locator(`[data-cloud-read="${saved.id}"]`).click();
   await page.locator('#teacherRecipient:enabled').waitFor();
   return { context, page, saved };
 }
 async function previewGrant(page) { await page.locator('#teacherRecipient').fill('teacher.recipient'); await page.locator('#teacherPreviewBtn').click(); await page.locator('#teacherOwnerPreview').waitFor({ state: 'visible' }); }
-async function createGrant(page) {
-  const created = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/teacher-access'));
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#teacherCreateBtn').click();
-  const response = await created; assert.equal(response.status(), 201); await page.locator('#teacherRecipient:enabled').waitFor(); return response.json();
+async function createGrant(owner, revision) {
+  await useConfirm(owner.page).confirmAt(true);
+  // The creation response is the grant itself. Headless Chromium does not always hand its body back to
+  // Node, so the page keeps the grant it read from that response for the test to collect.
+  const created = owner.page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/teacher-access'));
+  await owner.page.locator('#teacherCreateBtn').click();
+  assert.equal((await created).status(), 201);
+  await owner.page.locator('#teacherRecipient:enabled').waitFor();
+  await owner.page.waitForFunction(() => window.__teacherCreated !== null);
+  const grant = await owner.page.evaluate(() => window.__teacherCreated);
+  assert.equal(grant.report_revision, revision); return grant;
 }
 async function teacherPage() {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage(); page.setDefaultTimeout(7000);
@@ -78,8 +92,11 @@ test('owner consent grants one revision, teacher reads privately without edits, 
   try {
     const posts = []; owner.page.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/teacher-access')) posts.push(request); });
     await previewGrant(owner.page); assert.match(await owner.page.locator('#teacherOwnerPreview').textContent(), /逐题|答卷/);
-    owner.page.once('dialog', dialog => dialog.dismiss()); await owner.page.locator('#teacherCreateBtn').click(); assert.equal(posts.length, 0);
-    const grant = await createGrant(owner.page); assert.equal(posts.length, 1); assert.equal(grant.report_revision, 1);
+    // The confirmation is what sends the request: declining it must request no grant.
+    const askedBefore = (await useConfirm(owner.page).asked()).length;
+    await useConfirm(owner.page).confirmAt(false); await owner.page.locator('#teacherCreateBtn').click(); assert.equal(posts.length, 0);
+    assert.equal((await useConfirm(owner.page).asked()).length, askedBefore + 1);
+    const grant = await createGrant(owner, 1); assert.equal(posts.length, 1); assert.equal(grant.report_revision, 1);
     await readGrant(teacher.page, grant.id);
     assert.match(await teacher.page.locator('#teacherReport').textContent(), /授权测试同学ONE/);
     assert.match(await teacher.page.locator('#teacherHistory').textContent(), /原顾问|只读建议/);
@@ -97,7 +114,7 @@ test('owner consent grants one revision, teacher reads privately without edits, 
       await teacher.page.locator('#teacherHeading').evaluate(element => element.scrollIntoView({ block: 'start' }));
       await teacher.page.screenshot({ path: path.join(root, 'test-results/teacher-mobile.png') });
     }
-    owner.page.once('dialog', dialog => dialog.accept()); await owner.page.locator(`[data-teacher-revoke="${grant.id}"]`).click();
+    await useConfirm(owner.page).confirmAt(true); await owner.page.locator(`[data-teacher-revoke="${grant.id}"]`).click();
     await owner.page.waitForFunction(() => /已撤销/.test(document.querySelector('#cloudStatus').textContent));
     await teacher.page.locator('#teacherRefreshBtn').click(); await teacher.page.locator('#teacherDetail').waitFor({ state: 'hidden' });
     assert.equal(await teacher.page.locator('#teacherReport').textContent(), ''); assert.equal(await teacher.page.locator('#teacherHistory').textContent(), '');
@@ -108,14 +125,14 @@ test('owner consent grants one revision, teacher reads privately without edits, 
 test('an owner source update closes the old readonly revision until a new grant is explicitly created', async () => {
   const owner = await ownerPage('TWO'), teacher = await teacherPage();
   try {
-    await previewGrant(owner.page); const grant = await createGrant(owner.page); await readGrant(teacher.page, grant.id);
+    await previewGrant(owner.page); const grant = await createGrant(owner, 1); await readGrant(teacher.page, grant.id);
     const changed = structuredClone(owner.saved.record); changed.state.info.name = '新修订需重新授权';
     assert.equal((await owner.context.request.put(origin + '/api/reports/' + owner.saved.id, { headers: await csrf(owner.context), data: { revision: 1, record: changed } })).status(), 200);
     await teacher.page.locator('#teacherReadRefreshBtn').click(); await teacher.page.locator('#teacherDetail').waitFor({ state: 'hidden' });
     assert.equal(await teacher.page.locator('#teacherReport').textContent(), '');
     await owner.page.locator('#teacherListBtn').click(); await owner.page.waitForFunction(() => /修订已更新|重新授权/.test(document.querySelector('#teacherOwnerList').textContent));
     await owner.page.locator(`[data-cloud-read="${owner.saved.id}"]`).click(); await owner.page.locator('#teacherRecipient:enabled').waitFor();
-    await previewGrant(owner.page); const renewed = await createGrant(owner.page); assert.equal(renewed.report_revision, 2);
+    await previewGrant(owner.page); const renewed = await createGrant(owner, 2);
     await readGrant(teacher.page, renewed.id); assert.match(await teacher.page.locator('#teacherReport').textContent(), /新修订需重新授权/);
   } finally { await teacher.context.close(); await owner.context.close(); }
 });
@@ -123,7 +140,7 @@ test('an owner source update closes the old readonly revision until a new grant 
 test('another tab changing the shared cookie cannot expose a different advisor under the earlier identity', async () => {
   const owner = await ownerPage('THREE'), teacher = await teacherPage();
   try {
-    await previewGrant(owner.page); const grant = await createGrant(owner.page); await readGrant(teacher.page, grant.id);
+    await previewGrant(owner.page); const grant = await createGrant(owner, 1); await readGrant(teacher.page, grant.id);
     const next = await teacher.context.request.post(origin + '/api/auth/login', { headers: { Origin: origin }, data: { username: 'teacher.other', password } }); assert.equal(next.status(), 200);
     await teacher.page.locator('#teacherReadRefreshBtn').click();
     await teacher.page.waitForFunction(() => /会话|变化|登录/.test(document.querySelector('#teacherStatus').textContent));
