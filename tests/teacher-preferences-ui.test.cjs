@@ -66,7 +66,8 @@ test('preferences are opt-in, independent, and load only the safe dictionary bef
   assert.equal(await page.locator('#summaryPreferences').isChecked(), false); assert.equal(await page.locator('#summaryAcademic').isChecked(), false);
   assert.deepEqual(await page.evaluate(() => __preferencesUITest.calls), []);
   const scripts = await page.locator('script[src]').evaluateAll(nodes => nodes.map(node => node.getAttribute('src')));
-  assert.ok(scripts.indexOf('js/preference-schema.js') >= 0 && scripts.indexOf('js/preference-schema.js') < scripts.indexOf('js/teacher-summary.js'));
+  const pos = name => scripts.findIndex(src => src.split('?')[0] === name);
+  assert.ok(pos('js/preference-schema.js') >= 0 && pos('js/preference-schema.js') < pos('js/teacher-summary.js'));
   assert.equal(scripts.some(src => /(?:bank|majors|plan|report|store)\.js$/.test(src)), false);
 }));
 

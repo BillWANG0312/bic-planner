@@ -53,7 +53,7 @@ async function preview(page, academic = true) {
 
 test('academic mode is opt-in and safe metadata adds no answer or archive modules', () => withSummary(async page => {
   assert.equal(await page.locator('#summaryAcademic').isChecked(), false); assert.deepEqual(await page.evaluate(() => __academicUITest.calls), []);
-  assert.equal(await page.locator('script[src="js/academic-scoring-meta.js"]').count(), 1);
+  assert.equal(await page.locator('script[src^="js/academic-scoring-meta.js?"]').count(), 1);
   assert.equal(await page.locator('script[src*="bank.js"],script[src*="report.js"],script[src*="report-store.js"]').count(), 0);
   await preview(page, false); assert.equal(await page.locator('#summaryTable thead th').count(), 21);
   assert.deepEqual(await page.evaluate(() => __academicUITest.calls.filter(x => x[0] === 'summary')), [['summary', ['grant-one'], {}]]);
