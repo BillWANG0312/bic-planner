@@ -7,7 +7,7 @@
 | 位置 | 说明 |
 |---|---|
 | **BIC 网站线上目录** | `/home/bill/nas/bic_website/academic-planner/` |
-| **线上访问地址** | http://192.168.100.66:8086/apps/academic-planner/ |
+| **线上访问地址** | https://tlwl-bic.com/academic-planner/ |
 | **GitHub 仓库** | https://github.com/BillWANG0312/bic-planner （**public**） |
 | **网站服务** | `/home/bill/nas/bic_website/server.py`，端口 8086，systemd 单元 `bic-website.service` |
 
