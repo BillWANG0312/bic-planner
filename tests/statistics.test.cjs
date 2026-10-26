@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
 
 const plain = value => JSON.parse(JSON.stringify(value));
 const source = { source: 'synthetic' };

@@ -139,10 +139,33 @@ class AuthService:
         token = secrets.token_urlsafe(32)
         csrf_token = secrets.token_urlsafe(32)
         expires_at = int(self.clock()) + self.session_ttl
-        if not self.db.create_session(self._token_hash(token), csrf_token, user["id"], expires_at):
+        if not self.db.create_session(self._token_hash(token), csrf_token, user["id"], expires_at,
+                                      expected_password_hash=user["password_hash"]):
             raise AuthError(401, _INVALID_CREDENTIALS)
         public = {key: user[key] for key in ("id", "username", "role")}
         return {"token": token, "csrf_token": csrf_token, "expires_at": expires_at, "user": public}
+
+    def change_password(self, rawtoken, csrf_token, current_password, new_password, ip):
+        session = self.session(rawtoken)
+        if not self.verify_csrf(session, csrf_token):
+            raise AuthError(401, "Authentication required.")
+        self._check_attempts(session["user"]["username"], ip)
+        if not _valid_password_shape(new_password) or not new_password.strip():
+            raise AuthError(422, "New password must contain 12 to 128 characters.")
+        user = self.db.user_for_login(session["user"]["username"])
+        if not user or user["disabled"] or user["id"] != session["user"]["id"]:
+            raise AuthError(401, "Authentication required.")
+        valid_current = _valid_password_shape(current_password)
+        candidate = current_password if valid_current else "invalid-current-password"
+        verified = self._verify(candidate, user["password_hash"])
+        if not verified or not valid_current:
+            raise AuthError(401, _INVALID_CREDENTIALS)
+        if new_password == current_password:
+            raise AuthError(422, "Choose a different new password.")
+        password_hash = _hash_operation(_PASSWORD_HASHER.hash, new_password)
+        if not self.db.change_password(self._token_hash(rawtoken), csrf_token, user["id"],
+                                       user["password_hash"], password_hash):
+            raise AuthError(401, "Authentication required.")
 
     @staticmethod
     def _token_hash(token):

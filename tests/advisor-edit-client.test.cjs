@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
 const plain = value => JSON.parse(JSON.stringify(value));
 const baseline = { summary: '原核心建议', academic: '原学科建议', plan: '原规划建议', personality: '原策略建议' };
 const actorId = '11111111-2222-4333-8444-555555555555', grantId = '22222222-3333-4444-8555-666666666666';

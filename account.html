@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <title>账号安全 · BIC 学业规划系统</title>
+  <link rel="icon" href="img/favicon-128.png" type="image/png" />
+  <link rel="stylesheet" href="css/account.css" />
+</head>
+<body>
+  <header class="account-brand"><img src="img/bic-logo-blue.png" alt="BIC 湾区国际书院" /><span>BIC 学业规划系统</span><a href="index.html">返回测评</a></header>
+  <main class="account-wrap">
+    <h1>账号安全</h1>
+    <p class="account-intro">修改本人的学校账号密码。成功后该账号在所有设备的全部会话撤销，需要主动重新登录。报告、授权和分享链接保持原有规则；已经复制的资料无法收回，正在处理的其他请求不能保证撤回。</p>
+    <section id="accountConnectPanel" class="account-panel"><p>尚未连接。请主动连接，再登录或恢复本人的现有会话；本页不读取学生报告。</p><button type="button" id="accountConnectBtn">连接本校账号服务</button></section>
+    <button type="button" id="accountDisconnectBtn" class="account-secondary" hidden>断开本页连接</button>
+    <p id="accountStatus" class="account-status" role="status" aria-live="polite">尚未连接。</p>
+    <form id="accountLoginForm" class="account-panel" hidden novalidate>
+      <h2>本人账号登录</h2>
+      <label for="accountUsername">账号<input id="accountUsername" autocomplete="username" minlength="3" maxlength="64" required /></label>
+      <label for="accountPassword">密码<input id="accountPassword" type="password" autocomplete="current-password" maxlength="256" required /></label>
+      <button type="submit">登录</button>
+    </form>
+    <section id="accountWorkspace" class="account-panel" hidden>
+      <div class="account-identity"><h2 id="accountIdentity"></h2><button id="accountLogoutBtn" class="account-secondary" type="button">退出当前会话</button></div>
+      <p>请输入当前密码及12–128个Unicode字符的新密码；新密码不能全为空白或与当前密码相同。请保管好新密码，当前不提供找回或管理员重置。</p>
+      <form id="accountPasswordForm" novalidate>
+        <label for="accountCurrentPassword">当前密码<input id="accountCurrentPassword" type="password" autocomplete="current-password" maxlength="256" required /></label>
+        <label for="accountNewPassword">新密码<input id="accountNewPassword" type="password" autocomplete="new-password" maxlength="256" required /></label>
+        <label for="accountConfirmPassword">再次输入新密码<input id="accountConfirmPassword" type="password" autocomplete="new-password" maxlength="256" required /></label>
+        <div class="account-actions"><button id="accountChangeBtn" type="submit">确认修改密码并撤销全部会话</button><button id="accountCancelBtn" class="account-secondary" type="button">取消并清空输入</button></div>
+      </form>
+    </section>
+    <p class="account-note">本页不保存密码或访问浏览器存储。提交前需要确认；取消、到期、断开、退出和离开均清空本页密码。不会自动改密、重试或登录。连接结果不确定时，请先用新密码主动登录核对；若未成功，再主动尝试旧密码，避免连续尝试触发限制。</p>
+  </main>
+  <script src="js/cloud-config.js"></script>
+  <script src="js/cloud-client.js"></script>
+  <script src="js/account.js"></script>
+</body>
+</html>

@@ -3,16 +3,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, state, legacyState } = require('./helpers/report.cjs');
 const { withPage } = require('./helpers/browser.cjs');
 const ACTOR = { kind: 'school_advisor', user_id: '11111111-2222-4333-8444-555555555555',
   username: 'advisor.' + 'a'.repeat(56), grant_id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', source_revision: 7, result_revision: 8 };
 const copy = value => JSON.parse(JSON.stringify(value));
 
-function fixture() {
+function fixture(makeState = state) {
   const w = loadReportScripts();
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/report-store.js'), 'utf8'), { window: w });
-  const value = state(w); value.report = w.generateReport(value); value.report.meta.batchId = 'AP-SCHOOL-ACTOR';
+  const value = makeState(w); value.report = w.generateReport(value); value.report.meta.batchId = 'AP-SCHOOL-ACTOR';
   w.reportEditing.applyEdit(value.report, 'plan', '<img src=x onerror=alert(1)>学校建议', '学校顾问');
   value.report.advisor.history[0].actor = copy(ACTOR);
   value.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
@@ -99,7 +99,7 @@ test('school account history shows the full account/revisions and keeps portable
 });
 
 test('legacy history remains compatible and parent summaries omit authenticated account metadata', () => {
-  const { w, value, store } = fixture();
+  const { w, value, store } = fixture(legacyState);
   const saved = store.save(value).record;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/share-summary.js'), 'utf8'), { window: w });
   const summary = JSON.stringify(w.ParentSummary.build(saved));

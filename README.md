@@ -2,6 +2,10 @@
 
 默认纯静态的 A-Level 学术规划互动测评，面向 8–11 年级学生。另提供可选的账号与服务端报告连接，默认关闭，尚未部署公司生产环境。线上地址：[BIC Academic Planner](https://tlwl-bic.com/academic-planner/)。更新须通过 PR，由所有者合并；本地修改不代表线上已经更新。
 
+当前集成状态（v1.16.0）：旧档案原义、续答保护和新旧profile隔离已恢复，完整回归1377项通过。新游戏/30题特质仍可在本机使用及JSON备份；其云归档、分享和汇总尚未适配，入口明确拒绝。既有云端及摘要功能继续处理旧版14/13/24合同。操作见 [测评版本与保护说明](docs/assessment-profiles.md)，历史问题与后续见 [兼容性记录](docs/upstream-assessment-compatibility.md)。
+
+团队接手请先读 [开发交接与下一步修改](docs/development-handoff.md)：包含已合并/待审PR、两代测评支持范围、模块入口和分段验收。可复跑命令与准确测试口径见 [验证记录](docs/verification-2026-10-25.md)。
+
 ## 本地版功能
 
 - 学术测评：60 题，英语 / 数学 / 物理 / 化学各 15 题，基础、中等、进阶分层；数学与理科有中文翻译和解析。
@@ -10,8 +14,9 @@
 - 报告：展示作答完成度、学科表现、选科与专业建议，未完成时为探索草稿。
 - 顾问编辑：在报告页点击「编辑建议」，填写编辑者，选择四处建议文字之一编辑；保存修改前后内容，可恢复旧内容。重新生成时保留顾问修改并提示复核。
 - 本地续答：同一浏览器可关闭后继续；保存不可用时提示仍可在当前页面使用。保留一个当前学生进度，重新测试需确认并清空当前记录，已归档报告不受影响。
-- 本机报告库：可主动归档最多 100 份学生报告，按姓名/编号搜索，导出或导入 JSON 备份、下载 CSV 汇总。重复替换需明确选择；配额或损坏数据不会静默覆盖原库。详见 [使用与恢复说明](docs/report-library.md)。
+- 本机报告库：可主动归档最多 100 份学生报告，按姓名/编号搜索，导出或导入 JSON 备份；纯旧库可下载原CSV，新或混合库使用JSON。重复替换需明确选择；配额或损坏数据不会静默覆盖原库。详见 [使用与恢复说明](docs/report-library.md)。
 - 可选账号连接：开通同源服务后主动登录，逐份确认上传、读取/打开自己的报告，按已读修订更新或删除。默认不联网、不自动同步，详见 [连接指南](docs/cloud-connection.md)。
+- 本人账号安全：独立账号安全页验证旧密码、确认新密码后撤销本人所有会话，需主动重新登录；结果未知不自动重试，详见 [改密与会话说明](docs/password-change.md)。
 - 家长只读分享：所有者预览并确认后生成有期限的摘要链接，可撤销；不包含逐题答卷和修改审计，不提供匿名写入。详见 [分享与升级说明](docs/parent-sharing.md)。
 - 账号批注：所有者邀请已存在的学校账号，只向该账号授权一份固定摘要和私有讨论，可到期/撤销；批注独立于成绩和建议，普通只读令牌不能写。详见 [批注说明](docs/family-comments.md)。
 - 顾问只读：所有者预览完整答卷及修改历史范围并确认后，指定既有advisor账号读取这一报告修订；可到期/撤销，报告更新需重授。角色不开放全校权限，家长权限不扩权，详见 [顾问只读授权](docs/teacher-access.md)。
@@ -65,7 +70,8 @@ pnpm test
 | `data/universities.js` | 独立院校目录与复核信息 |
 | `js/majors.js`、`js/plan.js`、`js/mbti.js` | 专业配置、规划题与性格量表 |
 | `js/personality.js`、`js/games.js` | 特质模型（10 项特质、30 道情境题、计分与 MBTI 对照）与互动小游戏 |
-| `js/report.js`、`js/report-view.js` | 报告计算与展示 |
+| `js/report.js`、`js/report-view.js` | 按profile分派的报告计算与展示 |
+| `js/assessment-profile.js`、`js/legacy-assessment.js`、`js/legacy/` | 两代识别、固定旧引擎与原始进度保护 |
 | `js/report-editing.js` | 顾问编辑与本地修改记录 |
 | `js/report-store.js`、`js/report-library.js` | 本机多报告管理、严格备份导入与 CSV 汇总 |
 | `js/report-statistics*.js`、`css/statistics.css` | 明确选择的本地学术/专业/地区聚合、预览导出与未校准状态 |
@@ -73,6 +79,7 @@ pnpm test
 | `js/report-print.js` | 打印展开与恢复 |
 | `js/app.js` | 流程与本地持久化 |
 | `js/cloud-config.js`、`js/cloud-client.js`、`js/cloud-ui.js` | 默认关闭的同源账号连接与主动报告操作 |
+| `account.html`、`js/account.js`、`css/account.css` | 主动连接的本人改密、确认与全部会话撤销 |
 | `share.html`、`js/share-*.js` | 严格摘要生成、所有者分享管理与独立只读页面 |
 | `family.html`、`js/family.js`、`js/comment-owner.js` | 受邀账号的私有批注、所有者授权与回复 |
 | `teacher.html`、`js/teacher*.js`、`css/teacher.css` | 指定顾问的独立只读入口与所有者授权管理 |

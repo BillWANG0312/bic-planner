@@ -11,6 +11,7 @@
 
   /* ---------------- 状态 ---------------- */
   const blank = () => ({
+    assessmentProfile: window.AssessmentProfiles.CURRENT,
     info: { name: '', grade: '', year: '' },
     academic: { answers: {} },
     plan: { answers: { interests: [], schoolSubjects: [], weakSubjects: [], clubs: [], selfImage: [], preferredMajor: [], freeTime: [], career: [], countries: [] } },
@@ -23,93 +24,48 @@
   let cloudReports = null;
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const TEST_MODES = ['academic', 'plan', 'mbti'];
+  let progressRaw = null, saveLocked = false, recognizedProfile = null, progressReadFailed = false;
+  const legacyMode = () => S.assessmentProfile === window.AssessmentProfiles.LEGACY;
+  const planQuestions = () => legacyMode() ? window.LegacyAssessment.planQuestions : window.PLAN_QUESTIONS;
+  function profileNotice() {
+    const notice = $('#profileNotice');
+    notice.hidden = progressRaw === null && !legacyMode() && !progressReadFailed;
+    $('#profileRawDownloadBtn').hidden = progressRaw === null;
+    $('#profileContinueBtn').hidden = !saveLocked || !recognizedProfile;
+    $('#profileNoticeText').textContent = progressReadFailed ? '无法读取浏览器原进度，未覆盖。本次仍可在内存中作答，但不会自动保存；尚未取得原始JSON，不能提供原始导出。请恢复读取后重新载入并核对，再决定继续或重测。' : saveLocked ? recognizedProfile
+      ? `已识别${recognizedProfile === window.AssessmentProfiles.LEGACY ? '旧版进度（14道规划、24道数字量表）' : '未标记的新版游戏/特质进度'}。原始JSON已保护，确认继续前不会自动更新此浏览器进度。请先下载原始备份，再明确选择按原版本继续。`
+      : '原始进度损坏、版本未知、混合或已转换，已停止自动保存。请下载原始JSON保留资料；当前只能明确开始新版，不能推断旧答案含义。'
+      : legacyMode() ? '当前按旧版14道规划、24道数字量表继续，已允许保存；原答案不转换为新版特质。可保留原始JSON，另行确认开始新版。' : '当前进度已按识别出的新版游戏/特质版本继续，已允许保存。原始JSON仍可下载。';
+    $('#startBtn').textContent = legacyMode() ? '继续旧版测评' : '开始测评';
+    $('#restartBtn').textContent = legacyMode() ? '开始新版测评' : '重新测试';
+    $('.step[data-step="mbti"] span').textContent = legacyMode() ? '旧版性格24题' : '性格特质';
+    $('[data-g="3"]').textContent = legacyMode() ? '整合旧版MBTI性格偏好' : '整合性格特质与职业优势';
+  }
 
   function load() {
     try {
+      // A failed read does not establish that the key is empty: writes may
+      // still succeed, so lock before attempting to read any existing bytes.
+      saveLocked = true;
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
+      if (raw === null) { saveLocked = false; return; }
+      progressRaw = raw; saveLocked = true;
       const saved = JSON.parse(raw);
-      if (!isObject(saved)) return;
-      const restored = Object.assign(blank(), saved);
-      restored.info = Object.assign(blank().info, isObject(saved.info) ? saved.info : {});
-      ['name', 'grade', 'year'].forEach(key => { if (typeof restored.info[key] !== 'string') restored.info[key] = ''; });
-      restored.info.name = restored.info.name.slice(0, 24);
+      if (!isObject(saved) || Object.keys(saved).some(key => !['info', 'academic', 'plan', 'mbti', 'ui', 'report', 'assessmentProfile'].includes(key))) throw new Error('Unsupported saved state');
+      const profile = window.AssessmentProfiles.stateProfile(saved);
+      const answers = { info: saved.info, academic: saved.academic, plan: saved.plan, mbti: saved.mbti,
+        ...(Object.hasOwn(saved, 'assessmentProfile') ? { assessmentProfile: saved.assessmentProfile } : {}) };
+      const restored = window.ReportStore.validateState(answers, profile, { allowBlankName: true });
+      restored.assessmentProfile = profile;
       restored.ui = Object.assign(blank().ui, isObject(saved.ui) ? saved.ui : {});
       if (!['home', 'info', 'test', 'generating', 'report', 'library', 'cloud', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
       if (!TEST_MODES.includes(restored.ui.resumeScreen)) restored.ui.resumeScreen = TEST_MODES.includes(restored.ui.screen) ? restored.ui.screen : 'academic';
       restored.ui.idx = Number.isInteger(restored.ui.idx) && restored.ui.idx >= 0 ? restored.ui.idx : 0;
-      restored.academic = blank().academic;
-      const academicAnswers = saved.academic?.answers;
-      if (isObject(academicAnswers)) window.QUESTION_BANK.forEach(q => {
-        const value = academicAnswers[q.id];
-        if (q.type === 'choice' ? Number.isInteger(value) && value >= 0 && value < q.options.length
-          : value !== null && value !== '' && Number.isFinite(Number(value))) restored.academic.answers[q.id] = value;
-      });
-      restored.plan = blank().plan;
-      const planAnswers = isObject(saved.plan?.answers) ? saved.plan.answers : {};
-      window.PLAN_QUESTIONS.forEach(q => {
-        const value = planAnswers[q.key];
-        if (q.type === 'game') {
-          if (q.game === 'campus' || q.game === 'planet') {
-            const cfg = window.GAME_CONFIG[q.game];
-            if (window.isBoardAnswer(value)) {
-              const board = {};
-              cfg.lanes.forEach(lane => { board[lane.id] = (value[lane.id] || []).filter(id => typeof id === 'string').slice(0, cfg.capacity); });
-              restored.plan.answers[q.key] = board;
-            }
-          } else if (q.game === 'dart') {
-            const allowed = window.GAME_CONFIG.dart.rings.map(r => r.id);
-            restored.plan.answers[q.key] = [...new Set(Array.isArray(value) ? value.filter(id => allowed.includes(id)) : [])].slice(0, window.GAME_CONFIG.dart.max);
-          } else if (q.game === 'race') {
-            const cfg = window.GAME_CONFIG.race;
-            restored.plan.answers[q.key] = isObject(value) ? {
-              ...(cfg.pace.some(p => p.id === value.pace) ? { pace: value.pace } : {}),
-              ...(cfg.partners.some(p => p.id === value.partner) ? { partner: value.partner } : {})
-            } : {};
-          }
-          return;
-        }
-        const valid = (q.type === 'single' ? q.options() : q.source()).map(o => o.id);
-        if (q.type === 'single') {
-          if (valid.includes(value)) restored.plan.answers[q.key] = value;
-        } else {
-          const values = Array.isArray(value) ? value.filter(v => typeof v === 'string'
-            && (valid.includes(v) || q.multiFree && v.trim() !== '' && v.length <= 80)) : [];
-          restored.plan.answers[q.key] = [...new Set(values)].slice(0, q.max || (q.multiFree ? 30 : valid.length));
-        }
-      });
-      // 星球排序 / 旧版存档带来的专业意向与自由填写的学科，不属于问答题但报告会读取，需要一并保留
-      const freeText = value => typeof value === 'string' && value.trim() !== '' && value.length <= 80;
-      ['schoolSubjects', 'weakSubjects'].forEach(key => {
-        const list = planAnswers[key];
-        if (Array.isArray(list)) restored.plan.answers[key] = [...new Set(list.filter(freeText))].slice(0, 30);
-      });
-      if (Array.isArray(planAnswers.preferredMajor)) {
-        restored.plan.answers.preferredMajor = [...new Set(planAnswers.preferredMajor.filter(id =>
-          window.INTEREST_OPTIONS.some(o => o.id === id) || window.MAJORS.some(m => m.id === id)))];
-      }
-      const grade = [restored.info.grade, restored.plan.answers.grade].find(value => window.PLAN_CONFIG.grade.some(g => g.id === value)) || '';
-      restored.info.grade = grade;
-      if (grade) restored.plan.answers.grade = grade;
-      restored.mbti = blank().mbti;
-      let legacyAnswers = null;
-      const scale = window.PERSONALITY_SCALE.map(o => o.value);
-      if (Array.isArray(saved.mbti?.answers)) saved.mbti.answers.forEach((value, i) => {
-        if (i >= restored.mbti.answers.length) return;
-        if (isObject(value) && scale.includes(value.value)) {
-          restored.mbti.answers[i] = { value: value.value, ms: Number.isFinite(value.ms) ? value.ms : null };
-        } else if (scale.includes(value)) {
-          // 旧版 0-4 量表：按顺序补成完整长度后逐项迁移，避免序号错位
-          if (!legacyAnswers) legacyAnswers = saved.mbti.answers.slice(0, 24);
-        }
-      });
-      if (legacyAnswers) {
-        legacyAnswers.forEach((value, i) => { if (i < restored.mbti.answers.length && scale.includes(value)) restored.mbti.answers[i] = { value, ms: null }; });
-        restored.mbti.legacy = true;
-      }
       restored.report = isObject(saved.report) && ['meta', 'academic', 'plan', 'mbti'].every(key => isObject(saved.report[key])) ? saved.report : null;
       S = restored;
-    } catch (e) { /* 损坏或禁用的存储不影响本次使用 */ }
+      recognizedProfile = profile;
+      saveLocked = profile !== window.AssessmentProfiles.CURRENT || saved.assessmentProfile !== window.AssessmentProfiles.CURRENT;
+    } catch (e) { if (progressRaw === null) progressReadFailed = true; /* 不能把读取失败当作空进度。 */ }
   }
   let saveTimer = null;
   let autoAdvanceTimer = null;
@@ -118,6 +74,7 @@
   function cancelAutoAdvance() { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
   function flush() {
     clearTimeout(saveTimer);
+    if (saveLocked) return false;
     const notice = $('#storageNotice');
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(S));
@@ -138,6 +95,32 @@
   window.addEventListener('beforeunload', () => { clearTimeout(saveTimer); flush(); });
   window.addEventListener('pagehide', flush);
 
+  function sourceUnchanged() {
+    if (!saveLocked) return true;
+    try { if (localStorage.getItem(STORAGE_KEY) === progressRaw) return true; } catch (_) {}
+    toast('浏览器原始进度已变化或暂时无法核对，未覆盖。请先保留备份并刷新页面。');
+    return false;
+  }
+  $('#profileRawDownloadBtn').onclick = () => {
+    if (progressRaw === null) return;
+    const link = document.createElement('a'), url = URL.createObjectURL(new Blob([progressRaw], { type: 'application/json;charset=utf-8' }));
+    link.href = url; link.download = 'bic-original-progress.json'; document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+  };
+  $('#profileContinueBtn').onclick = () => {
+    if (!saveLocked || !recognizedProfile) return;
+    const label = legacyMode() ? '旧版14道规划与24道数字量表' : '当前游戏与30道特质量表';
+    if (!confirm(`请先下载原始JSON备份。确认按${label}原义继续，并允许自动更新此浏览器的进度？原始作答不会按位置转换到另一版本。`)
+        || !sourceUnchanged()) return;
+    saveLocked = false; profileNotice(); flush();
+  };
+  function startNew() {
+    if (!confirm('开始新版游戏/30题特质测评将替换本浏览器的当前续答进度。请先归档报告或下载原始JSON备份。确认已保留需要的资料并开始新版？') || !sourceUnchanged()) return;
+    clearTimeout(saveTimer); cancelAutoAdvance();
+    S = blank(); progressRaw = null; recognizedProfile = null; saveLocked = false; progressReadFailed = false;
+    profileNotice(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true;
+  }
+  $('#profileRestartBtn').onclick = startNew;
+
   function isPlanAnswered(q, v) {
     if (typeof q.isAnswered === 'function') return q.isAnswered(v);
     return Array.isArray(v) ? v.length > 0 : v != null && v !== '';
@@ -145,7 +128,7 @@
 
   function hasProgress() {
     return Object.keys(S.academic.answers).length > 0 || S.mbti.answers.some(v => v != null)
-      || window.PLAN_QUESTIONS.some(q => isPlanAnswered(q, S.plan.answers[q.key]))
+      || planQuestions().some(q => isPlanAnswered(q, S.plan.answers[q.key]))
       || Object.values(S.info).some(v => typeof v === 'string' && v.trim() !== '') || !!S.report;
   }
 
@@ -297,8 +280,8 @@
     plan: {
       title: '专业规划测试', sub: '兴趣 · 学科 · 职业 · 留学意向 · 4 个互动小游戏',
       tip: '没有标准答案，跟着直觉走；小游戏可以拖动卡片，也可以先点卡片再点格子',
-      items() { return window.PLAN_QUESTIONS; },
-      get(i) { return S.plan.answers[this.items()[i].key]; },
+      items() { return planQuestions(); },
+      get(i) { const key = this.items()[i].key, value = S.plan.answers[key]; return key === 'grade' && value === undefined ? S.info.grade : value; },
       set(i, v) {
         const key = this.items()[i].key;
         S.plan.answers[key] = v;
@@ -378,16 +361,21 @@
     mbti: {
       title: '性格特质测评', sub: '10 项职业相关特质 · 30 道情境题',
       tip: '没有好坏之分，请按你平时真实的样子作答',
-      items() { return window.TRAIT_QUESTIONS; },
+      items() { return legacyMode() ? window.LegacyAssessment.mbtiQuestions : window.TRAIT_QUESTIONS; },
       get(i) { return S.mbti.answers[i]; },
       set(i, v) {
+        // A resumed short scale stays short until an explicit answer reaches
+        // a later item. Represent skipped positions as null, never sparse holes.
+        while (S.mbti.answers.length < i) S.mbti.answers.push(null);
         S.mbti.answers[i] = v;
         delete S.mbti.legacy;
       },
-      isAnswered(i) { const a = S.mbti.answers[i]; return !!a && Number.isInteger(a.value); },
+      isAnswered(i) { const a = S.mbti.answers[i]; return legacyMode() ? Number.isInteger(a) && a >= 0 && a <= 4 : !!a && Number.isInteger(a.value); },
       canSkip: true,
       render(item) {
         const cur = this.get(this.idx);
+        if (legacyMode()) return `<div class="q-tag"><span class="pill pink">旧版简版MBTI · 24题</span><span class="pill gray">${this.idx + 1}/${this.items().length}</span></div>
+          <p class="mbti-statement">${esc(item.text)}</p><div class="likert" role="radiogroup">${window.LegacyAssessment.mbtiScale.map(scale => `<button role="radio" data-v="${scale.value}" aria-checked="${cur === scale.value}"><span class="dot"></span>${esc(scale.label)}</button>`).join('')}</div>`;
         const t = window.TRAITS.find(x => x.id === item.trait);
         const dims = ['行事风格', '面对挑战', '与人相处'];
         return `<div class="q-tag">
@@ -406,7 +394,7 @@
           btn.onclick = () => {
             $$('.likert button').forEach(x => x.setAttribute('aria-checked', x === btn));
             const started = performance.now();
-            this.set(this.idx, { value: Number(btn.dataset.v), ms: Math.round(started - itemStartAt) });
+            this.set(this.idx, legacyMode() ? Number(btn.dataset.v) : { value: Number(btn.dataset.v), ms: Math.round(started - itemStartAt) });
             save(); updateFoot();
             // 自动进入下一题；若期间用户改了选择则取消
             const pick = this.idx;
@@ -425,14 +413,15 @@
   const total = () => items().length;
 
   function startTest(m) {
+    if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('原始进度尚不能识别，请先下载原始JSON，再明确开始新版。'); return; }
     mode = m;
     const e = engine[m];
     e.idx = Math.min(S.ui.idx || 0, total() - 1);
     S.ui.resumeScreen = m;
-    $('#testTitle').textContent = e.title;
+    $('#testTitle').textContent = legacyMode() && m === 'mbti' ? '旧版简版MBTI（24题）' : e.title;
     $('#testSub').textContent = m === 'academic'
       ? `${e.sub} · ${window.QUESTION_BANK.length} 题${window.QUESTION_BANK_META?.version ? ' · 题库 ' + window.QUESTION_BANK_META.version : ''}`
-      : e.sub;
+      : legacyMode() ? m === 'plan' ? '旧版专业规划 · 14道原问答，不含新版游戏' : '旧版24道数字量表，保持原作答含义' : e.sub;
     setScreen('test', true);
     renderItem();
   }
@@ -459,7 +448,7 @@
     $('#testMeta').innerHTML = `<b>${e.idx + 1}</b> / ${total()}`;
     $('#testProgress').style.width = ((e.idx) / total() * 100) + '%';
     $('#testSkip').style.visibility = e.canSkip ? 'visible' : 'hidden';
-    $('#testTip').textContent = e.tip;
+    $('#testTip').textContent = legacyMode() && mode !== 'academic' ? '旧版原题继续作答，不转换为新版游戏或特质结论。' : e.tip;
     $('#testBack').disabled = e.idx === 0 && mode === 'academic';
     updateFoot();
     save();
@@ -546,6 +535,7 @@
 
   /* ---------------- 报告生成 ---------------- */
   function generate() {
+    if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('原始进度尚不能识别，未生成报告。请先下载备份，再明确开始新版。'); return; }
     if (generationTimer !== null) return;
     setScreen('generating');
     const lis = $$('.gen-steps li');
@@ -612,17 +602,11 @@
     toast('在打印窗口中选择「另存为 PDF」即可保存报告');
     setTimeout(() => window.print(), 350);
   };
-  $('#restartBtn').onclick = () => {
-    if (!confirm('确定要清空所有作答并重新开始吗？')) return;
-    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* 本次会话仍可重置 */ }
-    S = blank();
-    setScreen('home');
-    renderInfo();
-    $('#resumeBtn').hidden = !hasProgress();
-  };
+  $('#restartBtn').onclick = startNew;
 
   /* ---------------- 首页 ---------------- */
   function resumeProgress() {
+    if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('请先下载原始JSON，再点击保护提示中的开始新版。'); return; }
     if (S.report) { renderReport(); return; }
     const s = S.ui.resumeScreen;
     if (S.info.name && TEST_MODES.includes(s)) { startTest(s); return; }
@@ -645,6 +629,7 @@
   /* ---------------- 启动 ---------------- */
   function boot() {
     load();
+    profileNotice();
     // 报告在 renderReport 中按已校验作答重算，保留原编号、日期和顾问来源。
     const s = S.ui.screen;
     setScreen('home', true);
@@ -679,14 +664,20 @@
 
   function openReportState(next) {
     const previous = S;
+    const profile = window.AssessmentProfiles.stateProfile(next);
+    const checked = window.ReportStore.validateState({ info: next.info, academic: next.academic, plan: next.plan, mbti: next.mbti,
+      ...(Object.hasOwn(next, 'assessmentProfile') ? { assessmentProfile: next.assessmentProfile } : {}) }, profile, { allowBlankName: true });
+    if (saveLocked && (!confirm('打开报告会替换已保护的原始续答进度。请先下载原始JSON备份，确认继续打开并允许保存？') || !sourceUnchanged())) throw new Error('已取消替换受保护的续答进度。');
+    const previousLock = saveLocked;
     // 写入失败时保留当前学生的内存和磁盘进度；云端读取也复用此边界。
-    S = next;
+    S = { ...next, ...checked, assessmentProfile: profile }; saveLocked = false;
     if (!flush()) {
-      S = previous;
+      S = previous; saveLocked = previousLock;
       throw new Error('无法保存打开的报告，当前作答未替换。请先导出备份并释放本地空间。');
     }
     if (previous.ui.screen === 'cloud') cloudReports?.onScreenLeft();
     if (previous.ui.screen === 'library') reportLibrary?.onScreenLeft();
+    profileNotice();
     renderInfo();
     renderReport(false);
     return true;
@@ -724,5 +715,5 @@
   }
 
   // 暴露给调试
-  window.__pathwise = { get state() { return S; }, generate, startTest, reset() { S = blank(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true; } };
+  window.__pathwise = { get state() { return S; }, generate, startTest, reset() { S = blank(); setScreen('home'); profileNotice(); renderInfo(); $('#resumeBtn').hidden = true; } };
 })();

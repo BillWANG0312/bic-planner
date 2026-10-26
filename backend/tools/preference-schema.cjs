@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
+const legacySource = require('./legacy-contract.cjs');
 const root = path.resolve(__dirname, '../..');
 function sort(value) {
   if (Array.isArray(value)) return value.map(sort);
@@ -11,7 +12,7 @@ function sort(value) {
 }
 const digest = value => crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 const source = filename => fs.readFileSync(path.join(root, filename), 'utf8').replace(/\r\n/g, '\n');
-const majors = source('js/majors.js'), plan = source('js/plan.js');
+const majors = source('js/majors.js'), plan = legacySource(root, 'plan.js');
 const assessment = JSON.parse(source('backend/assessment-schema.json'));
 // Catalog entries do not determine these two option dictionaries.
 const window = { UNIVERSITY_CATALOG: {} };

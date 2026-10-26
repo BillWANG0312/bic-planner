@@ -156,9 +156,9 @@ def test_archive_refuses_unknown_or_null_provenance(changed):
 def test_real_browser_archive_with_provenance_matches_python():
     script = r"""
 const vm=require('node:vm'),fs=require('node:fs');
-const {loadReportScripts,state}=require('./tests/helpers/report.cjs');const w=loadReportScripts();
+const {loadReportScripts,legacyState}=require('./tests/helpers/report.cjs');const w=loadReportScripts();
 vm.runInNewContext(fs.readFileSync('js/report-store.js','utf8'),{window:w});
-const s=state(w);s.report=w.generateReport(s);s.report.meta.batchId='AP-PROVENANCE';
+const s=legacyState(w);s.report=w.generateReport(s);s.report.meta.batchId='AP-PROVENANCE';
 w.reportEditing.applyEdit(s.report,'plan','经核对的草稿建议','核对老师');
 s.report.advisor.history[0].origin={kind:'local_mock',draft_id:'11111111-2222-4333-8444-555555555555',generator:'local-demo-v1',source_revision:7};
 let raw=null;const store=w.ReportStore.create({getItem:()=>raw,setItem:(_,v)=>raw=v});

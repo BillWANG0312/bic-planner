@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { withPage } = require('./helpers/browser.cjs');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
 
 function localDay(offset = 0) {
   const date = new Date(); date.setDate(date.getDate() + offset);

@@ -8,6 +8,41 @@
   const copy = value => JSON.parse(JSON.stringify(value));
   const identifier = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
   const revisionNumber = value => Number.isSafeInteger(value) && value > 0;
+  function requireLegacyRecord(record) {
+    const unsupported = () => { throw new CloudError('PROFILE', '新版游戏、特质或未知问卷资料暂不支持此账号接口。请保留本机JSON备份，旧版报告仍可使用。', 422); };
+    if (window.AssessmentProfiles?.requireLegacyRecord) {
+      try { window.AssessmentProfiles.requireLegacyRecord(record); } catch (_) { unsupported(); }
+      return;
+    }
+    // Account-only pages need no assessment modules. Even in that minimal
+    // client, never send a visibly newer/unknown shape to the legacy API.
+    if (Object.hasOwn(record, 'assessmentProfile')) unsupported();
+    const state = record.state;
+    if (state === undefined) return;
+    if (!object(state) || Object.hasOwn(state, 'assessmentProfile')
+        || state.mbti !== undefined && !object(state.mbti) || state.plan !== undefined && !object(state.plan)) unsupported();
+    const personality = state.mbti || {}, plan = state.plan?.answers || {};
+    const answers = personality.answers === undefined ? [] : personality.answers;
+    if (!object(plan) || Object.hasOwn(personality, 'legacy') || !Array.isArray(answers) || answers.length > 24
+        || answers.some(value => value !== null && (!Number.isInteger(value) || value < 0 || value > 4))) unsupported();
+    if (['subjectBoard', 'majorBoard', 'team'].some(key => Object.hasOwn(plan, key))
+        || Array.isArray(plan.career) && plan.career.some(id => ['ideas', 'people', 'systems', 'science', 'build', 'market'].includes(id))
+        || Array.isArray(plan.preferredMajor) && (plan.preferredMajor.length > 2
+          || plan.preferredMajor.some(id => ['cs', 'phys', 'chem', 'bio', 'biz', 'law', 'psych', 'design', 'intl'].includes(id)))) unsupported();
+  }
+  function passwordShape(value) {
+    if (typeof value !== 'string') return false;
+    let length = 0;
+    for (const character of value) {
+      const code = character.codePointAt(0);
+      if (code >= 0xD800 && code <= 0xDFFF) return false;
+      length++;
+    }
+    return length >= 12 && length <= 128;
+  }
+  // Match Python str.strip(), including its extra control whitespace, without
+  // trimming or normalizing any credential sent to the authentication service.
+  const blankPassword = value => /^[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$/.test(value);
 
   class CloudError extends Error {
     constructor(code, message, status = 0) {
@@ -136,7 +171,7 @@
       catch (_) { throw protocolError(); }
     }
 
-    async function request(endpoint, { method = 'GET', body, authenticated = false } = {}) {
+    async function request(endpoint, { method = 'GET', body, authenticated = false, expectedStatus } = {}) {
       const base = apiBase();
       const atGeneration = generation;
       if (authenticated) requireConnection(true);
@@ -167,6 +202,10 @@
           if (generation !== atGeneration || current.controller.signal.aborted) throw cancelled();
           const status = response.status;
           if (!Number.isInteger(status) || status < 100 || status > 599) throw protocolError();
+          if (expectedStatus !== undefined && status >= 200 && status < 300 && status !== expectedStatus) {
+            try { const cancelledRead = response.body?.cancel(); cancelledRead?.catch(() => {}); } catch (_) {}
+            throw protocolError();
+          }
           if (status === 204) return null;
           let data;
           if (status < 200 || status >= 300) {
@@ -229,7 +268,7 @@
       forgetIdentity();
       const atGeneration = generation;
       if (typeof username !== 'string' || username.length < 3 || username.length > 64
-          || typeof password !== 'string' || password.length < 12 || password.length > 128) {
+          || !passwordShape(password)) {
         throw new CloudError('VALIDATION', '请填写有效的账号和 12–128 字符密码。', 422);
       }
       const value = await request('auth/login', { method: 'POST', body: { username, password } });
@@ -237,8 +276,26 @@
       return adoptSession(value);
     }
 
+    async function changePassword(currentPassword, newPassword) {
+      requireConnection(true);
+      if (!passwordShape(currentPassword) || !passwordShape(newPassword) || blankPassword(newPassword) || newPassword === currentPassword) {
+        throw new CloudError('VALIDATION', '请填写有效的12–128字符当前密码与不同的新密码，新密码不能全为空白。', 422);
+      }
+      cancelPending();
+      const atGeneration = generation;
+      try {
+        return await request('auth/password', { method: 'POST', authenticated: true, expectedStatus: 204,
+          body: { current_password: currentPassword, new_password: newPassword } });
+      } finally {
+        // An older mutation, even with an uncertain result, must never erase a
+        // session that the user deliberately established after cancelling it.
+        if (generation === atGeneration) disconnect();
+      }
+    }
+
     function report(value) {
       if (!object(value) || !identifier(value.id) || !revisionNumber(value.revision) || !object(value.record)) throw protocolError();
+      requireLegacyRecord(value.record);
       return value;
     }
     function reportId(id) {
@@ -264,6 +321,7 @@
     async function createReport(record) {
       requireConnection(true);
       if (!object(record)) throw new CloudError('VALIDATION', '请选择有效的本机归档。', 422);
+      requireLegacyRecord(record);
       return report(await request('reports', { method: 'POST', body: { record }, authenticated: true }));
     }
     async function update(id, expectedRevision, record) {
@@ -271,6 +329,7 @@
       const endpoint = 'reports/' + reportId(id);
       revision(expectedRevision);
       if (!object(record)) throw new CloudError('VALIDATION', '请选择有效的本机归档。', 422);
+      requireLegacyRecord(record);
       return report(await request(endpoint, { method: 'PUT', body: { record, revision: expectedRevision }, authenticated: true }));
     }
     async function remove(id, expectedRevision) {
@@ -632,14 +691,15 @@
       } catch (_) { throw protocolError(); }
     }
 
-    return { connect, login, list, get, create: createReport, update, remove, logout, disconnect,
+    return { connect, login, changePassword, list, get, create: createReport, update, remove, logout, disconnect,
       createShare, listShares, revokeShare,
       createParentAccess, listParentAccess, revokeParentAccess, listFamilyAccess, familyThread, addFamilyComment,
       createAdviceDraft, applyAdviceDraft,
       createTeacherAccess, listTeacherAccess, revokeTeacherAccess, listTeacherReports, readTeacherReport,
       readTeacherSummaries,
       createAdvisorEditAccess, listAdvisorEditAccess, revokeAdvisorEditAccess, listAdvisorEditable, readAdvisorEditable, applyAdvisorEdit, listAdvisorAudit,
-      get user() { return user ? copy(user) : null; }, get connected() { return connected; } };
+      get user() { return user ? copy(user) : null; }, get connected() { return connected; },
+      get identityGeneration() { return generation; } };
   }
 
   window.CloudReports = { create, CloudError };

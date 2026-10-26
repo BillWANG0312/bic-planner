@@ -44,6 +44,7 @@
     if (!Array.isArray(records) || records.length < MIN_CELL || records.length > 100) {
       fail('请明确选择10–100份报告后生成本地汇总。');
     }
+    records.forEach(record => window.AssessmentProfiles?.requireLegacyRecord(record));
     const version = window.QUESTION_BANK_META?.version;
     if (typeof version !== 'string' || !version || version === 'unknown'
         || records.some(record => !record || record.bankVersion !== version)) {

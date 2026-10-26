@@ -35,6 +35,11 @@ class LoginBody(StrictBody):
     password: Annotated[StrictStr, Field(min_length=12, max_length=128)]
 
 
+class ChangePasswordBody(StrictBody):
+    current_password: Annotated[StrictStr, Field(min_length=12, max_length=128)]
+    new_password: Annotated[StrictStr, Field(min_length=12, max_length=128)]
+
+
 class CreateReportBody(StrictBody):
     record: ArchiveRecord
 
@@ -256,6 +261,16 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     @app.post('/api/auth/logout', status_code=204)
     def logout(request: Request, session=Depends(writable_session)):
         auth.logout(request.cookies.get('bic_session'))
+        response = Response(status_code=204)
+        response.delete_cookie('bic_session', path=settings.cookie_path,
+                               secure=settings.public_origin.startswith('https://'), httponly=True, samesite='lax')
+        return response
+
+    @app.post('/api/auth/password', status_code=204)
+    def change_password(body: ChangePasswordBody, request: Request, session=Depends(writable_session)):
+        auth.change_password(request.cookies.get('bic_session'), request.headers.get('X-CSRF-Token'),
+                             body.current_password, body.new_password,
+                             request.client.host if request.client else 'unknown')
         response = Response(status_code=204)
         response.delete_cookie('bic_session', path=settings.cookie_path,
                                secure=settings.public_origin.startswith('https://'), httponly=True, samesite='lax')

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, state, legacyState } = require('./helpers/report.cjs');
 
 const KEY = 'bic.report-library.v1';
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -20,8 +20,8 @@ function setup(initial = null) {
     setItem(key, value) { assert.equal(key, KEY); if (fail) throw new Error('quota'); raw = value; writes++; }
   };
   const store = w.ReportStore.create(storage);
-  const current = (name = '测试同学', id = 'AP-TEST') => {
-    const value = state(w, true);
+  const current = (name = '测试同学', id = 'AP-TEST', profile = 'current') => {
+    const value = (profile === 'legacy' ? legacyState : state)(w, true);
     value.plan.answers.preferredMajor = ['tech'];
     value.info.name = name;
     value.report = w.generateReport(value);
@@ -31,7 +31,7 @@ function setup(initial = null) {
   };
   return { w, store, current, get raw() { return raw; }, get writes() { return writes; }, failWrites() { fail = true; } };
 }
-const backup = records => JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records });
+const backup = records => JSON.stringify({ format: 'bic-report-library', version: records.some(record => record.assessmentProfile === 'games-traits-v1') ? 2 : 1, exportedAt: new Date().toISOString(), records });
 
 test('archive keeps only responses, report identity and validated advisor history', () => {
   const f = setup();
@@ -208,7 +208,7 @@ test('JSON backup roundtrips responses and history and does not mutate storage w
   const text = source.store.exportBackup();
   const result = JSON.parse(text);
   assert.equal(result.format, 'bic-report-library');
-  assert.equal(result.version, 1);
+  assert.equal(result.version, 2);
   assert.ok(Number.isFinite(Date.parse(result.exportedAt)));
   const target = setup();
   assert.deepEqual(plain(target.store.previewImport(text)), { count: 1, added: 1, conflicts: 0 });
@@ -290,7 +290,7 @@ test('imports reject unsupported envelope schemas and dangerous property names',
   const f = setup();
   const values = ['not json', 'null', '[]', '{}',
     JSON.stringify({ format: 'other', version: 1, exportedAt: new Date().toISOString(), records: [] }),
-    JSON.stringify({ format: 'bic-report-library', version: 2, exportedAt: new Date().toISOString(), records: [] }),
+    JSON.stringify({ format: 'bic-report-library', version: 3, exportedAt: new Date().toISOString(), records: [] }),
     '{"format":"bic-report-library","version":1,"exportedAt":"2026-10-24T00:00:00.000Z","records":[],"__proto__":{}}'];
   for (const text of values) assert.throws(() => f.store.importBackup(text));
   assert.equal(f.writes, 0);
@@ -351,7 +351,7 @@ function parseCSV(text) {
 test('CSV quotes commas, quotes and multiline names and neutralizes spreadsheet formulas', () => {
   const f = setup();
   const names = ['姓名,"引号"\n第二行', '=HYPERLINK("x")', '+1+1', '-1+1', '@SUM(1)', ' \t=1+1', '\n+2'];
-  names.forEach((name, i) => f.store.save(f.current(name, `AP-CSV-${i}`)));
+  names.forEach((name, i) => f.store.save(f.current(name, `AP-CSV-${i}`, 'legacy')));
   const rows = parseCSV(f.store.exportCSV());
   assert.equal(rows.length, names.length + 1);
   assert.equal(rows[0].length, 17);
@@ -365,7 +365,7 @@ test('CSV quotes commas, quotes and multiline names and neutralizes spreadsheet 
 
 test('CSV leaves incomplete subject scores empty and does not assert a complete personality', () => {
   const f = setup();
-  const value = state(f.w);
+  const value = legacyState(f.w);
   value.report = f.w.generateReport(value);
   value.report.meta.batchId = 'AP-DRAFT';
   f.store.save(value);

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
 
 const plain = value => JSON.parse(JSON.stringify(value));
 const fields = value => Object.keys(value).sort();
@@ -16,7 +16,7 @@ function setup(count = 20) {
   const store = w.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
   const value = state(w, true);
   value.info.name = '不得导出的私密同学';
-  for (const q of w.PLAN_QUESTIONS) {
+  for (const q of w.LegacyAssessment.planQuestions) {
     value.plan.answers[q.key] = q.type === 'single' ? q.options()[0].id : q.optional ? [] : [q.source()[0].id];
   }
   value.plan.answers.preferredMajor = ['tech']; value.plan.answers.countries = ['uk'];

@@ -1,0 +1,146 @@
+/* 顾问文字建议与本地修改记录。数值与测试结果仍由规则引擎生成。 */
+(function () {
+  'use strict';
+  const sections = { summary: '核心结论说明', academic: '学习行动建议', plan: '专业与职业建议', personality: '学习策略建议' };
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const defaults = {
+    summary: r => r.meta.status === 'draft'
+      ? '这是一份探索草稿。请先补齐测评，再与升学指导老师讨论方向。'
+      : '本报告基于你的学业测试结果、专业规划问答与性格偏好综合生成，帮助你与升学指导老师讨论下一步。',
+    academic: r => (r.next || []).map(n => `${n.t}：${n.d}`).join('\n') || (r.academic.answered === r.academic.total
+      ? '每周复盘一次错题与课堂笔记，记录仍有疑问的知识点，再与老师调整学习计划。'
+      : '请先完成学术测评，再制定针对性的学习计划。'),
+    plan: r => r.plan.top.major.grad,
+    personality: r => r.mbti.complete && r.mbti.type ? r.mbti.type.study : '请先完成性格测评，结合实际学习体验选择适合自己的学习方式。'
+  };
+  function getText(report, section) {
+    if (!Object.hasOwn(sections, section)) throw new Error('未知的建议部分');
+    return report.advisor?.sections?.[section] ?? defaults[section](report);
+  }
+  function normalizeOrigin(value) {
+    const keys = ['kind', 'draft_id', 'generator', 'source_revision'];
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || Object.keys(value).length !== keys.length || Object.keys(value).some(key => !keys.includes(key))
+        || !['rule', 'local_mock', 'provider'].includes(value.kind)
+        || typeof value.draft_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value.draft_id)
+        || typeof value.generator !== 'string' || !/^[A-Za-z0-9._-]{1,80}$/.test(value.generator)
+        || !Number.isSafeInteger(value.source_revision) || value.source_revision < 1) throw new Error('草稿来源格式不正确');
+    return { kind: value.kind, draft_id: value.draft_id, generator: value.generator, source_revision: value.source_revision };
+  }
+  function originLabel(origin) {
+    try {
+      const value = normalizeOrigin(origin);
+      return { rule: '顾问核对·规则草稿', local_mock: '顾问核对·本地模拟草稿', provider: '顾问核对·模型草稿' }[value.kind];
+    } catch (_) { return ''; }
+  }
+  function originDetails(entry) {
+    const label = originLabel(entry.origin);
+    return label ? `<p>${esc(label)} · ${esc(entry.origin.generator)} · 源修订 ${esc(entry.origin.source_revision)}</p>` : '';
+  }
+  function normalizeActor(value) {
+    const keys = ['kind', 'user_id', 'username', 'grant_id', 'source_revision', 'result_revision'];
+    const uuid = input => typeof input === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input);
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || Object.keys(value).length !== keys.length || Object.keys(value).some(key => !keys.includes(key))
+        || value.kind !== 'school_advisor' || !uuid(value.user_id) || !uuid(value.grant_id)
+        || typeof value.username !== 'string' || !/^[a-z0-9._@+\-]{3,64}$/.test(value.username)
+        || !Number.isSafeInteger(value.source_revision) || value.source_revision < 1
+        || !Number.isSafeInteger(value.result_revision) || value.result_revision !== value.source_revision + 1) throw new Error('学校账号记录格式不正确');
+    return { kind: value.kind, user_id: value.user_id, username: value.username, grant_id: value.grant_id,
+      source_revision: value.source_revision, result_revision: value.result_revision };
+  }
+  function validActorEntry(entry) {
+    if (!Object.hasOwn(entry, 'actor')) return true;
+    try { normalizeActor(entry.actor); return entry.action === 'edit' && !Object.hasOwn(entry, 'origin'); }
+    catch (_) { return false; }
+  }
+  function actorDetails(entry) {
+    if (!Object.hasOwn(entry, 'actor') || !validActorEntry(entry)) return '';
+    const actor = normalizeActor(entry.actor);
+    return `<p>学校账号 ${esc(actor.username)} · 修订 ${actor.source_revision} → ${actor.result_revision}（便携记录，服务端审计请在账号页核对）</p>`;
+  }
+  let sequence = 0;
+  function applyEdit(report, section, value, author, action = 'edit') {
+    if (!Object.hasOwn(sections, section)) throw new Error('请选择可编辑的建议部分');
+    if (typeof author !== 'string' || !author.trim() || author.trim().length > 40) throw new Error('请填写编辑者姓名（最多 40 字）');
+    if (typeof value !== 'string' || !value.trim() || value.length > 4000) throw new Error('建议文字需为 1–4000 字');
+    const before = getText(report, section);
+    const after = value.trim();
+    if (before === after) return false;
+    const advisor = report.advisor || { sections: {}, history: [] };
+    advisor.sections = advisor.sections || {};
+    advisor.history = advisor.history || [];
+    advisor.history.push({ id: `${Date.now().toString(36)}-${++sequence}`, at: new Date().toISOString(), author: author.trim(), section, before, after, action, reportId: report.meta.batchId });
+    advisor.sections[section] = after;
+    advisor.lastAuthor = author.trim();
+    report.advisor = advisor;
+    return true;
+  }
+  function restoreEdit(report, id, author) {
+    const entry = report.advisor?.history?.find(x => x.id === id);
+    if (!entry) throw new Error('找不到该修改记录');
+    return applyEdit(report, entry.section, entry.before, author, 'restore');
+  }
+  function carryEdits(previous, next) {
+    const source = previous?.advisor;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+    const texts = Object.fromEntries(Object.keys(sections).filter(key => typeof source.sections?.[key] === 'string'
+      && source.sections[key].trim() && source.sections[key].length <= 4000).map(key => [key, source.sections[key]]));
+    const history = Array.isArray(source.history) ? source.history.filter(entry => entry && typeof entry === 'object'
+      && Object.hasOwn(sections, entry.section) && typeof entry.id === 'string'
+      && typeof entry.author === 'string' && entry.author.length <= 40
+      && typeof entry.before === 'string' && entry.before.length <= 4000
+      && typeof entry.after === 'string' && entry.after.length <= 4000
+      && (!Object.hasOwn(entry, 'origin') || !!originLabel(entry.origin))
+      && validActorEntry(entry)
+      && Number.isFinite(Date.parse(entry.at))) : [];
+    if (!Object.keys(texts).length && !history.length) return;
+    next.advisor = { sections: texts, history: JSON.parse(JSON.stringify(history)),
+      lastAuthor: typeof source.lastAuthor === 'string' ? source.lastAuthor.slice(0, 40) : '',
+      carriedFrom: previous.meta.batchId };
+  }
+  function mount(report, onChange) {
+    const panel = document.getElementById('reportEditor');
+    const toggle = document.getElementById('editReportBtn');
+    if (!panel || !toggle) return;
+    const previousSection = panel.querySelector('#advisorSection')?.value || 'summary';
+    const history = report.advisor?.history || [];
+    panel.innerHTML = `<div class="editor-heading"><h2>编辑报告建议</h2><button type="button" class="btn ghost sm" id="closeEditor">收起</button></div>
+      <p>可调整四处建议文字。每次保存都会保留编辑者、时间和前后内容。修改只保存在当前浏览器，请导出 PDF 留存。</p>
+      ${report.advisor?.carriedFrom ? '<p class="editor-notice">以下顾问建议沿用了上次报告的修改，请结合本次测评结果复核。</p>' : ''}
+      <form id="advisorForm"><div class="editor-fields">
+        <label>编辑者姓名<input id="advisorAuthor" maxlength="40" required value="${esc(report.advisor?.lastAuthor || '')}" autocomplete="name" /></label>
+        <label>建议部分<select id="advisorSection">${Object.entries(sections).map(([id, label]) => `<option value="${id}" ${id === previousSection ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+      </div><label class="editor-text-label" for="advisorText">建议文字（最多 4000 字）</label><textarea id="advisorText" rows="7" maxlength="4000" required></textarea>
+      <div class="editor-actions"><button type="button" class="btn ghost sm" id="defaultAdvice">恢复系统建议</button><button class="btn primary sm" type="submit">保存修改</button></div>
+      <p id="advisorStatus" role="status" aria-live="polite"></p></form>
+      <details class="editor-history"><summary>修改记录（${history.length}）</summary>${history.length ? [...history].reverse().map(entry => `<article><div><b>${esc(sections[entry.section] || entry.section)}</b> · ${esc(entry.author)} · <time>${esc(new Date(entry.at).toLocaleString('zh-CN'))}</time></div>${originDetails(entry)}${actorDetails(entry)}<details><summary>查看修改前后内容</summary><p>修改前</p><pre>${esc(entry.before)}</pre><p>修改后</p><pre>${esc(entry.after)}</pre></details><button type="button" class="btn ghost sm" data-restore="${esc(entry.id)}">恢复此条修改前的内容</button></article>`).join('') : '<p>尚无修改记录。</p>'}</details>`;
+    const select = panel.querySelector('#advisorSection');
+    const text = panel.querySelector('#advisorText');
+    const author = panel.querySelector('#advisorAuthor');
+    const status = panel.querySelector('#advisorStatus');
+    text.value = getText(report, select.value);
+    select.onchange = () => { text.value = getText(report, select.value); status.textContent = ''; };
+    const show = visible => { panel.hidden = !visible; toggle.setAttribute('aria-expanded', String(visible)); if (visible) author.focus(); };
+    toggle.onclick = () => show(panel.hidden);
+    panel.querySelector('#closeEditor').onclick = () => show(false);
+    const commit = fn => {
+      try {
+        if (!fn()) { status.textContent = '内容没有变化。'; return; }
+        const persisted = onChange();
+        panel.querySelector('#advisorStatus').textContent = persisted === false ? '本次报告已更新，本地保存暂不可用，请导出 PDF 留存。' : '修改已保存到本次报告。';
+      } catch (err) { status.textContent = err.message; }
+    };
+    panel.querySelector('#advisorForm').onsubmit = event => {
+      event.preventDefault();
+      commit(() => applyEdit(report, select.value, text.value, author.value));
+    };
+    panel.querySelector('#defaultAdvice').onclick = () => {
+      commit(() => applyEdit(report, select.value, defaults[select.value](report), author.value, 'reset'));
+    };
+    panel.querySelectorAll('[data-restore]').forEach(button => {
+      button.onclick = () => commit(() => restoreEdit(report, button.dataset.restore, author.value));
+    });
+  }
+  window.reportEditing = { sections, getText, applyEdit, restoreEdit, carryEdits, normalizeOrigin, originLabel, normalizeActor, actorDetails, mount };
+})();

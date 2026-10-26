@@ -1,0 +1,38 @@
+{
+  "format": "bic-legacy-assessment-sources",
+  "version": 1,
+  "profile": "legacy-2026.10",
+  "source_revision": "a10d5577c18ce48188fd74e31829d57d57fc3dd5",
+  "files": [
+    {
+      "file": "js/legacy/mbti.js",
+      "source": "js/mbti.js",
+      "sha256": "2420b59c4a8803dc35db6b2ee99c7a206b6557c6307e88fb74e493e6fe7c1075"
+    },
+    {
+      "file": "js/legacy/plan.js",
+      "source": "js/plan.js",
+      "sha256": "cebda73ab480d1281191c664c00d8df66d0887c80700bb93e4971b8a1ec9a57f"
+    },
+    {
+      "file": "js/legacy/report.js",
+      "source": "js/report.js",
+      "sha256": "23e7dd55cef795bd258b9c890768bf942856c8967013b8f5ada2289a4a77889b"
+    },
+    {
+      "file": "js/legacy/report-editing.js",
+      "source": "js/report-editing.js",
+      "sha256": "bc6b866ffdf70aa20732a5a4c95b9916933494772f92611c008b9ca334d110ad"
+    },
+    {
+      "file": "js/legacy/report-view.js",
+      "source": "js/report-view.js",
+      "sha256": "1f310cb797a5df437a352c25a9fe1dddf4bc361671a9ae843d126cea58d6a096"
+    },
+    {
+      "file": "js/legacy/report-store.js",
+      "source": "js/report-store.js",
+      "sha256": "6a471dc802b7ce2632d31f626410a7c0db11d72a3c021c6454f1d03805cb869b"
+    }
+  ]
+}

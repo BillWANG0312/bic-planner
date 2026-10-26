@@ -30,15 +30,29 @@ async function openApp(browser, options = {}) {
       res.end(data);
     });
   });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const context = await browser.newContext({ viewport: options.viewport || { width: 1280, height: 900 }, ...(options.storageState ? { storageState: options.storageState } : {}) });
-  const page = await context.newPage();
-  page.setDefaultTimeout(4000);
-  if (options.prepare) await options.prepare(context);
-  if (options.beforeLoad) await options.beforeLoad(page);
-  const origin = `http://127.0.0.1:${server.address().port}`;
-  await page.goto(origin + (options.path || '/'));
-  return { context, page, origin, async close() { await context.close(); await new Promise(resolve => server.close(resolve)); } };
+  let context;
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', () => { server.off('error', reject); resolve(); });
+    });
+    context = await browser.newContext({ viewport: options.viewport || { width: 1280, height: 900 }, ...(options.storageState ? { storageState: options.storageState } : {}) });
+    const page = await context.newPage();
+    page.setDefaultTimeout(4000);
+    if (options.prepare) await options.prepare(context);
+    if (options.beforeLoad) await options.beforeLoad(page);
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    await page.goto(origin + (options.path || '/'));
+    return { context, page, origin, async close() { await context.close(); await new Promise(resolve => server.close(resolve)); } };
+  } catch (error) {
+    // A failed setup never reaches withPage's app assignment. Release its
+    // resources here without replacing the original fixture/navigation error.
+    try { if (context) await context.close(); } catch (_) {}
+    try {
+      await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
+    } catch (_) {}
+    throw error;
+  }
 }
 
 async function withPage(fn, options = {}) {

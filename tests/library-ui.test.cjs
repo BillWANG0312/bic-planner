@@ -2,11 +2,11 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const { withPage } = require('./helpers/browser.cjs');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, state, legacyState } = require('./helpers/report.cjs');
 
-function reportState(name = '归档学生') {
+function reportState(name = '归档学生', legacy = false) {
   const w = loadReportScripts();
-  const value = state(w);
+  const value = (legacy ? legacyState : state)(w);
   value.info.name = name;
   value.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
   value.report = w.generateReport(value);
@@ -113,6 +113,8 @@ test('invalid JSON and unsupported file selections never offer import commit or 
 }, saved()));
 
 test('JSON and CSV downloads contain the stored records with portable safe filenames', () => withPage(async page => {
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#profileContinueBtn').click();
   await page.locator('#archiveReportBtn').click();
   await page.locator('#openLibraryBtn').click();
   for (const [selector, suffix, expected] of [
@@ -126,7 +128,7 @@ test('JSON and CSV downloads contain the stored records with portable safe filen
     assert.doesNotMatch(download.suggestedFilename(), /[<>:"/\\|?*]/);
     assert.match(await fs.readFile(await download.path(), 'utf8'), expected);
   }
-}, saved()));
+}, saved(reportState('归档学生', true))));
 
 test('corrupt archives offer a raw backup while keeping the original storage unchanged', () => withPage(async page => {
   await page.locator('#libraryBtn').click();

@@ -262,16 +262,41 @@ class Database:
             row = connection.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
             return dict(row) if row is not None else None
 
-    def create_session(self, token_hash, csrf_token, user_id, expires_at):
+    def create_session(self, token_hash, csrf_token, user_id, expires_at, expected_password_hash=None):
         with self._transaction() as connection:
-            user = connection.execute("SELECT id FROM users WHERE id = ? AND disabled = 0", (user_id,)).fetchone()
-            if user is None:
+            user = connection.execute("SELECT id,password_hash FROM users WHERE id = ? AND disabled = 0", (user_id,)).fetchone()
+            if user is None or expected_password_hash is not None and user["password_hash"] != expected_password_hash:
                 return False
             connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (int(self.clock()),))
             connection.execute(
                 "INSERT INTO sessions (token_hash, csrf_token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
                 (token_hash, csrf_token, user_id, expires_at, int(self.clock())),
             )
+        return True
+
+    def change_password(self, token_hash, csrf_token, user_id, expected_password_hash, new_password_hash):
+        # Hashing occurs before taking this write lock. Authority, expiry, and
+        # the hash that was actually verified must all still agree afterward.
+        with self._transaction() as connection:
+            current = connection.execute(
+                "SELECT users.id FROM sessions JOIN users ON users.id = sessions.user_id "
+                "WHERE sessions.token_hash = ? AND sessions.csrf_token = ? AND sessions.expires_at > ? "
+                "AND users.id = ? AND users.disabled = 0 AND users.password_hash = ?",
+                (token_hash, csrf_token, int(self.clock()), user_id, expected_password_hash),
+            ).fetchone()
+            if current is None:
+                return False
+            updated = connection.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ? AND disabled = 0 AND password_hash = ?",
+                (new_password_hash, user_id, expected_password_hash),
+            ).rowcount
+            if updated != 1:
+                raise StorageError(503, "The credential update is unavailable.")
+            connection.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            if connection.execute("SELECT 1 FROM sessions WHERE user_id = ? LIMIT 1", (user_id,)).fetchone() is not None:
+                # A failed/ignored deletion cannot commit a partially changed
+                # credential while leaving an earlier session valid.
+                raise StorageError(503, "The credential update is unavailable.")
         return True
 
     def session(self, token_hash, now):

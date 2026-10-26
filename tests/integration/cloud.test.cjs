@@ -6,7 +6,7 @@ const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
-const { loadReportScripts, state } = require('../helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
 
 const root = path.resolve(__dirname, '../..');
 const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || 'D:/Codex/work/bic-cloud-browser-tests');
@@ -72,6 +72,9 @@ async function pageFor(index) {
     if (!localStorage.getItem('pathwise.state.v1')) localStorage.setItem('pathwise.state.v1', JSON.stringify(initial));
   }, initial);
   await page.goto(origin);
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#profileContinueBtn').click();
+  assert.equal(await page.evaluate(() => window.__pathwise.state.assessmentProfile), 'legacy-2026.10');
   return { context, page };
 }
 

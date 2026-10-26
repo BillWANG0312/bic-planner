@@ -2,7 +2,7 @@
   "bank_version": "2026.10",
   "rule_version": "academic-pct-v1",
   "bank_sha256": "1e7e4db2c403e04625ef89b103794329038fbc98fab7674d4cd2d6eb18a3231d",
-  "report_sha256": "23e7dd55cef795bd258b9c890768bf942856c8967013b8f5ada2289a4a77889b",
+  "report_sha256": "e1c75e2acea09bf419900e9ff25976f139e5a58ec53894ccbe4bbafbdcb37d14",
   "questions": [
     {
       "id": "en1",
@@ -485,5 +485,5 @@
       "option_count": 4
     }
   ],
-  "fingerprint": "16c04959e59ca8c282ee2f06f036494468db7534c8dac10bb55f11c12956f3b1"
+  "fingerprint": "cdc2b39c7b6cda111d78901c9ef4645c3f2097a4b3503ef04dc04ddd20fce669"
 }

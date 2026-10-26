@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
 
 function state(screen = 'academic', idx = 0) {
-  return { info: { name: '测试学生', grade: '9', year: '2028 年秋季' }, academic: { answers: {} }, plan: { answers: {} }, mbti: { answers: Array(30).fill(null) }, ui: { screen: 'test', resumeScreen: screen, idx }, report: null };
+  return { assessmentProfile: 'games-traits-v1', info: { name: '测试学生', grade: '9', year: '2028 年秋季' }, academic: { answers: {} }, plan: { answers: {} }, mbti: { answers: Array(30).fill(null) }, ui: { screen: 'test', resumeScreen: screen, idx }, report: null };
 }
 function saved(value, entered = true) {
   return { beforeLoad: page => page.addInitScript(({ value, entered }) => {

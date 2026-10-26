@@ -3,15 +3,15 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, state, legacyState } = require('./helpers/report.cjs');
 const { withPage } = require('./helpers/browser.cjs');
 const ORIGIN = { kind: 'local_mock', draft_id: '11111111-2222-4333-8444-555555555555', generator: 'local-demo-v1', source_revision: 7 };
 const copy = value => JSON.parse(JSON.stringify(value));
 
-function fixture() {
+function fixture(makeState = state) {
   const w = loadReportScripts();
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/report-store.js'), 'utf8'), { window: w });
-  const value = state(w);
+  const value = makeState(w);
   value.report = w.generateReport(value);
   value.report.meta.batchId = 'AP-PROVENANCE';
   w.reportEditing.applyEdit(value.report, 'plan', '经核对的草稿建议', '核对老师');
@@ -95,7 +95,7 @@ test('current source badges follow the latest edit and never attribute a manual 
 });
 
 test('legacy edits stay compatible and public summaries exclude draft IDs and origin audit', () => {
-  const { w, value, store } = fixture();
+  const { w, value, store } = fixture(legacyState);
   const saved = store.save(value).record;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/share-summary.js'), 'utf8'), { window: w });
   const summary = w.ParentSummary.build(saved);

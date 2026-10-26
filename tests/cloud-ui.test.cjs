@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
-const { loadReportScripts, state } = require('./helpers/report.cjs');
+const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
 
 function fixture() {
   const w = loadReportScripts();
