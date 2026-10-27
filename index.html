@@ -53,6 +53,7 @@
           <button class="btn ghost lg" id="resumeBtn" hidden>继续上次进度</button>
           <button class="btn ghost lg" id="libraryBtn">本机报告库</button>
           <button class="btn ghost lg" id="cloudBtn">账号报告服务</button>
+          <button class="btn ghost lg" id="clearProgressBtn">清空本机进度</button>
         </div>
         <div class="hero-stats">
           <div><b>3</b><span>互动模块</span></div>
@@ -189,6 +190,7 @@
             <input id="libraryImportFile" type="file" accept=".json,application/json" />
           </label>
           <button class="btn ghost sm" id="libraryRawBackupBtn" hidden>下载原始数据备份</button>
+          <button class="btn ghost sm" id="libraryClearProgressBtn">清空本机未完成进度</button>
         </div>
         <p class="library-help">JSON 只备份已归档报告的作答及顾问修改，请先归档当前报告；可在本系统导入恢复。CSV 仅供查看汇总。导入前会校验并预览，归档编号或报告编号重复时默认跳过。</p>
         <p id="libraryStatus" class="library-status" role="status" aria-live="polite"></p>
@@ -393,6 +395,6 @@
   <script src="js/teacher-owner.js?v=3"></script>
   <script src="js/advisor-edit-owner.js?v=3"></script>
   <script src="js/cloud-ui.js?v=3"></script>
-  <script src="js/app.js?v=3"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>
