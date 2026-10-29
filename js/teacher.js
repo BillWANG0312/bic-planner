@@ -78,7 +78,8 @@
     if (versions.some(value => !value || value === 'unknown') || record.bankVersion !== window.QUESTION_BANK_META.version || record.catalogVersion !== window.UNIVERSITY_CATALOG.version) throw { code: 'VERSION' };
     let raw = null;
     const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
-    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records: [record] }));
+    // 服务读取统一返回当前形状并带当前标记；带标记的记录按该版本接受，旧版记录回显时不带标记，仍是版本1。
+    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: record.assessmentProfile ? 2 : 1, exportedAt: new Date().toISOString(), records: [record] }));
     return { grant, report, state: store.restore(record.id).state };
   }
   function drawHistory(record) {

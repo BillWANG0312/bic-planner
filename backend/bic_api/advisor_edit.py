@@ -8,7 +8,7 @@ import uuid
 from pydantic import ValidationError
 
 from .db import StorageError
-from .models import ArchiveRecord, JS_WHITESPACE, MAX_RECORD_CHARS, _json_utf16_length, bounded_text
+from .models import JS_WHITESPACE, MAX_RECORD_CHARS, _json_utf16_length, bounded_text, legacy_record
 from .security import AuthError, canonical_username
 from .teacher_access import TeacherAccessService
 
@@ -110,7 +110,7 @@ class AdvisorEditService(TeacherAccessService):
                 raise self._invalid()
             if recipient is None or recipient['disabled'] or recipient['role'] != 'advisor':
                 raise self._unavailable()
-            record = self._validated_record(report, joined=False)
+            record = self._validated_record(report, joined=False, current=False)
             self._consistent_baseline(record, baseline)
             at = int(self.clock())
             if connection.execute(
@@ -175,7 +175,8 @@ class AdvisorEditService(TeacherAccessService):
     def read(self, recipient_id, grant_id):
         with self.db._connection() as connection:
             row, at = self._active(connection, recipient_id, grant_id)
-        record = self._validated_record(row, joined=True)
+        # 读取接口回显的当前形状记录带着当前标记，写回时按同样的当前版本换算。
+        record = self._validated_record(row, joined=True, current=False)
         return {'grant': self._metadata(row, at), 'report': self._full(row, record), 'baseline': self._baseline(row, record)}
 
     def apply(self, recipient_id, grant_id, revision, changes):
@@ -187,12 +188,13 @@ class AdvisorEditService(TeacherAccessService):
             row, at = self._active(connection, recipient_id, grant_id)
             if revision != row['current_revision']:
                 raise StorageError(409, 'The requested source revision differs from this authorization.', 'REVISION')
-            record = self._validated_record(row, joined=True)
+            # 存档原样读回（带当前标记），写回时按同样的当前版本形状换算，改动与作答逐字保留。
+            record = self._validated_record(row, joined=True, current=False)
             baseline = self._baseline(row, record)
             modifications = [{'section': key, 'before': baseline[key], 'after': text.strip(JS_WHITESPACE)}
                              for key, text in changes.items() if text.strip(JS_WHITESPACE) != baseline[key].strip(JS_WHITESPACE)]
             if not modifications:
-                return {'report': self._full(row, record), 'changed_sections': [], 'audit_id': None}
+                return {'report': self._full(row, self._validated_record(row, joined=True)), 'changed_sections': [], 'audit_id': None}
             if revision >= _MAX_REVISION:
                 raise StorageError(413, 'The report revision limit has been reached.', 'LIMIT')
             advisor = record.setdefault('advisor', {'sections': {}, 'history': []})
@@ -213,7 +215,8 @@ class AdvisorEditService(TeacherAccessService):
             if _json_utf16_length(record) > MAX_RECORD_CHARS:
                 raise StorageError(413, 'The serialized report size limit has been reached.', 'LIMIT')
             try:
-                ArchiveRecord.model_validate(record)
+                # 当前形状的存档写回前重新换算成旧版兼容字段；旧版形状的存档（None）原样写回。
+                record = legacy_record(record) or record
             except (ValidationError, TypeError, ValueError):
                 raise self._storage() from None
             serialized, units, _ = self.db._encode_record(record)

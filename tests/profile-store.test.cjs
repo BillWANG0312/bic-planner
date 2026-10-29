@@ -65,18 +65,20 @@ test('legacy empty partial and complete neutral records roundtrip through whole-
   f.store.importBackup(envelope(records));
   assert.deepEqual(JSON.parse(f.store.exportBackup()).records, records);
   const restored = f.store.restore(complete.id);
+  // 只有这一份完整旧版记录时整库仍是旧版容器的回显，版本维持旧版；
+  // 页面续答旧版归档走的是统一后的当前版本（见下一项测试）。
   assert.equal(restored.state.assessmentProfile, LEGACY); assert.deepEqual(plain(restored.state.mbti.answers), Array(24).fill(2));
   assert.equal(restored.state.report.meta.assessmentProfile, LEGACY); assert.equal(restored.state.report.meta.status, 'complete');
   assert.equal(restored.state.report.mbti.code, null); assert.equal(restored.state.report.mbti.total, 24);
 });
 
 test('legacy restore preserves short null answers and source identity while adding only runtime profile/report/UI', () => {
-  const record = oldRecord(); record.advisor = actorAdvisor(); const f = setup(envelope([record]));
+  const record = oldRecord(); record.advisor = actorAdvisor(); const f = setup(envelope([record])); record.state.assessmentProfile = LEGACY;
   const restored = f.store.restore(record.id);
-  for (const key of ['info', 'academic', 'plan', 'mbti']) assert.deepEqual(plain(restored.state[key]), record.state[key]);
-  assert.equal(restored.state.assessmentProfile, LEGACY); assert.equal(restored.state.mbti.answers.length, 3);
+  for (const key of ['info', 'academic', 'plan', 'mbti', 'assessmentProfile']) assert.deepEqual(plain(restored.state[key]), record.state[key]); assert.equal(restored.state.mbti.answers.length, 3);
   assert.equal(restored.state.report.meta.batchId, record.reportMeta.batchId); assert.equal(restored.state.report.meta.date, record.reportMeta.date);
-  assert.deepEqual(plain(restored.record), record); assert.deepEqual(plain(restored.state.report.advisor.history), record.advisor.history);
+  assert.deepEqual(plain(restored.record), { ...record, state: Object.fromEntries(Object.entries(record.state).filter(([key]) => key !== 'assessmentProfile')) });
+  assert.deepEqual(plain(restored.state.report.advisor), record.advisor);
   assert.equal(f.writes, 0);
 });
 
@@ -123,13 +125,20 @@ test('legacy CSV delegates the sealed 17-column format and neutral classificatio
 
 test('unknown mixed converted or inconsistent profiles quarantine raw data and block every write', () => {
   const changes = [
-    r => { r.assessmentProfile = 'unknown'; }, r => { r.state.assessmentProfile = LEGACY; },
-    r => { r.state.mbti.answers[1] = 1; }, r => { r.state.mbti.legacy = true; },
-    r => { r.assessmentProfile = LEGACY; }, r => { r.state.plan.answers.groupSize = 'small'; }
+    r => { r.assessmentProfile = 'unknown'; }, r => { r.state.assessmentProfile = LEGACY; }, r => { r.state.assessmentProfile = 'unknown'; },
+    r => { r.state.mbti.answers[1] = 1; }, r => { r.state.mbti.legacy = true; }
   ];
-  for (const change of changes) {
-    const record = currentRecord(); change(record); const raw = envelope([record], 2), f = setup(raw);
-    assert.throws(() => f.store.list()); assert.throws(() => f.store.remove(record.id));
+  // 记录标为旧版、旧版规划题却存成当前版的数组作答，分不清版本。
+  // timeStyle 不是版本证据：它是当前版团队竞速的合法选项，旧版规划里的 timeStyle 随服务读取留在当前作答里也照常接受。
+  // 组队人数、时间风格只属于旧版：不带标记、存成数组（任何一版都不是这个值）是混写；
+  // 带旧版标记却留着旧版组队人数是旧版引擎写出的真实存档，不能混为一谈，只有存成数组才算混写。
+  // 去掉标记的记录里，旧版组队人数的单选值由服务回显的当前形状作答照常接受，数组等其它值由上面各条形状识别接手。
+  const mixed = [r => { r.assessmentProfile = LEGACY; r.state.plan.answers.groupSize = []; },
+    r => { r.assessmentProfile = LEGACY; r.state.plan.answers.groupSize = 'small'; }];
+  for (const change of changes.concat(mixed.map(change => r => { change(r); delete r.assessmentProfile; return r; }))) {
+    const record = currentRecord(); change(record); const raw = envelope([record], 2), f = setup(raw); 
+    assert.throws(() => f.store.list());
+    assert.throws(() => f.store.remove(record.id));
     assert.throws(() => f.store.importBackup(envelope([oldRecord(2)])));
     assert.equal(f.store.rawBackup(), raw); assert.equal(f.raw, raw); assert.equal(f.writes, 0);
   }

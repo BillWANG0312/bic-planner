@@ -19,13 +19,13 @@ function item(index = 1) {
     bank_version: '2026.10', catalog_version: null, status: 'draft', academic: [
       { key: 'english', answered: 0, total: 15 }, { key: 'maths', answered: 1, total: 15 },
       { key: 'physics', answered: 2, total: 15 }, { key: 'chemistry', answered: 3, total: 15 }
-    ], planning: { answered: 1, total: 14, required_answered: 1, required_total: 13 }, personality: { answered: 0, total: 24 } } };
+    ], planning: { answered: 1, total: 12, required_answered: 1, required_total: 12 }, personality: { answered: 0, total: 30 } } };
 }
 const batch = (...items) => ({ format: 'bic-teacher-completion-summary', version: 1, items: items.length ? items : [item()] });
-function complete(value, optional = false) {
+function complete(value) {
   value.report.academic.forEach(subject => { subject.answered = 15; });
-  value.report.planning = { answered: optional ? 14 : 13, total: 14, required_answered: 13, required_total: 13 };
-  value.report.personality.answered = 24; value.report.status = 'complete'; return value;
+  value.report.planning = { answered: 12, total: 12, required_answered: 12, required_total: 12 };
+  value.report.personality.answered = 30; value.report.status = 'complete'; return value;
 }
 function parseCSV(csv) {
   const rows = []; let row = [], cell = '', quoted = false;
@@ -56,22 +56,24 @@ test('CSV has 21 quoted columns, UTF8 BOM and CRLF, with only necessary private 
   assert.equal(csv[0], '\uFEFF'); assert.ok(csv.endsWith('\r\n'));
   assert.equal(parsed.length, 3); assert.ok(parsed.every(row => row.length === 21));
   assert.deepEqual(parsed[0], ['姓名', '报告编号', '年级', '服务端修订', '题库版本', '目录版本', '完成状态', '英语已答', '英语总题', '数学已答', '数学总题', '物理已答', '物理总题', '化学已答', '化学总题', '规划已答', '规划总题', '规划必答已答', '规划必答总题', '性格已答', '性格总题']);
-  assert.deepEqual(parsed[1], ['测试同学1', 'REF-1', '8', '3', '2026.10', '未记录', '必答未完成', '0', '15', '1', '15', '2', '15', '3', '15', '1', '14', '1', '13', '0', '24']);
+  assert.deepEqual(parsed[1], ['测试同学1', 'REF-1', '8', '3', '2026.10', '未记录', '必答未完成', '0', '15', '1', '15', '2', '15', '3', '15', '1', '12', '1', '12', '0', '30']);
   assert.equal(parsed[2][6], '必答已完成');
   for (const excluded of ['grant-', 'report-1', 'owner.local', 'teacher.local', 'actor', 'history', 'answers']) assert.ok(!csv.includes(excluded));
   assert.ok(!Object.hasOwn(rows[0], 'id')); assert.ok(!Object.hasOwn(rows[0], 'grant'));
   payload.items[0].report.academic[0].answered = 10; assert.equal(rows[0].academic[0].answered, 0);
 });
 
-test('optional planning nonresponse permits complete status but required nonresponse does not', () => {
+test('complete status needs every required planning answer and every total agrees with its count', () => {
   const tool = moduleUnderTest();
   assert.equal(tool.validate(batch(complete(item())), 'teacher.local').items[0].report.status, 'complete');
-  assert.equal(tool.validate(batch(complete(item(), true)), 'teacher.local').items[0].report.planning.answered, 14);
-  const missedRequired = complete(item()); missedRequired.report.planning.required_answered = 12;
+  // 必答未完成就不能是 complete；统计本身自洽时它是 draft。
+  const missedRequired = complete(item()); missedRequired.report.planning.answered = missedRequired.report.planning.required_answered = 11;
   assert.throws(() => tool.validate(batch(missedRequired), 'teacher.local'));
   missedRequired.report.status = 'draft'; assert.equal(tool.validate(batch(missedRequired), 'teacher.local').items[0].report.status, 'draft');
-  const zeroOptional = item(); zeroOptional.report.planning = { answered: 1, total: 14, required_answered: 0, required_total: 13 };
-  assert.equal(tool.validate(batch(zeroOptional), 'teacher.local').items[0].report.planning.answered, 1);
+  const contradictory = complete(item()); contradictory.report.planning.required_answered = 11;
+  assert.throws(() => tool.build(batch(contradictory), 'teacher.local'));
+  const noneAnswered = item(); noneAnswered.report.planning = { answered: 0, total: 12, required_answered: 0, required_total: 12 };
+  assert.equal(tool.validate(batch(noneAnswered), 'teacher.local').items[0].report.planning.answered, 0);
 });
 
 test('formula-like text and leading controls are neutralized while quoted newlines and Unicode stay intact', () => {
@@ -113,10 +115,10 @@ test('question counts, required denominators, subject order and completion contr
     value => { value.academic[0].answered = 16; }, value => { value.academic[0].answered = 1.5; },
     value => { value.academic[0].total = 14; }, value => { value.academic.reverse(); },
     value => { value.academic.pop(); }, value => { value.academic[0].score = 100; },
-    value => { value.planning.required_total = 14; }, value => { value.planning.required_answered = 14; },
-    value => { value.planning.answered = 0; }, value => { value.planning.answered = 3; },
-    value => { value.planning.total = 13; }, value => { value.personality.answered = 25; },
-    value => { value.personality.total = 23; }, value => { value.status = 'complete'; }, value => { value.status = 'certified'; }
+    value => { value.planning.required_total = 13; }, value => { value.planning.required_answered = 13; },
+    value => { value.planning.answered = 0; }, value => { value.planning.answered = 13; },
+    value => { value.planning.total = 11; }, value => { value.personality.answered = 31; },
+    value => { value.personality.total = 29; }, value => { value.status = 'complete'; }, value => { value.status = 'certified'; }
   ];
   for (const mutate of changes) { const value = item(); mutate(value.report); assert.throws(() => tool.build(batch(value), 'teacher.local')); }
   const value = complete(item()); value.report.status = 'draft'; assert.throws(() => tool.validate(batch(value), 'teacher.local'));

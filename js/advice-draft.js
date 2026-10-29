@@ -10,7 +10,9 @@
     const fallback = window.ParentSummary.build(record).sections;
     let raw = null;
     const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
-    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records: [record] }));
+    // 与账号面板一致：带当前版本标记的记录用版本2容器，旧版或未标记的记录用版本1容器。
+    const marked = Object.hasOwn(record, 'assessmentProfile') && record.assessmentProfile === window.AssessmentProfiles.CURRENT;
+    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: marked ? 2 : 1, exportedAt: new Date().toISOString(), records: [record] }));
     const report = store.restore(record.id).state.report;
     return { context: { status: report.meta.status, direction_id: report.plan.top.major.id,
       personality_complete: report.mbti.complete, personality_code: report.mbti.complete && report.mbti.code ? report.mbti.code : null,

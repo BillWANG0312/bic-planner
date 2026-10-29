@@ -38,7 +38,7 @@ function payload(academic = false, preferences = true) {
     report: { id: 'report-1', revision: 4, report_ref: 'REF-1', name: '偏好同学', grade: '8',
       bank_version: '2026.10', catalog_version: null, status: 'draft',
       academic: ['english', 'maths', 'physics', 'chemistry'].map((key, index) => ({ key, answered: index === 3 ? 14 : 15, total: 15 })),
-      planning: { answered: 2, total: 14, required_answered: 2, required_total: 13 }, personality: { answered: 0, total: 24 } } }] };
+      planning: { answered: 2, total: 12, required_answered: 2, required_total: 12 }, personality: { answered: 0, total: 30 } } }] };
   if (academic) {
     value.scoring = scoring();
     value.items[0].report.performance = [
@@ -59,7 +59,7 @@ const headers = ['姓名', '报告编号', '年级', '服务端修订', '题库�
 const academicHeaders = ['英语题库表现（仅完整，%）', '数学题库表现（仅完整，%）', '物理题库表现（仅完整，%）', '化学题库表现（仅完整，%）',
   '评分规则版本', '评分规则指纹', '规则依据', '校准状态'];
 const preferenceHeaders = ['专业意向作答', '专业意向（学生自选，非推荐）', '地区偏好作答', '地区偏好（学生自选，多选）', '偏好选项版本', '偏好选项指纹'];
-const baseValues = ['偏好同学', 'REF-1', '8', 4, '2026.10', '未记录', '必答未完成', 15, 15, 15, 15, 15, 15, 14, 15, 2, 14, 2, 13, 0, 24];
+const baseValues = ['偏好同学', 'REF-1', '8', 4, '2026.10', '未记录', '必答未完成', 15, 15, 15, 15, 15, 15, 14, 15, 2, 12, 2, 12, 0, 30];
 const academicValues = [0, 47, 13, '未完整', 'academic-pct-v1', '9'.repeat(64), '当前同版规则重算', '未校准'];
 const preferenceValues = ['已回答', '自然科学；还不确定', '已回答', '英国；中国香港；还没想好', 'planning-preferences-v1', 'a'.repeat(64)];
 function csv(table) { return '\uFEFF' + table.map(row => row.map(value => '"' + String(value).replace(/"/g, '""') + '"').join(',')).join('\r\n') + '\r\n'; }
@@ -103,7 +103,7 @@ test('generated safe public dictionary directly supports the v3 protocol without
 test('partial planning keeps explicit choices and unanswered has a distinct fixed presentation', () => {
   const { tool } = setup(), input = payload();
   input.items[0].report.preferences.countries = { answered: false, choices: [] };
-  input.items[0].report.planning = { answered: 1, total: 14, required_answered: 1, required_total: 13 };
+  input.items[0].report.planning = { answered: 1, total: 12, required_answered: 1, required_total: 12 };
   const result = tool.build(input, 'teacher.local');
   assert.equal(result.rows[0].status, 'draft');
   assert.deepEqual(plain(tool.values(result.rows[0], undefined, result.preference_schema).slice(21, 25)), ['已回答', '自然科学；还不确定', '未回答', '未回答']);
@@ -116,13 +116,14 @@ test('the two required preference answers agree with all possible planning count
   const { tool } = setup();
   for (const academic of [false, true]) for (const majorAnswered of [false, true]) for (const countryAnswered of [false, true]) {
     const selected = Number(majorAnswered) + Number(countryAnswered);
-    for (let required = 0; required <= 13; required++) for (const optional of [0, 1]) {
+    // 统一计数：规划只有 12 道必答题，已答数恒等于必答已答数。
+    for (let required = 0; required <= 12; required++) {
       const input = payload(academic), report = input.items[0].report;
       report.preferences.preferredMajor = { answered: majorAnswered, choices: majorAnswered ? ['science'] : [] };
       report.preferences.countries = { answered: countryAnswered, choices: countryAnswered ? ['uk'] : [] };
-      report.planning.required_answered = required; report.planning.answered = required + optional;
-      const message = `academic=${academic}, major=${majorAnswered}, countries=${countryAnswered}, required=${required}, optional=${optional}`;
-      if (required >= selected && required <= 11 + selected) assert.doesNotThrow(() => tool.validate(input, 'teacher.local'), message);
+      report.planning.required_answered = report.planning.answered = required;
+      const message = `academic=${academic}, major=${majorAnswered}, countries=${countryAnswered}, required=${required}`;
+      if (required >= selected && required <= 12 - 2 + selected) assert.doesNotThrow(() => tool.validate(input, 'teacher.local'), message);
       else assert.throws(() => tool.validate(input, 'teacher.local'), message);
     }
   }
@@ -151,7 +152,7 @@ test('v3 exact mode metadata and report contracts preserve strict authorization 
     p => { p.preference_schema.extra = true; }, p => { p.items[0].report.answers = {}; },
     p => { p.items[0].report.audit = []; }, p => { p.items[0].grant.scope = 'full_report_advice_edit'; },
     p => { p.items[0].grant.recipient_username = 'other.local'; }, p => { p.items[0].grant.expires_at = 1; },
-    p => { p.items[0].report.planning.required_answered = 14; }, p => { p.items[0].report.status = 'complete'; },
+    p => { p.items[0].report.planning.required_answered = 13; }, p => { p.items[0].report.status = 'complete'; },
     p => { p.items[0].report.performance = []; }, p => { p.scoring = scoring(); }
   ];
   for (const change of changes) { const input = payload(); change(input); assert.throws(() => tool.validate(input, 'teacher.local')); }

@@ -17,7 +17,7 @@ function record(value = state()) { return { id: 'fictional-archive', createdAt: 
 test('runtime modules exist and expose the agreed isolated APIs', () => {
   const w = setup();
   assert.equal(w.AssessmentProfiles.LEGACY, 'legacy-2026.10'); assert.equal(w.AssessmentProfiles.CURRENT, 'games-traits-v1');
-  for (const key of ['stateProfile', 'recordProfile', 'reportProfile', 'requireLegacyRecord']) assert.equal(typeof w.AssessmentProfiles[key], 'function');
+  for (const key of ['stateProfile', 'recordProfile', 'reportProfile', 'requireRecord']) assert.equal(typeof w.AssessmentProfiles[key], 'function');
   for (const key of ['generateReport', 'renderReport', 'createStore', 'validateRecord', 'validateState']) assert.equal(typeof w.LegacyAssessment[key], 'function');
   assert.equal(w.LegacyAssessment.planQuestions.length, 14); assert.equal(w.LegacyAssessment.mbtiQuestions.length, 24);
   assert.equal(w.PLAN_QUESTIONS.length, 13); assert.equal(w.TRAIT_QUESTIONS.length, 30);
@@ -32,19 +32,32 @@ test('unmarked old numeric/null and empty states stay legacy while modern eviden
     { ...state(), plan: { answers: { subjectBoard: {} } }, mbti: { answers: [] } }]) assert.equal(p.stateProfile(value), p.CURRENT);
   assert.equal(p.recordProfile(record()), p.LEGACY);
   const modern = record({ ...state(), mbti: { answers: [{ value: 4, ms: null }] } });
-  assert.equal(p.recordProfile(modern), p.CURRENT); assert.throws(() => p.requireLegacyRecord(modern), error => error.code === 'PROFILE');
+  assert.equal(p.recordProfile(modern), p.CURRENT); assert.equal(p.requireRecord(modern), modern);
+  assert.throws(() => p.requireRecord({ ...record(), assessmentProfile: 'unknown' }), error => error.code === 'PROFILE');
 });
 
 for (const [label, alter] of [
-  ['unknown marker', s => { s.assessmentProfile = 'unknown'; }], ['mixed numeric/object', s => { s.mbti.answers = [0, { value: 4 }]; }],
+  // 数字与对象、数字与空位的混排都由旧版字段校验拒绝（见下一组），作答形状识别只认完整的结构化作答。
+  ['unknown marker', s => { s.assessmentProfile = 'unknown'; }],
   ['legacy converted', s => { s.mbti = { answers: [{ value: 0 }], legacy: true }; }],
-  ['legacy marker/game', s => { s.assessmentProfile = 'legacy-2026.10'; s.plan.answers.majorBoard = {}; }],
-  ['current marker/numeric', s => { s.assessmentProfile = 'games-traits-v1'; }],
-  ['new object/old controls', s => { s.mbti.answers = [{ value: 0 }]; s.plan.answers.groupSize = 'small'; }],
-  ['numeric 30', s => { s.mbti.answers = Array(30).fill(2); }], ['malformed personality', s => { s.mbti.answers = 'private'; }]
+  ['malformed personality', s => { s.mbti.answers = 'private'; }]
 ]) test(`profile refuses ${label} without rewriting source`, () => {
   const p = setup().AssessmentProfiles, value = state(); alter(value); const before = plain(value);
   assert.throws(() => p.stateProfile(value), error => error.code === 'PROFILE' && !error.message.includes('private'));
+  assert.deepEqual(value, before);
+});
+
+// 带版本标记的新旧混写仍按作答识别版本，由旧版字段校验拒绝：旧版标记配当前版规划题、
+// 当前版标记配 24 个数字（当前版题量是 30）、旧版标记配当前版对象作答、数字与对象混排。
+for (const [label, alter] of [
+  ['legacy marker/game', s => { s.assessmentProfile = 'legacy-2026.10'; s.plan.answers.majorBoard = {}; }],
+  ['current marker/numeric', s => { s.assessmentProfile = 'games-traits-v1'; }],
+  ['legacy marker/new personality', s => { s.assessmentProfile = 'legacy-2026.10'; s.mbti.answers = [{ value: 0 }]; }],
+  ['numeric 30', s => { s.mbti.answers = Array(30).fill(2); }],
+  ['mixed object/numeric', s => { s.mbti.answers = [{ value: 4 }, 0]; }], ['mixed numeric/object', s => { s.mbti.answers = [0, { value: 4 }]; }]
+]) test(`legacy validation refuses ${label} without rewriting source`, () => {
+  const w = setup(), value = state(); alter(value); const before = plain(value);
+  assert.throws(() => w.LegacyAssessment.validateState(value, { allowBlankName: true }), error => error.code === 'VALIDATION');
   assert.deepEqual(value, before);
 });
 
@@ -100,15 +113,17 @@ test('legacy report engine and renderer match fixed Git source for blank partial
   full.mbti.answers = Array(24).fill(2);
   for (const value of [state(), { ...state(), academic: { answers: {} }, mbti: { answers: [] } }, full,
     { ...full, plan: { answers: { ...full.plan.answers, schoolSubjects: ['自选学科'], weakSubjects: [] } } }]) {
-    const expected = old.generateReport(value), actual = w.generateReport(value); expected.meta.assessmentProfile = w.AssessmentProfiles.LEGACY;
-    assert.deepEqual(plain(actual), plain(expected)); assert.equal(actual.mbti.total, 24);
+    // 业务结果与冻结旧源逐字一致；旧版报告按旧版习惯不带 games（小游戏属于当前版本），meta 只多出测评版本。
+    const expected = old.generateReport(value), actual = w.generateReport({ ...value, assessmentProfile: w.AssessmentProfiles.LEGACY });
+    assert.equal(actual.meta.assessmentProfile, w.AssessmentProfiles.LEGACY); assert.equal('games' in actual, false);
+    delete actual.meta.assessmentProfile; assert.deepEqual(plain(actual), plain(expected)); assert.equal(actual.mbti.total, 24);
     const html = w.renderReport(actual); assert.ok(html.includes('旧版24题')); assert.ok(html.endsWith(old.renderReport(expected)));
   }
 });
 
 test('modern game/trait reports remain modern and mixed report metadata is rejected', () => {
   const w = setup(), value = state(); value.assessmentProfile = w.AssessmentProfiles.CURRENT; value.mbti.answers = w.TRAIT_QUESTIONS.map(() => ({ value: 4, ms: 900 }));
-  const report = w.generateReport(value); assert.equal(report.meta.assessmentProfile, w.AssessmentProfiles.CURRENT); assert.equal(report.mbti.total, 30);
+  const report = w.generateReport({ ...value, assessmentProfile: w.AssessmentProfiles.CURRENT }); assert.equal(report.meta.assessmentProfile, w.AssessmentProfiles.CURRENT); assert.equal(report.mbti.total, 30);
   assert.equal(w.AssessmentProfiles.reportProfile(report), w.AssessmentProfiles.CURRENT); assert.ok(w.renderReport(report).includes('性格特质'));
   report.meta.assessmentProfile = w.AssessmentProfiles.LEGACY; assert.throws(() => w.renderReport(report), error => error.code === 'PROFILE');
 });

@@ -8,27 +8,24 @@
   const copy = value => JSON.parse(JSON.stringify(value));
   const identifier = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
   const revisionNumber = value => Number.isSafeInteger(value) && value > 0;
-  function requireLegacyRecord(record) {
-    const unsupported = () => { throw new CloudError('PROFILE', '新版游戏、特质或未知问卷资料暂不支持此账号接口。请保留本机JSON备份，旧版报告仍可使用。', 422); };
-    if (window.AssessmentProfiles?.requireLegacyRecord) {
-      try { window.AssessmentProfiles.requireLegacyRecord(record); } catch (_) { unsupported(); }
+  // 账号服务同时接受两版归档：有版本模块时按记录形状核对（未知或混合仍然拒绝）；
+  // 账号页等不加载测评模块的最简客户端只做形状排查，不把肉眼可见的新版或未知资料发给服务。
+  function requireRecord(record) {
+    const unsupported = () => { throw new CloudError('PROFILE', '测评资料版本未知或已混合，暂不支持此账号接口。请保留本机JSON备份，报告仍可在本机使用。', 422); };
+    if (window.AssessmentProfiles?.requireRecord) {
+      try { window.AssessmentProfiles.requireRecord(record); } catch (error) { throw unsupported(); }
       return;
     }
-    // Account-only pages need no assessment modules. Even in that minimal
-    // client, never send a visibly newer/unknown shape to the legacy API.
     if (Object.hasOwn(record, 'assessmentProfile')) unsupported();
     const state = record.state;
     if (state === undefined) return;
-    if (!object(state) || Object.hasOwn(state, 'assessmentProfile')
-        || state.mbti !== undefined && !object(state.mbti) || state.plan !== undefined && !object(state.plan)) unsupported();
-    const personality = state.mbti || {}, plan = state.plan?.answers || {};
+    if (!object(state) || ['report', 'reportMeta', 'ui'].some(key => Object.hasOwn(state, key)) || state.mbti !== undefined && !object(state.mbti)
+        || state.plan !== undefined && !object(state.plan)) unsupported();
+    const personality = state.mbti || {}, plan = state.plan?.answers;
+    if (!object(personality) || Object.hasOwn(personality, 'legacy') || !(plan === undefined || Array.isArray(plan) && !plan.length || object(plan))) unsupported();
     const answers = personality.answers === undefined ? [] : personality.answers;
-    if (!object(plan) || Object.hasOwn(personality, 'legacy') || !Array.isArray(answers) || answers.length > 24
-        || answers.some(value => value !== null && (!Number.isInteger(value) || value < 0 || value > 4))) unsupported();
-    if (['subjectBoard', 'majorBoard', 'team'].some(key => Object.hasOwn(plan, key))
-        || Array.isArray(plan.career) && plan.career.some(id => ['ideas', 'people', 'systems', 'science', 'build', 'market'].includes(id))
-        || Array.isArray(plan.preferredMajor) && (plan.preferredMajor.length > 2
-          || plan.preferredMajor.some(id => ['cs', 'phys', 'chem', 'bio', 'biz', 'law', 'psych', 'design', 'intl'].includes(id)))) unsupported();
+    if (!Array.isArray(answers) || answers.length > 30) unsupported();
+    if (answers.some(value => value !== null && !(Number.isInteger(value) && value >= 0 && value <= 4) && !object(value))) unsupported();
   }
   function passwordShape(value) {
     if (typeof value !== 'string') return false;
@@ -295,7 +292,7 @@
 
     function report(value) {
       if (!object(value) || !identifier(value.id) || !revisionNumber(value.revision) || !object(value.record)) throw protocolError();
-      requireLegacyRecord(value.record);
+      requireRecord(value.record);
       return value;
     }
     function reportId(id) {
@@ -321,7 +318,7 @@
     async function createReport(record) {
       requireConnection(true);
       if (!object(record)) throw new CloudError('VALIDATION', '请选择有效的本机归档。', 422);
-      requireLegacyRecord(record);
+      requireRecord(record);
       return report(await request('reports', { method: 'POST', body: { record }, authenticated: true }));
     }
     async function update(id, expectedRevision, record) {
@@ -329,7 +326,7 @@
       const endpoint = 'reports/' + reportId(id);
       revision(expectedRevision);
       if (!object(record)) throw new CloudError('VALIDATION', '请选择有效的本机归档。', 422);
-      requireLegacyRecord(record);
+      requireRecord(record);
       return report(await request(endpoint, { method: 'PUT', body: { record, revision: expectedRevision }, authenticated: true }));
     }
     async function remove(id, expectedRevision) {

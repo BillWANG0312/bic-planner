@@ -45,11 +45,11 @@ async function open(initial) {
   await page.goto(origin + '/index.html'); return { context, page, requests };
 }
 async function signIn(f, username) {
-  await f.page.locator('#openCloudBtn').click(); await f.page.locator('#cloudConnectBtn').click();
+  await f.page.locator('#openCloudBtn').click();
   await f.page.locator('#cloudUsername').fill(username); await f.page.locator('#cloudPassword').fill(password); await f.page.locator('#cloudLoginForm button[type=submit]').click();
   await f.page.locator('#cloudWorkspace').waitFor({ state: 'visible' }); await f.page.locator('#cloudRefreshBtn:enabled').waitFor();
 }
-test('modern profiles save as local v2 JSON and cannot be uploaded through the legacy API', async () => {
+test('modern profiles save as local v2 JSON and upload unchanged through the account API', async () => {
   const f = await open();
   try {
     await f.page.locator('#startBtn').click(); await f.page.locator('#inName').fill('新版本地验证学员'); await f.page.locator('#updateReportBtn').click(); await f.page.locator('#screen-report.active').waitFor();
@@ -58,24 +58,30 @@ test('modern profiles save as local v2 JSON and cannot be uploaded through the l
     const backup = await f.page.evaluate(() => JSON.parse(ReportStore.create(localStorage).exportBackup()));
     assert.equal(backup.version, 2); assert.equal(backup.records[0].assessmentProfile, 'games-traits-v1');
     const original = await f.page.evaluate(() => localStorage.getItem('bic.report-library.v1'));
-    await signIn(f, 'profile.current'); assert.equal(await f.page.locator('#cloudUploadBtn').isDisabled(), true);
-    assert.match(await f.page.locator('#cloudSourceNote').textContent(), /新版|游戏|特质/);
-    await f.page.evaluate(() => document.querySelector('#cloudUploadBtn').onclick());
-    assert.equal(f.requests.filter(request => request.method() === 'POST' && request.url().endsWith('/reports')).length, 0);
-    assert.equal((await (await f.context.request.get(origin + '/api/reports')).json()).total, 0);
+    // 统一版本后当前报告可上传；已归档的报告直接以当前报告上传，不会重复存档。
+    await signIn(f, 'profile.current'); assert.equal(await f.page.locator('#cloudUploadBtn').isEnabled(), true);
+    assert.match(await f.page.locator('#cloudSourceNote').textContent(), /仅此份资料会在确认后上传/);
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#cloudUploadBtn').click();
+    await f.page.waitForFunction(() => /已上传/.test(document.getElementById('cloudStatus').textContent), null, { timeout: 20000 });
+    assert.equal(f.requests.filter(request => request.method() === 'POST' && request.url().endsWith('/reports')).length, 1);
+    const list = await (await f.context.request.get(origin + '/api/reports')).json();
+    assert.equal(list.total, 1);
+    const stored = await (await f.context.request.get(origin + '/api/reports/' + list.items[0].id)).json();
+    assert.equal(stored.record.assessmentProfile, 'games-traits-v1');
     assert.equal(await f.page.evaluate(() => localStorage.getItem('bic.report-library.v1')), original);
   } finally { await f.context.close(); }
 });
-test('old original progress stays untouched until confirmation and retains its old meaning through real cloud storage', async () => {
+test('old original progress is never resumed; only its original bytes and archived legacy report remain usable', async () => {
   const { loadReportScripts, legacyState } = require('../helpers/report.cjs'), w = loadReportScripts(), initial = legacyState(w, true);
   initial.report = w.generateReport(initial); initial.report.meta.batchId = 'LEGACY-PROFILE-EXACT'; initial.report.meta.date = '原日期';
   w.reportEditing.applyEdit(initial.report, 'summary', '保留旧问卷的顾问建议', '虚构顾问'); initial.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
   const raw = JSON.stringify(initial, null, 2) + '\n', expected = JSON.parse(raw), f = await open(raw);
   try {
-    await f.page.locator('#profileNotice').waitFor({ state: 'visible' }); await f.page.locator('#reportRoot .paper').waitFor();
+    // 旧版进度不再续答：页面默认停在首页，只提示保留原始JSON，不打开旧报告。
+    await f.page.locator('#screen-home.active').waitFor();
+    await f.page.locator('#profileNotice').waitFor({ state: 'visible' });
     assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
-    assert.deepEqual(await f.page.evaluate(() => ({ profile: __pathwise.state.report.meta.assessmentProfile, personality: __pathwise.state.report.mbti.total, planning: __pathwise.state.report.meta.coverage.plan.total, oldGroup: __pathwise.state.plan.answers.groupSize })),
-      { profile: 'legacy-2026.10', personality: 24, planning: 14, oldGroup: initial.plan.answers.groupSize });
+    assert.equal(await f.page.evaluate(() => __pathwise.state.report), null);
     await f.page.evaluate(() => dispatchEvent(new Event('pagehide'))); assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
     await f.page.reload(); await f.page.locator('#profileNotice').waitFor({ state: 'visible' }); assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
     if (process.env.BIC_CAPTURE === '1') {
@@ -85,27 +91,48 @@ test('old original progress stays untouched until confirmation and retains its o
       await f.page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
       await f.page.screenshot({ path: path.join(root, 'test-results/profile-mobile.png'), animations: 'disabled' });
     }
-    await useConfirm(f.page).confirmAt(true); await f.page.locator('#profileContinueBtn').click();
-    await signIn(f, 'profile.legacy'); await useConfirm(f.page).confirmAt(true); await f.page.locator('#cloudUploadBtn').click(); await f.page.locator('[data-cloud-read]').waitFor();
-    const list = await (await f.context.request.get(origin + '/api/reports')).json(); assert.equal(list.total, 1);
-    const saved = await (await f.context.request.get(origin + '/api/reports/' + list.items[0].id)).json();
-    assert.equal('assessmentProfile' in saved.record, false); assert.deepEqual(saved.record.state.mbti.answers, expected.mbti.answers); assert.deepEqual(saved.record.state.plan.answers, expected.plan.answers);
-    assert.equal(saved.record.reportMeta.batchId, initial.report.meta.batchId); assert.equal(saved.record.reportMeta.date, '原日期'); assert.deepEqual(saved.record.advisor.history, expected.report.advisor.history);
+    const pending = f.page.waitForEvent('download'); await f.page.locator('#profileRawDownloadBtn').click(); const file = await pending;
+    assert.equal(await fs.readFile(await file.path(), 'utf8'), raw);
+    // 明确重新测评后才清空旧进度；等确认框出现并受理后再核对新一份作答。
+    const asked = (await useConfirm(f.page).asked()).length;
+    await useConfirm(f.page).confirmAt(true); await f.page.locator('#profileRestartBtn').click();
+    await f.page.waitForFunction(count => window.__BIC_CONFIRM.asked.length === count, asked + 1);
+    // 页面在确认框收起后才替换进度，这里等它换成新当前版本的空白作答。
+    await f.page.waitForFunction(() => __pathwise.state.assessmentProfile === 'games-traits-v1');
+    assert.equal(await f.page.evaluate(() => __pathwise.state.assessmentProfile), 'games-traits-v1');
+    assert.equal(await f.page.evaluate(() => __pathwise.state.mbti.answers.length), 30);
+    // 新的空白作答已写回本机，离开页面时保持这一份。
+    await f.page.waitForFunction(() => (localStorage.getItem('pathwise.state.v1') || '').includes('games-traits-v1'));
+    await f.page.evaluate(() => dispatchEvent(new Event('pagehide')));
+    const stored = JSON.parse(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')));
+    assert.equal(stored.assessmentProfile, 'games-traits-v1');
+    assert.equal(f.requests.length, 0);
   } finally { await f.context.close(); }
 });
 test('converted or unknown progress only exports its original bytes until an explicit new assessment', async () => {
   const raw = JSON.stringify({ info: { name: '隔离验证', grade: '8', year: '' }, academic: { answers: {} }, plan: { answers: {} }, mbti: { legacy: true, answers: [{ value: 4, ms: null }] } }, null, 2) + '\n';
   const f = await open(raw);
   try {
-    await f.page.locator('#profileNotice').waitFor({ state: 'visible' }); assert.equal(await f.page.locator('#profileContinueBtn').isHidden(), true);
+    await f.page.locator('#profileNotice').waitFor({ state: 'visible' });
+    assert.equal(await f.page.locator('#profileRestartBtn').isVisible(), true);
+    assert.equal(await f.page.evaluate(() => document.getElementById('profileNoticeText').textContent.includes('无法识别')), true);
     const pending = f.page.waitForEvent('download'); await f.page.locator('#profileRawDownloadBtn').click(); const file = await pending;
     assert.equal(await fs.readFile(await file.path(), 'utf8'), raw);
     // The confirmation is what starts the new version: declining it must ask once and change nothing.
     const askedBefore = (await useConfirm(f.page).asked()).length;
     await useConfirm(f.page).confirmAt(false); await f.page.locator('#profileRestartBtn').click();
-    await f.page.waitForFunction(count => window.__BIC_CONFIRM.asked.length === count, askedBefore + 1); assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
+    // 页面在确认框收起后才替换进度：这里等它询问并保持原始字节不变，确认没有续答。
+    await f.page.waitForFunction(count => window.__BIC_CONFIRM.asked.length === count, askedBefore + 1);
+    // 统一用当前版本后，内存里始终是当前版本的作答；拒绝确认后页面仍停在首页、不续答，原始字节不变。
+    assert.equal(await f.page.evaluate(() => window.__pathwise.state.assessmentProfile), 'games-traits-v1');
+    assert.equal(await f.page.locator('#profileNotice').isVisible(), true);
+    assert.equal(await f.page.locator('#screen-home.active').count(), 1);
+    assert.equal(await f.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), raw);
     await useConfirm(f.page).confirmAt(true); await f.page.locator('#profileRestartBtn').click();
+    // 确认后换成当前版本的空白作答并写回本机：提示条收起，原始字节被替换。
+    await f.page.waitForFunction(() => document.getElementById('profileNotice').hidden);
     assert.equal(await f.page.evaluate(() => __pathwise.state.assessmentProfile), 'games-traits-v1'); assert.equal(await f.page.evaluate(() => __pathwise.state.mbti.answers.length), 30);
+    await f.page.waitForFunction(() => (localStorage.getItem('pathwise.state.v1') || '').includes('games-traits-v1'));
     assert.equal(f.requests.length, 0);
   } finally { await f.context.close(); }
 });

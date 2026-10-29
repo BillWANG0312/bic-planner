@@ -11,8 +11,11 @@ const copy = value => JSON.parse(JSON.stringify(value));
 function fixture(makeState = state) {
   const w = loadReportScripts();
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/report-store.js'), 'utf8'), { window: w });
+  // 旧版作答由旧版引擎出报告；其余用例使用当前版本。
   const value = makeState(w);
-  value.report = w.generateReport(value);
+  // 统一用新版：作答按内容识别版本，只有明确的旧版形状才交给旧版引擎。
+  const profile = w.AssessmentProfiles.stateProfile(value);
+  value.report = (profile === w.AssessmentProfiles.LEGACY ? w.LegacyAssessment : w).generateReport({ ...value, assessmentProfile: profile });
   value.report.meta.batchId = 'AP-PROVENANCE';
   w.reportEditing.applyEdit(value.report, 'plan', '经核对的草稿建议', '核对老师');
   value.report.advisor.history[0].origin = copy(ORIGIN);
@@ -53,7 +56,7 @@ test('unsafe provenance cannot create a source label or survive carryEdits', () 
   for (const origin of [null, { ...ORIGIN, generator: 'local-demo-v1\n' }, { ...ORIGIN, draft_id: ORIGIN.draft_id + '\n' }]) {
     value.report.advisor.history[0].origin = origin;
     assert.equal(w.reportEditing.originLabel(origin), '');
-    const next = w.generateReport(value);
+    const next = w.generateReport({ ...value, assessmentProfile: w.AssessmentProfiles.CURRENT });
     w.reportEditing.carryEdits(value.report, next);
     assert.equal(next.advisor.history.length, 0);
     assert.ok(!w.renderReport(next).includes('顾问核对·本地模拟草稿'));
@@ -64,7 +67,7 @@ test('a discarded corrupt latest history entry cannot attribute newer text to an
   const { w, value } = fixture();
   value.report.advisor.history.push({ ...copy(value.report.advisor.history[0]), id: 'later', after: '后来的不同建议', origin: null });
   value.report.advisor.sections.plan = '后来的不同建议';
-  const next = w.generateReport(value);
+  const next = w.generateReport({ ...value, assessmentProfile: w.AssessmentProfiles.CURRENT });
   w.reportEditing.carryEdits(value.report, next);
   assert.equal(next.advisor.history.length, 1);
   assert.equal(w.reportEditing.getText(next, 'plan'), '后来的不同建议');
@@ -120,6 +123,9 @@ test('manual edits and resets record the human action without inheriting a draft
 test('editor history and printable advice disclose reviewed local simulation source', () => {
   const { value } = fixture();
   return withPage(async page => {
+    // 打开网址停在首页，已保存的报告从续答入口进入
+    await page.locator('#resumeBtn').click();
+    await page.locator('#screen-report.active').waitFor();
     await page.locator('#editReportBtn').click();
     assert.match(await page.locator('#reportEditor').textContent(), /顾问核对·本地模拟草稿/);
     assert.match(await page.locator('#reportEditor').textContent(), /local-demo-v1/);

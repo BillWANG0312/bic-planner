@@ -8,7 +8,7 @@ const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
 const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
-const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
+const { loadReportScripts, legacyState } = require('../helpers/report.cjs');
 const root = path.resolve(__dirname, '../..');
 const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-teacher-summary-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
@@ -45,9 +45,9 @@ async function setup(label) {
   const vm = require('node:vm'), source = await fs.readFile(path.join(root, 'js/report-store.js'), 'utf8'); vm.runInNewContext(source, { window: w, Date });
   const reports = [], grants = [];
   for (let i = 0; i < 2; i++) {
-    const value = state(w); value.info.name = i ? '第二位摘要学员' : '=SUM(1,1)';
+    const value = legacyState(w); value.info.name = i ? '第二位摘要学员' : '=SUM(1,1)';
     value.academic.answers = { en1: 0, ma5: 0, ma1: null }; value.plan.answers.weakSubjects = []; value.mbti.answers = [0, null, 2];
-    value.report = w.generateReport(value); value.report.meta.batchId = `SUMMARY-${label}-${i}`;
+    value.report = w.generateReport({ ...value, assessmentProfile: w.AssessmentProfiles.CURRENT }); value.report.meta.batchId = `SUMMARY-${label}-${i}`;
     w.reportEditing.applyEdit(value.report, 'summary', '不应返回摘要的私密顾问建议', '原顾问');
     let raw = null; const record = w.ReportStore.create({ getItem: () => raw, setItem: (_, text) => { raw = text; } }).save(value).record;
     const response = await owner.request.post(origin + '/api/reports', { headers, data: { record } }); assert.equal(response.status(), 201); const report = await response.json(); reports.push(report);
@@ -86,8 +86,9 @@ test('selected readonly summaries produce an exact private CSV after fresh check
   try {
     await select(f, 0); const one = await preview(f); assert.equal(one.items.length, 1); assert.equal(one.items[0].grant.id, f.grants[0].id);
     assert.deepEqual(one.items[0].report.academic.map(subject => subject.answered), [1, 1, 0, 0]);
-    assert.deepEqual(one.items[0].report.planning, { answered: 2, total: 14, required_answered: 1, required_total: 13 });
-    assert.deepEqual(one.items[0].report.personality, { answered: 2, total: 24 });
+    // 规划统一按当前版本 12 道必答题统计：旧版存档只答了年级，专业意向换算成空的心动/观望分格后不算作答。
+    assert.deepEqual(one.items[0].report.planning, { answered: 1, total: 12, required_answered: 1, required_total: 12 });
+    assert.deepEqual(one.items[0].report.personality, { answered: 2, total: 30 });
     assert.equal(JSON.stringify(one).includes('不应返回摘要的私密顾问建议'), false);
     await select(f, 1); assert.equal(await f.page.locator('#summaryPreview').isHidden(), true); const both = await preview(f);
     const expected = await f.page.evaluate(value => window.TeacherSummary.build(value, 'summary.advisor').csv, both);

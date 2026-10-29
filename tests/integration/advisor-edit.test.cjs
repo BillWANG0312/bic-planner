@@ -6,7 +6,7 @@ const path = require('node:path');
 const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
-const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
+const { loadReportScripts, legacyState } = require('../helpers/report.cjs');
 const { actionResponse, readNewest } = require('../helpers/response.cjs');
 const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
 const root = path.resolve(__dirname, '../..');
@@ -39,17 +39,23 @@ after(async () => {
 });
 async function csrf(context) { return { Origin: origin, 'X-CSRF-Token': (await (await context.request.get(origin + '/api/auth/session')).json()).csrf_token }; }
 async function ownerPage(label) {
-  const w = loadReportScripts(), value = state(w); value.info.name = '编辑授权测试' + label;
-  value.report = w.generateReport(value); value.report.meta.batchId = 'EDIT-CASE-' + label;
+  const w = loadReportScripts(), value = legacyState(w, true); value.info.name = '编辑授权测试' + label;
+  // 账号接口两版归档都接收；这里用一份旧版归档验证：旧版进度不再续答，打开后按只读报告上传。
+  value.report = w.LegacyAssessment.generateReport(value); value.report.meta.batchId = 'EDIT-CASE-' + label;
   w.reportEditing.applyEdit(value.report, 'summary', '所有者确认的原核心建议', '原顾问');
   value.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await useConfirmHooks(context);
   const page = await context.newPage(); page.setDefaultTimeout(7000); const confirm = useConfirm(page);
-  await page.addInitScript(value => { if (!localStorage.getItem('pathwise.state.v1')) localStorage.setItem('pathwise.state.v1', JSON.stringify(value)); }, value);
+  const savedValue = JSON.parse(JSON.stringify(value));
+  await page.addInitScript(value => { try { localStorage.clear(); localStorage.setItem('pathwise.state.v1', JSON.stringify(value)); } catch (_) {} }, savedValue);
   await page.goto(origin);
-  await confirm.confirmAt(true); await page.locator('#profileContinueBtn').click();
-  assert.equal(await page.evaluate(() => window.__pathwise.state.assessmentProfile), 'legacy-2026.10');
-  await page.locator('#openCloudBtn').click(); await page.locator('#cloudConnectBtn').click();
+  // 旧版进度不再续答：只能「重新测试」；随后打开只读的旧版报告（不写回续答进度）。
+  await confirm.confirmAt(true);
+  await page.evaluate(() => document.getElementById('profileRestartBtn').click());
+  await page.locator('#profileNotice').waitFor({ state: 'hidden' });
+  await page.evaluate(value => window.__pathwise.openState(value), savedValue);
+  await page.locator('#screen-report.active').waitFor();
+  await page.locator('#openCloudBtn').click();
   await page.locator('#cloudUsername').fill('edit.owner'); await page.locator('#cloudPassword').fill(password);
   await page.locator('#cloudLoginForm button[type=submit]').click(); await page.locator('#cloudWorkspace').waitFor({ state: 'visible' });
   await page.locator('#cloudRefreshBtn:enabled').waitFor();

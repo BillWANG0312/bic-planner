@@ -7,7 +7,7 @@ import uuid
 from pydantic import ValidationError
 
 from .db import StorageError
-from .models import ArchiveRecord
+from .models import ArchiveRecord, map_to_current
 from .security import AuthError, canonical_username
 
 
@@ -75,7 +75,9 @@ class TeacherAccessService:
         return {**result, 'scope': _SCOPE, 'status': self._status(row, now)}
 
     @staticmethod
-    def _validated_record(row, *, joined):
+    def _validated_record(row, *, joined, current=True):
+        # 读取存档时（current）换回当前形状；只做存在性检查的调用传 current=False，
+        # 中间层写回时按存档原样保存（legacy_record 只换算仍是当前形状的记录）。
         try:
             record = json.loads(row['record_json'])
             ArchiveRecord.model_validate(record)
@@ -91,7 +93,7 @@ class TeacherAccessService:
                     or record['state']['info']['grade'] != row[grade_key]
                     or record['state']['info']['year'] != row[year_key]):
                 raise ValueError('Stored metadata mismatch')
-            return record
+            return map_to_current(record) if current else record
         except (ValidationError, TypeError, ValueError, KeyError, UnicodeError):
             raise StorageError(503, 'The authorized report is temporarily unavailable.', 'STORAGE') from None
 

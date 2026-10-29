@@ -11,7 +11,7 @@ function batch(ids = ['grant-one']) {
       owner_username: 'owner.local', recipient_username: 'teacher.local', scope: 'full_report_read_only', created_at: now - 10, expires_at: now + 86400, revoked_at: null, status: 'active' },
     report: { id: 'report-' + index, revision: 2, name: '学员' + index, report_ref: 'REF-' + index, grade: '8', bank_version: '2026.10', catalog_version: null, status: 'draft',
       academic: ['english', 'maths', 'physics', 'chemistry'].map(key => ({ key, answered: 0, total: 15 })),
-      planning: { answered: 1, total: 14, required_answered: 1, required_total: 13 }, personality: { answered: 0, total: 24 } }
+      planning: { answered: 1, total: 12, required_answered: 1, required_total: 12 }, personality: { answered: 0, total: 30 } }
   })) };
 }
 function setup(advisor = true) {

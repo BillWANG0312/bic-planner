@@ -2,7 +2,7 @@
 
 import sqlite3
 import time
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -11,7 +11,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
 from .db import Database, StorageError
-from .models import ArchiveRecord
+from .current_profile import CURRENT_PROFILE
+from .current_profile import AnswerError
+from .models import LEGACY_PROFILE, stored_record
 from .security import AuthError, AuthService
 from .settings import Settings
 from .share_models import ShareContent
@@ -41,7 +43,9 @@ class ChangePasswordBody(StrictBody):
 
 
 class CreateReportBody(StrictBody):
-    record: ArchiveRecord
+    record: Any
+    # 当前版本的存档在写入边界换算成旧版兼容字段；读取时由服务换回当前形状并补上标记。缺省按旧版存档保存。
+    assessmentProfile: Literal[LEGACY_PROFILE, CURRENT_PROFILE] | None = None
 
 
 class UpdateReportBody(CreateReportBody):
@@ -211,6 +215,11 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
         # Pydantic's default response includes rejected input, possibly a password or answers.
         return JSONResponse({'detail': 'Invalid request parameters or body.'}, status_code=422)
 
+    @app.exception_handler(AnswerError)
+    async def invalid_record(request, error):
+        # 报告存档在写入边界校验：错误里只有字段路径，不回显作答内容。
+        return JSONResponse({'detail': str(error)}, status_code=422)
+
     @app.exception_handler(AuthError)
     async def auth_error(request, error):
         headers = {'Retry-After': str(error.retry_after)} if error.retry_after else None
@@ -238,8 +247,10 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
             raise HTTPException(403, 'A valid CSRF token is required.')
         return session
 
-    def serialize_record(record):
-        return record.model_dump(mode='json', exclude_unset=True)
+    def serialize_record(record, profile):
+        # 当前版本的存档在写入边界换算成旧版兼容字段保存；旧版存档原样保存。
+        # 以请求顶层的版本标记决定是否换算；记录自带的标记只是说明来源版本，不写入存档。
+        return stored_record({**record, **({'assessmentProfile': profile} if profile else {})})
 
     @app.get('/api/health')
     def health():
@@ -283,7 +294,7 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
 
     @app.post('/api/reports', status_code=201)
     def create_report(body: CreateReportBody, session=Depends(writable_session)):
-        return db.create_report(session['user']['id'], serialize_record(body.record))
+        return db.create_report(session['user']['id'], serialize_record(body.record, body.assessmentProfile))
 
     @app.get('/api/reports/{report_id}')
     def get_report(report_id: str, session=Depends(current_session)):
@@ -294,7 +305,7 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
 
     @app.put('/api/reports/{report_id}')
     def update_report(report_id: str, body: UpdateReportBody, session=Depends(writable_session)):
-        return db.update_report(session['user']['id'], report_id, serialize_record(body.record), body.revision)
+        return db.update_report(session['user']['id'], report_id, serialize_record(body.record, body.assessmentProfile), body.revision)
 
     @app.delete('/api/reports/{report_id}', status_code=204)
     def delete_report(report_id: str, revision: int = Query(ge=1), session=Depends(writable_session)):

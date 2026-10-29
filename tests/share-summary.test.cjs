@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
+const { loadReportScripts, completePlan, state } = require('./helpers/report.cjs');
 
 const root = path.resolve(__dirname, '..');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -13,12 +13,17 @@ function load(window = {}) {
   assert.ok(window.ParentSummary, '家长摘要的严格边界应存在');
   return window.ParentSummary;
 }
-function fixture(complete = false) {
+function fixture(complete = false, current = false) {
   const w = loadReportScripts();
   vm.runInNewContext(fs.readFileSync(path.join(root, 'js/report-store.js'), 'utf8'), { window: w, Date });
-  const value = state(w, complete);
-  if (complete) for (const q of w.LegacyAssessment.planQuestions) value.plan.answers[q.key] = q.type === 'single'
-    ? q.options()[0].id : q.optional ? [] : [q.source()[0].id];
+  // 按当前版本归档（结构化性格作答 + 游戏题，带版本标记）验证分享摘要；current 只为区分旧的完整作答字样保留。
+  const value = state(w);
+  // 完整作答：按当前问卷填满学术题、游戏题，性格题每题 3 次（均衡）以上，报告才是 complete。
+  if (complete) {
+    Object.assign(value.plan.answers, completePlan(w));
+    value.academic.answers = Object.fromEntries(w.QUESTION_BANK.map(q => [q.id, q.answer]));
+    value.mbti.answers = w.TRAIT_QUESTIONS.map(() => ({ value: 2, ms: 900 }));
+  }
   value.report = w.generateReport(value);
   value.report.meta.batchId = 'AP-PARENT-01';
   w.reportEditing.applyEdit(value.report, 'summary', '与老师一起复核学习计划。', '私密编辑者');
@@ -64,8 +69,7 @@ test('real archived records yield minimal summaries with no raw answers, questio
 });
 
 test('complete subjects publish measured aggregate scores while personality neutrality remains balanced', () => {
-  const { w, record } = fixture(true);
-  record.state.mbti.answers.fill(2);
+  const { w, record } = fixture(true, true);
   const result = load(w).build(record);
   assert.equal(result.status, 'complete');
   assert.ok(result.subjects.every(subject => subject.answered === 15 && subject.total === 15 && subject.pct === 100));

@@ -19,7 +19,7 @@ function fixture() {
       owner_username: 'owner.test', recipient_username: 'teacher.test', scope: 'full_report_read_only', created_at: at, expires_at: at + 86400, revoked_at: null, status: 'active' },
     report: { id: 'report-one', revision: 2, report_ref: 'PREFERENCE-ONE', name: '<b>偏好学员</b>', grade: '8', bank_version: '2026.10', catalog_version: null, status: 'draft',
       academic: ['english', 'maths', 'physics', 'chemistry'].map((key, i) => ({ key, answered: i === 1 ? 14 : 15, total: 15 })),
-      planning: { answered: 2, total: 14, required_answered: 2, required_total: 13 }, personality: { answered: 0, total: 24 } }
+      planning: { answered: 2, total: 12, required_answered: 2, required_total: 12 }, personality: { answered: 0, total: 30 } }
   }] };
 }
 const fakeClient = `window.CloudReports={create(){

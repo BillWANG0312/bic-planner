@@ -8,7 +8,7 @@ const net = require('node:net');
 const { spawn, spawnSync } = require('node:child_process');
 const { launchBrowser } = require('../helpers/browser.cjs');
 const { useConfirmHooks, useConfirm } = require('../helpers/confirm.cjs');
-const { loadReportScripts, legacyState: state } = require('../helpers/report.cjs');
+const { loadReportScripts, legacyState } = require('../helpers/report.cjs');
 const root = path.resolve(__dirname, '../..');
 const temporaryRoot = path.resolve(process.env.BIC_TEST_TEMP || path.join(os.tmpdir(), 'bic-tests', 'bic-teacher-academic-browser-tests'));
 const python = process.env.BIC_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
@@ -45,11 +45,11 @@ async function setup(label, academic = false) {
   const vm = require('node:vm'), source = await fs.readFile(path.join(root, 'js/report-store.js'), 'utf8'); vm.runInNewContext(source, { window: w, Date });
   const reports = [], grants = [];
   for (let i = 0; i < 2; i++) {
-    const value = state(w); value.info.name = i ? '第二位摘要学员' : '=SUM(1,1)';
-    value.academic.answers = { en1: 0, ma5: 0, ma1: null }; value.plan.answers.weakSubjects = []; value.mbti.answers = [0, null, 2];
+    const value = legacyState(w); value.info.name = i ? '第二位摘要学员' : '=SUM(1,1)';
+    value.academic.answers = { en1: 0, ma5: 0, ma1: null }; if ('weakSubjects' in value.plan.answers) value.plan.answers.weakSubjects = []; value.mbti.answers = [0, null, 2];
     if (academic) value.academic.answers = Object.fromEntries(w.QUESTION_BANK.filter(question => ['english', 'maths'].includes(question.subject))
       .map(question => [question.id, question.subject === 'maths' ? question.answer : question.type === 'choice' ? (question.answer + 1) % question.options.length : question.answer + 1000]));
-    value.report = w.generateReport(value); value.report.meta.batchId = `SUMMARY-${label}-${i}`;
+    value.report = w.generateReport({ ...value, assessmentProfile: w.AssessmentProfiles.CURRENT }); value.report.meta.batchId = `SUMMARY-${label}-${i}`;
     w.reportEditing.applyEdit(value.report, 'summary', '不应返回摘要的私密顾问建议', '原顾问');
     let raw = null; const record = w.ReportStore.create({ getItem: () => raw, setItem: (_, text) => { raw = text; } }).save(value).record;
     const response = await owner.request.post(origin + '/api/reports', { headers, data: { record } }); assert.equal(response.status(), 201); const report = await response.json(); reports.push(report);

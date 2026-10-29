@@ -21,7 +21,7 @@ function item(index = 1) {
   report: { id: 'report-' + index, revision: 4, report_ref: 'REF-' + index, name: '学科同学' + index, grade: '8',
     bank_version: '2026.10', catalog_version: null, status: 'draft',
     academic: ['english', 'maths', 'physics', 'chemistry'].map((key, index) => ({ key, answered: index === 3 ? 14 : 15, total: 15 })),
-    planning: { answered: 1, total: 14, required_answered: 1, required_total: 13 }, personality: { answered: 0, total: 24 } } };
+    planning: { answered: 1, total: 12, required_answered: 1, required_total: 12 }, personality: { answered: 0, total: 30 } } };
 }
 function v1() { return { format: 'bic-teacher-completion-summary', version: 1, items: [item()] }; }
 function v2() {
@@ -47,7 +47,7 @@ test('default completion v1 keeps exact original bytes and shape without a scori
   const { tool } = setup(false), payload = v1(), built = tool.build(payload, 'teacher.local');
   const header = ['姓名', '报告编号', '年级', '服务端修订', '题库版本', '目录版本', '完成状态', '英语已答', '英语总题', '数学已答', '数学总题', '物理已答', '物理总题', '化学已答', '化学总题', '规划已答', '规划总题', '规划必答已答', '规划必答总题', '性格已答', '性格总题'];
   const expected = '\uFEFF' + header.map(value => '"' + value + '"').join(',') + '\r\n'
-    + '"学科同学1","REF-1","8","4","2026.10","未记录","必答未完成","15","15","15","15","15","15","14","15","1","14","1","13","0","24"\r\n';
+    + '"学科同学1","REF-1","8","4","2026.10","未记录","必答未完成","15","15","15","15","15","15","14","15","1","12","1","12","0","30"\r\n';
   assert.deepEqual(Object.keys(built), ['rows', 'csv']); assert.equal(built.csv, expected);
   assert.deepEqual(plain(tool.validate(payload, 'teacher.local')), payload);
   assert.throws(() => tool.validate(v2(), 'teacher.local'));

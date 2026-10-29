@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 
 from .db import StorageError
+from . import current_profile
 from .models import ASSESSMENT_SCHEMA, JS_WHITESPACE, utf16_length
 
 
@@ -79,12 +80,29 @@ def metadata(schema):
             'schema_fingerprint': schema['fingerprint'], 'basis': 'explicit_student_choices'}
 
 
+def _explicit(record):
+    """存档里的显式意向：旧版作答与显式提写的意向原样读取；当前版本由专业分格生成，
+    心动 + 观望的专业还原成覆盖它们的意向选项（读取结果已换算回当前形状）。"""
+    answers = (record.get('state') or {}).get('plan', {}).get('answers') or {}
+    # 读取结果里旧版专业意向按原样保留；只有当前版本（心动 / 观望分格）才由分格生成。
+    if 'majorBoard' not in answers or 'preferredMajor' in answers:
+        return answers
+    board = answers['majorBoard']
+    if type(board) is not dict or any(type(board.get(lane, [])) is not list for lane in ('heart', 'watch')):
+        raise ValueError
+    chosen = [item for lane in ('heart', 'watch') for item in board.get(lane, [])]
+    if any(type(item) is not str for item in chosen):
+        raise ValueError
+    majors = current_profile.major_ids(chosen)
+    return {**answers, 'preferredMajor': current_profile.interest_for_majors(majors)}
+
+
 def project(record, schema):
     """Keep the two original choices, in dictionary order rather than rank."""
     try:
         if record['bankVersion'] != schema['bank_version']:
             raise StorageError(409, 'The question-bank version is unsupported for explicit preferences.', 'VERSION')
-        answers = record['state']['plan']['answers']
+        answers = _explicit(record)
         if type(answers) is not dict:
             raise ValueError
         result = {}

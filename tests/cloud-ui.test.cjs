@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
-const { loadReportScripts, legacyState: state } = require('./helpers/report.cjs');
+const { loadReportScripts, state } = require('./helpers/report.cjs');
 
 function fixture() {
   const w = loadReportScripts();
@@ -34,7 +34,10 @@ window.CloudReports = {create() {
   };
 }};`;
 
+// 替换页面的应用脚本：openState 与真实应用的 openReportState 一致，按当前版本校验并重新生成报告。
+// 报告生成器只做替身，报告编号沿用归档的记录元数据。
 const fakeApp = `
+window.generateReport = () => ({ meta: { batchId: 'AP-REGENERATED' }, academic: {}, plan: {}, mbti: {} });
 (function() {
   let current=window.__testState;
   let active='home';
@@ -44,9 +47,20 @@ const fakeApp = `
   window.__cloudItems[0].record.state.info.name='<img src=x onerror=1>';
   const opened=[];
   const client=CloudReports.create();
-  const ui=CloudReportUI.init({client,getCurrentRecord:makeRecord,hasProgress:()=>true,isActive:()=>active==='cloud',
+  const ui=CloudReportUI.init({client,getCurrentRecord:makeRecord,hasProgress:()=>true,getReport:()=>current.report,isActive:()=>active==='cloud',
     showCloud(){show('cloud');},closeCloud(){show('home');},
-    openState(next){if(window.__cloudTest.flags.openFailure)throw new Error('当前作答无法保存，未替换');current=next;opened.push(next);show('report');}
+    openState(next){
+      // 与真实应用一致：按当前题库和目录校验并重新生成报告，沿用归档的记录信息与报告元数据；
+      // 写入失败（例如存储空间不足）时抛出错误且不替换当前作答。
+      if(window.__cloudTest.flags.openFailure)throw new Error('当前作答无法保存，未替换');
+      // 与真实应用一致：只校验作答四部分与报告版本，其余包装字段（reportMeta 等）原样保留。
+      const source=next.state||next;
+      const checked=ReportStore.validateState({info:source.info,academic:source.academic,plan:source.plan,mbti:source.mbti,assessmentProfile:window.AssessmentProfiles.CURRENT},window.AssessmentProfiles.CURRENT,{allowBlankName:true});
+      // 本机报告库有同一份归档时传入的是重建好的报告，直接沿用；否则按当前版本生成。
+      const report=source.report&&typeof source.report==='object'?JSON.parse(JSON.stringify(source.report)):window.generateReport(checked);
+      report.meta={...report.meta,...(next.reportMeta||source.reportMeta)};
+      current={...source,...checked,assessmentProfile:window.AssessmentProfiles.CURRENT,report};
+      opened.push(current);show('report');}
   });
   window.__cloudApp={opened,get current(){return current;},set current(value){current=value;},ui};
   show('home');
@@ -65,7 +79,8 @@ function setup(extra = {}) {
 
 async function signIn(page) {
   await page.locator('#cloudBtn').click();
-  await page.locator('#cloudConnectBtn').click();
+  // 连接按钮始终隐藏：登录框直接提交时会先连接账号服务，连接在这一步发生。
+  assert.equal(await page.locator('#cloudConnectBtn').isHidden(), true);
   await page.locator('#cloudUsername').fill('advisor.local');
   await page.locator('#cloudPassword').fill('private-test-password');
   await page.locator('#cloudLoginForm button[type=submit]').click();
@@ -80,11 +95,11 @@ test('cloud panel makes no request before explicit connection and clears submitt
   assert.equal(await page.locator('#screen-cloud.active').isVisible(), true);
   assert.equal(await page.locator('#cloudHeading').evaluate(el=>el===document.activeElement), true);
   assert.deepEqual(await page.evaluate(()=>window.__cloudTest.calls), []);
-  await page.locator('#cloudConnectBtn').click();
   await page.locator('#cloudUsername').fill('advisor.local');
   await page.locator('#cloudPassword').fill('private-test-password');
   await page.locator('#cloudLoginForm button[type=submit]').click();
   await page.locator('#cloudWorkspace').waitFor({state:'visible'});
+  assert.ok((await page.evaluate(()=>window.__cloudTest.calls)).some(call=>call[0]==='login'));
   assert.equal(await page.locator('#cloudPassword').inputValue(), '');
   assert.doesNotMatch(await page.evaluate(()=>JSON.stringify({...localStorage})), /private-test-password|csrf|token/);
   assert.equal(await page.locator('#cloudUsername').getAttribute('autocomplete'), 'username');
@@ -142,24 +157,25 @@ test('invalid remote record is rejected before opening and storage failure prese
   await page.locator('[data-cloud-read]').click();
   page.once('dialog',dialog=>dialog.accept());
   await page.locator('#cloudOpenBtn').click();
-  await page.waitForFunction(()=>document.querySelector('#cloudStatus').classList.contains('is-error'));
+  // 账号报告不经本机报告库：打开时直接使用本次读取并校验过的报告，保存失败由应用就地提示且不替换作答。
+  await page.waitForFunction(()=>document.querySelector('#cloudStatus').textContent.includes('当前作答无法保存'));
   assert.equal(await page.evaluate(()=>window.__cloudApp.opened.length),0);
   assert.equal(await page.evaluate(()=>window.__cloudApp.current.info.name),'本机测试同学');
-  assert.match(await page.locator('#cloudStatus').innerText(), /未替换|无法保存/);
 }, setup()));
 
 test('open requires confirmation and warns when regenerating another catalog version', () => withPage(async page => {
   await signIn(page);
   await page.evaluate(()=>window.__cloudItems[0].record.catalogVersion='old');
   await page.locator('[data-cloud-read]').click();
-  page.once('dialog',dialog=>dialog.dismiss());
+  const first=[];
+  page.once('dialog', dialog => { first.push(dialog.message()); dialog.dismiss(); });
   await page.locator('#cloudOpenBtn').click();
   await page.waitForFunction(()=>document.querySelector('#cloudStatus').textContent.includes('已取消打开'));
+  assert.match(first[0], /版本|重新生成/);
   assert.equal(await page.evaluate(()=>window.__cloudApp.opened.length),0);
-  page.once('dialog', async dialog=>{assert.match(dialog.message(), /版本|重新生成/);await dialog.accept();});
+  page.once('dialog', dialog => dialog.accept());
   await page.locator('#cloudOpenBtn').click();
   await page.waitForFunction(()=>window.__cloudApp.opened.length===1);
-  assert.equal(await page.evaluate(()=>window.__cloudApp.opened.length),1);
   assert.equal(await page.evaluate(()=>window.__cloudApp.current.report.meta.batchId),'AP-CLOUD-UI');
 }, setup()));
 
@@ -249,7 +265,6 @@ test('late logout after leaving cannot disconnect a newly signed-in account', ()
   await page.waitForFunction(()=>typeof window.__cloudTest.resolveLogout==='function');
   await page.locator('#cloudBackBtn').click();
   await page.locator('#cloudBtn').click();
-  await page.locator('#cloudConnectBtn').click();
   await page.locator('#cloudUsername').fill('another.advisor');
   await page.locator('#cloudPassword').fill('private-test-password');
   await page.locator('#cloudLoginForm button[type=submit]').click();
@@ -276,9 +291,14 @@ test('cloud controls remain within 375px and disabled service leaves local mode 
   await page.locator('#cloudBtn').click();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
   await page.evaluate(()=>window.__cloudTest.flags.disabled=true);
-  await page.locator('#cloudConnectBtn').click();
+  await page.locator('#cloudUsername').fill('advisor.local');
+  await page.locator('#cloudPassword').fill('private-test-password');
+  await page.locator('#cloudLoginForm button[type=submit]').click();
+  await page.waitForFunction(()=>/尚未开通|本机/.test(document.querySelector('#cloudStatus').textContent));
   assert.match(await page.locator('#cloudStatus').innerText(),/尚未开通|本机/);
-  assert.equal(await page.locator('#cloudLoginForm').isVisible(),false);
+  // 服务未开通时仍是未登录状态，登录框保留以便改用本机报告库。
+  assert.equal(await page.locator('#cloudLoginForm').isVisible(),true);
+  assert.equal(await page.locator('#cloudWorkspace').isVisible(),false);
   await page.locator('#cloudBackBtn').click();
   assert.equal(await page.locator('#cloudBtn').evaluate(el=>el===document.activeElement),true);
 }, setup({viewport:{width:375,height:812}})));

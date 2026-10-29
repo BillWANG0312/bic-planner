@@ -132,7 +132,8 @@
         || !record.catalogVersion || record.catalogVersion === 'unknown' || record.catalogVersion !== window.UNIVERSITY_CATALOG?.version) throw { code: 'VERSION' };
     for (const [key, text] of Object.entries(record.advisor?.sections || {})) if (baseline[key] !== text) throw { code: 'PROTOCOL' };
     let raw = null; const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
-    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records: [record] }));
+    // 服务读取统一返回当前形状并带当前标记；带标记的记录按该版本接受，旧版记录回显时不带标记，仍是版本1。
+    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: record.assessmentProfile ? 2 : 1, exportedAt: new Date().toISOString(), records: [record] }));
     return { grant, report, baseline: { ...baseline }, state: store.restore(record.id).state };
   }
   function inputChanged() { resetPreview(); controls(); }

@@ -38,7 +38,8 @@
       poolSize: 8
     },
     planet: {
-      majors: ['cs', 'math', 'eng', 'med', 'econ', 'law', 'psych', 'design', 'media', 'intl'],
+      // 与 window.MAJORS 相同（物理与化学 / 生物 / 商科一起由专业分格与兴趣素材表示），排序结果校验按这份名单。
+      majors: ['cs', 'math', 'phys', 'eng', 'chem', 'med', 'bio', 'econ', 'biz', 'law', 'psych', 'design', 'media', 'intl'],
       lanes: [
         { id: 'heart', label: '心动', icon: '💖', desc: '很想深入了解' },
         { id: 'watch', label: '观望', icon: '👀', desc: '先记下来' },

@@ -62,11 +62,11 @@
   function analyze(records, suppliedManifest, bindings) {
     const results = manifest(suppliedManifest);
     if (!Array.isArray(records) || records.length < 10 || records.length > 100) fail('请明确选择10–100份本机报告。');
-    records.forEach(record => window.AssessmentProfiles?.requireLegacyRecord(record));
+    records.forEach(record => window.AssessmentProfiles?.requireRecord(record));
     if (records.some(record => !object(record) || record.bankVersion !== results.bankVersion)) fail('所选报告必须使用当前同一题库版本。');
     let raw = null;
     const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, text) => { raw = text; } });
-    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records }));
+    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 2, exportedAt: new Date().toISOString(), records }));
     const selected = store.list();
     const reports = new Map(selected.map(record => {
       const grade = window.gradeAcademic(record.state.academic).subjects[results.subject];

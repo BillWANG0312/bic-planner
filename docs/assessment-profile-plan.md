@@ -4,9 +4,11 @@
 
 ## profile合同
 
-新增无DOM/存储/网络副作用的`window.AssessmentProfiles`：`LEGACY='legacy-2026.10'`、`CURRENT='games-traits-v1'`。`stateProfile(state)`、`recordProfile(record)`、`reportProfile(report)`返回这两个字符串或抛带code='PROFILE'的安全错误；`requireLegacyRecord(record)`在新/未知/混合资料时明确拒绝。
+新增无DOM/存储/网络副作用的`window.AssessmentProfiles`：`LEGACY='legacy-2026.10'`、`CURRENT='games-traits-v1'`。`stateProfile(state)`、`recordProfile(record)`、`reportProfile(report)`返回这两个字符串或抛带code='PROFILE'的安全错误；`requireRecord(record)`在新/未知/混合资料时明确拒绝。
 
-运行中/续答state可带`assessmentProfile`，新blank必须CURRENT。新归档在record顶层带`assessmentProfile:CURRENT`，归档state仍原info/academic/plan/mbti四键；新备份容器version2，可混合原旧record。纯旧record/备份继续version1、不增marker。读旧record须严格校验但返回原字段和值，不补空数组/改grade/null/排序；保存为新归档才按当前界面明确输入产生新记录。导出和导入只改变外层exportedAt，不悄改原record。新record缺标记的已发行v1形状可在读取时辨认并保留，后续保存才明确写CURRENT+version2；version1导入不能把带CURRENT标记的新资料伪装旧合同。
+运行中/续答state可带`assessmentProfile`，新blank必须CURRENT。新归档在record顶层带`assessmentProfile:CURRENT`，归档state仍原info/academic/plan/mbti四键；新备份容器version2，可混合原旧record。纯旧record/备份继续version1、不增marker。读旧record须严格校验但返回原字段和值，不补空数组/改grade/null/排序；保存为新归档才按当前界面明确输入产生新记录。导出和导入只改变外层exportedAt，不悄改原record。
+
+运行态只续答`CURRENT`：旧版、混合或无法识别的进度在`load()`处即停止（`saveLocked`），不续答、不自动改写原始字节，页面只保留原始JSON下载与「重新测试」。打开网址一律停在首页，续答只经首页入口。账号面板只读打开的记录保留当前`ui`、不写本机续答进度（`persist:false`）；打开记录前取消待写入的计时器，避免旧作答在打开后被写回。本机存档白名单含`report`/`reportMeta`/`advisor`等结果键；打开本机归档若替换未核对的续答，先确认（可从报告库找回）。新record缺标记的已发行v1形状可在读取时辨认并保留，后续保存才明确写CURRENT+version2；version1导入不能把带CURRENT标记的新资料伪装旧合同。
 
 无标记识别：≤24个数字/null和旧专属规划字段按LEGACY；对象型答案/长度30或新game字段按CURRENT；空且无证据默认LEGACY以保护旧空白档案。显式marker须与实际形状相容，未知marker/数字与对象混合/标记legacy但带新game等拒绝。`mbti.legacy:true`已被旧发布版按位置转换过的数据须保留原始资料并隔离，不能假装可恢复原问卷或继续输出新特质结论。对象30与旧字段矛盾时不静默丢字段。profile识别不代替完整记录校验。
 
