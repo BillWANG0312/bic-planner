@@ -63,15 +63,17 @@
   }
 
   function build(record) {
-    window.AssessmentProfiles?.requireLegacyRecord(record);
+    window.AssessmentProfiles?.requireRecord(record);
     if (!window.ReportStore || typeof window.reportEditing?.getText !== 'function') {
       fail('请从账号报告的详情中生成分享摘要。');
     }
     let raw = null;
     const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
-    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1,
+    // 账号服务读取返回的记录不带版本标记、按旧版兼容字段保存，导入时交给旧版报告库校验和换算。
+    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 2,
       exportedAt: new Date().toISOString(), records: [record] }));
-    const restored = store.restore(record.id);
+    // 当前版本记录按当前问卷重算报告。
+    const restored = store.restore(record.id, { allowProfileChange: true });
     if (restored.versionChanged) fail('归档的题库或院校目录版本已变化，请先在本机复核并更新服务端报告，再生成分享。');
     const report = restored.state.report;
     const personality = report.mbti.complete

@@ -3,14 +3,13 @@
 import re
 import time
 
+from . import academic_scoring, current_profile, preference_summary
 from .db import StorageError
 from .models import ASSESSMENT_SCHEMA
 from .teacher_access import TeacherAccessService
-from . import academic_scoring, preference_summary
 
 
 _SUBJECTS = (('english', 'en'), ('maths', 'ma'), ('physics', 'ph'), ('chemistry', 'ch'))
-_OPTIONAL_PLAN = 'weakSubjects'
 _ID = re.compile(r'[A-Za-z0-9_-]{1,128}\Z')
 
 
@@ -39,19 +38,14 @@ class TeacherSummaryService(TeacherAccessService):
         if grade not in ASSESSMENT_SCHEMA['grades']:
             grade = ''
 
-        def answered(question):
-            key = question['key']
-            if key not in plan:
-                return False
-            value = plan[key]
-            return (bool(value) or key == _OPTIONAL_PLAN) if isinstance(value, list) else value is not None and value != ''
-
-        required = [question for question in ASSESSMENT_SCHEMA['plan'] if question['key'] != _OPTIONAL_PLAN]
-        planning = {'answered': sum(answered(question) for question in ASSESSMENT_SCHEMA['plan']),
-                    'total': len(ASSESSMENT_SCHEMA['plan']), 'required_answered': sum(answered(question) for question in required),
-                    'required_total': len(required)}
-        personality = {'answered': sum(answer is not None for answer in state['mbti']['answers']),
-                       'total': ASSESSMENT_SCHEMA['mbtiCount']}
+        # 规划与性格按当前版本统一后的题目统计：旧版存档读取时已经换回当前形状（30 道特质题、
+        # 分格与团队竞速），旧版独有的键不再另算一道题。
+        planning = {'answered': sum(current_profile.plan_answered(plan, key) for key in current_profile.REQUIRED_PLAN),
+                    'total': len(current_profile.REQUIRED_PLAN),
+                    'required_answered': sum(current_profile.plan_answered(plan, key) for key in current_profile.REQUIRED_PLAN),
+                    'required_total': len(current_profile.REQUIRED_PLAN)}
+        traits = state['mbti']['answers']
+        personality = {'answered': sum(answer is not None for answer in traits), 'total': current_profile.TRAIT_COUNT}
         complete = (all(subject['answered'] == subject['total'] for subject in academic)
                     and planning['required_answered'] == planning['required_total']
                     and personality['answered'] == personality['total'])

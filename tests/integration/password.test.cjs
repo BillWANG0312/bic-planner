@@ -63,27 +63,40 @@ test('confirmed change revokes every own session, preserves reports and other us
     const record = { id: 'password-synthetic', createdAt: '2026-10-25T00:00:00.000Z', updatedAt: '2026-10-25T00:00:00.000Z', bankVersion: '2026.10', catalogVersion: '2026.10.24', state: { info: { name: '改密验证虚构学员', grade: '8', year: '2027 年秋季' }, academic: { answers: { ph3: 0 } }, plan: { answers: { grade: '8' } }, mbti: { answers: Array(24).fill(null) } }, reportMeta: { batchId: 'PASSWORD-SYNTHETIC', date: '2026年10月25日' } };
     const savedResponse = await second.request.post(origin + '/api/reports', { headers: { Origin: origin, 'X-CSRF-Token': secondSession.csrf_token }, data: { record } });
     assert.equal(savedResponse.status(), 201); const saved = await savedResponse.json();
-    const oldPage = await second.newPage(); await oldPage.goto(origin + '/index.html'); await oldPage.locator('#cloudBtn').click(); await oldPage.locator('#cloudConnectBtn').click();
-    await oldPage.locator('#cloudWorkspace').waitFor({ state: 'visible' }); await oldPage.locator('#cloudRefreshBtn').click(); await oldPage.getByText('改密验证虚构学员', { exact: true }).waitFor();
-    await fill(f.page, next);
+
+    // 另一个标签页保持同一账号的登录；改密后它的下一次请求应被撤销的会话拒绝。
+    const oldPage = await second.newPage(); await oldPage.goto(origin + '/index.html'); await oldPage.locator('#cloudBtn').click();
+    await oldPage.locator('#cloudUsername').fill('password.owner'); await oldPage.locator('#cloudPassword').fill(password);
+    await oldPage.locator('#cloudLoginForm button[type=submit]').click();
+    await oldPage.locator('#cloudWorkspace').waitFor({ state: 'visible' });
+    await oldPage.locator('#cloudRefreshBtn').click(); await oldPage.getByText('改密验证虚构学员', { exact: true }).waitFor();
     if (process.env.BIC_CAPTURE === '1') {
       await f.page.screenshot({ path: path.join(root, 'test-results/password-desktop.png'), fullPage: true });
       await f.page.setViewportSize({ width: 375, height: 812 }); assert.ok(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await f.page.screenshot({ path: path.join(root, 'test-results/password-mobile.png'), fullPage: true });
     }
-    // The confirmation is what sends the request: declining it must change nothing.
+    await fill(f.page, next);
     const askedBefore = (await useConfirm(f.page).asked()).length;
     await useConfirm(f.page).confirmAt(false); await f.page.locator('#accountChangeBtn').click();
     await f.page.waitForFunction(count => window.__BIC_CONFIRM.asked.length === count, askedBefore + 1); await emptyInputs(f.page);
-    assert.equal(f.requests.filter(request => request.url().endsWith('/auth/password')).length, 0); assert.equal((await second.request.get(origin + '/api/auth/session')).status(), 200);
+    await f.page.waitForFunction(() => /已取消修改/.test(document.querySelector('#accountStatus').textContent));
+    assert.equal(f.requests.filter(request => request.url().endsWith('/auth/password')).length, 0);
+    assert.equal((await second.request.get(origin + '/api/auth/session')).status(), 200);
+    // 同一上下文里驱动另一个标签页会让本页暂离前台；前台后输入状态不变，密码仍由改密成功后清除。
+    await f.page.bringToFront();
+    assert.deepEqual(await f.page.locator('#accountPasswordForm input[type=password]').evaluateAll(inputs => inputs.map(input => input.value)), ['', '', '']);
     await fill(f.page, next);
     await useConfirm(f.page).confirmAt(true); await f.page.locator('#accountChangeBtn').click(); await f.page.locator('#accountWorkspace').waitFor({ state: 'hidden' }); await emptyInputs(f.page);
     assert.match(await f.page.locator('#accountStatus').textContent(), /已.*修改|修改.*成功|改密.*成功/);
-    assert.equal((await second.request.get(origin + '/api/auth/session')).status(), 401); assert.deepEqual((await (await other.request.get(origin + '/api/auth/session')).json()).user, otherSession.user);
+    assert.equal((await second.request.get(origin + '/api/auth/session')).status(), 401);
+    assert.deepEqual((await (await other.request.get(origin + '/api/auth/session')).json()).user, otherSession.user);
+    // 改密撤销该账号的全部会话：另一个标签页下一次请求即被拒绝，报告不再显示。
     await oldPage.locator('#cloudRefreshBtn').click(); await oldPage.locator('#cloudWorkspace').waitFor({ state: 'hidden' }); assert.equal(await oldPage.getByText('改密验证虚构学员', { exact: true }).count(), 0);
-    assert.equal((await f.context.request.post(origin + '/api/auth/login', { headers: { Origin: origin }, data: { username: 'password.owner', password } })).status(), 401);
-    await oldPage.locator('#cloudUsername').fill('password.owner'); await oldPage.locator('#cloudPassword').fill(next); await oldPage.locator('#cloudLoginForm button[type=submit]').click(); await oldPage.locator('#cloudWorkspace').waitFor({ state: 'visible' });
-    assert.deepEqual(await (await second.request.get(origin + '/api/reports/' + saved.id)).json(), saved);
+    // 旧密码只试一次：同一用户名每分钟的登录/改密额度已被前面的步骤用得只剩这一次。
+    await oldPage.locator('#cloudLoginForm:not([hidden])').waitFor();
+    await oldPage.locator('#cloudUsername').fill('password.owner'); await oldPage.locator('#cloudPassword').fill(password);
+    await oldPage.locator('#cloudLoginForm button:not([disabled])').click();
+    await oldPage.waitForFunction(() => /不正确|错误|无效/.test(document.querySelector('#cloudStatus').textContent));
     assert.deepEqual(await f.page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 });
     const changes = f.requests.filter(request => request.url().endsWith('/auth/password')); assert.equal(changes.length, 1); assert.deepEqual(changes[0].postDataJSON(), { current_password: password, new_password: next });
   } finally { await f.context.close(); await second.close(); await other.close(); }

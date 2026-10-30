@@ -8,6 +8,8 @@ import sqlite3
 import time
 import uuid
 
+from .models import legacy_record, map_to_current
+
 
 class StorageError(Exception):
     def __init__(self, status_code: int, message: str, code: str = "STORAGE"):
@@ -342,8 +344,9 @@ class Database:
 
     @staticmethod
     def _full_report(row):
+        # 存档统一是旧版兼容形状；读取时换回当前形状，当前版本写出的存档补上当前标记。
         return {"id": row["id"], "revision": row["revision"], "created_at": row["created_at"],
-                "updated_at": row["updated_at"], "record": json.loads(row["record_json"])}
+                "updated_at": row["updated_at"], "record": map_to_current(json.loads(row["record_json"]))}
 
     @staticmethod
     def _metadata(row):
@@ -360,6 +363,9 @@ class Database:
             raise StorageError(413, "The account report limit is 100 reports and 2,000,000 serialized UTF-16 units.", "LIMIT")
 
     def create_report(self, owner_id, record):
+        # 存档统一存旧版兼容形状：当前版本形状的记录（例如页面提交的当前版本存档）写前换算，
+        # 旧版形状的原样保存。
+        record = legacy_record(record) or record
         serialized, units, metadata = self._encode_record(record)
         identifier = str(uuid.uuid4())
         at = self._timestamp()
@@ -403,6 +409,8 @@ class Database:
         return row
 
     def update_report(self, owner_id, identifier, record, expected_revision):
+        # 与 create_report 相同：写回前统一成旧版兼容形状。
+        record = legacy_record(record) or record
         serialized, units, metadata = self._encode_record(record)
         with self._transaction() as connection:
             if connection.execute('SELECT id FROM users WHERE id = ? AND disabled = 0', (owner_id,)).fetchone() is None:

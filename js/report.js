@@ -375,7 +375,9 @@
     const info = state.info || {};
     const academic = gradeAcademic(state.academic);
     const rawPlan = state.plan && state.plan.answers;
-    const games = gameSignals(rawPlan && typeof rawPlan === 'object' ? rawPlan : {});
+    // 小游戏属于当前版本；旧版引擎的报告不带 games（旧版报告与冻结源逐字一致）。
+    const games = window.AssessmentProfiles.stateProfile(state) === window.AssessmentProfiles.LEGACY ? undefined
+      : gameSignals(rawPlan && typeof rawPlan === 'object' ? rawPlan : {});
     const mbti = personalityForReport(window.computePersonality(state.mbti && state.mbti.answers, games));
     const plan = mergeBoards(normalizePlan(rawPlan, info));
     const planning = planCoverage(plan);
@@ -439,12 +441,13 @@
       academic: { subjects: subjectList, sci, strengths, weakTopics, review, answered: academic.answered, total: academic.total },
       plan: { top, second, majors: majors.slice(0, 4), recSubjects, countries, unis, fit, fit2, subjects: plan, prefer: plan.preferredMajor },
       mbti,
-      games,
+      ...(games === undefined ? {} : { games }),
       next
     };
   }
 
   window.generateReport = function (state = {}) {
+    // 重新生成报告前先按作答识别版本；旧版由冻结的旧版引擎原样生成。
     const profile = window.AssessmentProfiles.stateProfile(state);
     const report = profile === window.AssessmentProfiles.LEGACY ? window.LegacyAssessment.generateReport(state) : generateReport(state);
     report.meta.assessmentProfile = profile;

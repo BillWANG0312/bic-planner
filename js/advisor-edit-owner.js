@@ -11,7 +11,8 @@
         || !record.catalogVersion || record.catalogVersion === 'unknown' || record.catalogVersion !== window.UNIVERSITY_CATALOG?.version) throw new Error('题库或院校目录版本不符，请先复核更新报告，再授权编辑。');
     let raw = null;
     const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
-    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1, exportedAt: new Date().toISOString(), records: [record] }));
+    // 带当前标记的记录按版本2接受，旧版记录回显时不带标记，仍是版本1。
+    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: record.assessmentProfile ? 2 : 1, exportedAt: new Date().toISOString(), records: [record] }));
     const restored = store.restore(record.id).state.report;
     const baseline = Object.fromEntries(Object.keys(labels).map(key => [key, window.reportEditing.getText(restored, key)]));
     if (Object.values(baseline).some(value => typeof value !== 'string' || !value.trim() || value.length > 4000)) throw new Error('四段建议基线须为1–4000字，请先复核报告。');

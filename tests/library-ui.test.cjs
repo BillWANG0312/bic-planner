@@ -8,9 +8,18 @@ function reportState(name = '归档学生', legacy = false) {
   const w = loadReportScripts();
   const value = (legacy ? legacyState : state)(w);
   value.info.name = name;
+  // 空姓名会让页面按无进度处理并停在信息页，归档测试始终使用有姓名的学生
+  if (!name) value.info.name = '归档学生';
   value.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
-  value.report = w.generateReport(value);
+  value.report = w.generateReport({ ...value, assessmentProfile: w.AssessmentProfiles.CURRENT });
   value.report.meta.batchId = 'AP-LIBRARY-01';
+  return value;
+}
+
+function blankState() {
+  const w = loadReportScripts();
+  const value = legacyState(w);
+  value.ui = { screen: 'home', idx: 0 };
   return value;
 }
 
@@ -20,6 +29,16 @@ function saved(value = reportState(), extra = {}) {
   }, value) };
 }
 
+// 打开页面总是停在首页，已保存的内容必须通过续答入口进入：
+// 已有报告时直接显示报告；停在最后一题时作答后生成报告。
+async function openSavedReport(page) {
+  await page.locator('#resumeBtn').click();
+  await page.waitForFunction(() => ['screen-report', 'screen-test'].some(id => document.getElementById(id).classList.contains('active')));
+  if (await page.locator('#screen-report.active').count()) return;
+  await page.locator('#screen-test.active .likert button').first().click();
+  await page.locator('#screen-report.active').waitFor({ timeout: 15000 });
+}
+
 async function backupFor(page, name, batchId = 'AP-IMPORT-02') {
   return page.evaluate(({ name, batchId }) => {
     let raw = null;
@@ -27,7 +46,7 @@ async function backupFor(page, name, batchId = 'AP-IMPORT-02') {
     const store = window.ReportStore.create(storage);
     const value = JSON.parse(JSON.stringify(window.__pathwise.state));
     value.info.name = name;
-    value.report = window.generateReport(value);
+    value.report = window.generateReport({ ...value, assessmentProfile: window.AssessmentProfiles.CURRENT });
     value.report.meta.batchId = batchId;
     store.save(value);
     return store.exportBackup();
@@ -39,6 +58,7 @@ async function chooseBackup(page, text, name = '报告备份.json') {
 }
 
 test('report library archives a draft and searches escaped student names and report identifiers', () => withPage(async page => {
+  await openSavedReport(page);
   assert.equal(await page.locator('#archiveReportBtn').count(), 1, '报告页提供主动归档入口');
   await page.locator('#archiveReportBtn').click();
   await page.locator('#openLibraryBtn').click();
@@ -63,6 +83,7 @@ test('report library archives a draft and searches escaped student names and rep
 }, saved(reportState('<img src=x onerror=1>'))));
 
 test('duplicate archive and deletion both preserve records when their confirmation is cancelled', () => withPage(async page => {
+  await openSavedReport(page);
   await page.locator('#archiveReportBtn').click();
   page.once('dialog', dialog => dialog.dismiss());
   await page.locator('#archiveReportBtn').click();
@@ -78,6 +99,7 @@ test('duplicate archive and deletion both preserve records when their confirmati
 }, saved()));
 
 test('JSON import previews records before committing and skips duplicates unless replace is selected', () => withPage(async page => {
+  await openSavedReport(page);
   await page.locator('#archiveReportBtn').click();
   await page.locator('#openLibraryBtn').click();
   const text = await backupFor(page, '导入学生');
@@ -102,6 +124,7 @@ test('JSON import previews records before committing and skips duplicates unless
 }, saved()));
 
 test('invalid JSON and unsupported file selections never offer import commit or alter the archive', () => withPage(async page => {
+  await openSavedReport(page);
   await page.locator('#archiveReportBtn').click();
   await page.locator('#openLibraryBtn').click();
   await chooseBackup(page, '{broken');
@@ -112,23 +135,27 @@ test('invalid JSON and unsupported file selections never offer import commit or 
   assert.equal(await page.locator('[data-library-open]').count(), 1);
 }, saved()));
 
-test('JSON and CSV downloads contain the stored records with portable safe filenames', () => withPage(async page => {
+test('JSON export downloads the stored records with a portable filename; CSV export explains current-version records are unsupported', () => withPage(async page => {
+  // 旧版报告不再续答；只走首页报告库：导入当前版本归档并打开，再导出
+  await page.locator('#libraryBtn').click();
+  await chooseBackup(page, await backupFor(page, '归档学生'));
+  await page.locator('#libraryImportCommitBtn').click();
+  // 已保存的进度仍算作当前作答，打开归档需要确认替换
   page.once('dialog', dialog => dialog.accept());
-  await page.locator('#profileContinueBtn').click();
-  await page.locator('#archiveReportBtn').click();
+  await page.getByRole('button', { name: '打开 归档学生 的报告' }).last().click();
+  await page.locator('#screen-report.active').waitFor();
   await page.locator('#openLibraryBtn').click();
-  for (const [selector, suffix, expected] of [
-    ['#libraryExportBtn', '.json', /归档学生/],
-    ['#libraryCsvBtn', '.csv', /归档学生/]
-  ]) {
-    const downloadPromise = page.waitForEvent('download');
-    await page.locator(selector).click();
-    const download = await downloadPromise;
-    assert.ok(download.suggestedFilename().endsWith(suffix));
-    assert.doesNotMatch(download.suggestedFilename(), /[<>:"/\\|?*]/);
-    assert.match(await fs.readFile(await download.path(), 'utf8'), expected);
-  }
-}, saved(reportState('归档学生', true))));
+  const downloadPromise = page.waitForEvent('download');
+  await page.locator('#libraryExportBtn').click();
+  const download = await downloadPromise;
+  assert.ok(download.suggestedFilename().endsWith('.json'));
+  assert.doesNotMatch(download.suggestedFilename(), /[<>:"/\\|?*]/);
+  assert.match(await fs.readFile(await download.path(), 'utf8'), /归档学生/);
+  // 当前测评版本的归档没有旧格式 CSV 汇总，导出会给出可读提示且不下载
+  await page.locator('#libraryCsvBtn').click();
+  await page.waitForFunction(() => /CSV/.test(document.getElementById('libraryStatus').textContent));
+  assert.match(await page.locator('#libraryStatus').innerText(), /CSV/);
+}, saved(blankState())));
 
 test('corrupt archives offer a raw backup while keeping the original storage unchanged', () => withPage(async page => {
   await page.locator('#libraryBtn').click();
@@ -145,6 +172,7 @@ test('corrupt archives offer a raw backup while keeping the original storage unc
 }) }));
 
 test('local library remains legible at 375px and does not overflow with long imported text', () => withPage(async page => {
+  await openSavedReport(page);
   await page.locator('#archiveReportBtn').click();
   await page.locator('#openLibraryBtn').click();
   assert.match(await page.locator('#screen-library').innerText(), /此浏览器|本机/);
@@ -156,6 +184,7 @@ test('local library remains legible at 375px and does not overflow with long imp
 }, saved(reportState('WWWWWWWWWWWWWWWWWWWWWWWW'), { viewport: { width: 375, height: 812 } })));
 
 test('old bank or catalog versions show a warning and opening requires acknowledging regeneration', () => withPage(async page => {
+  await openSavedReport(page);
   await page.locator('#openLibraryBtn').click();
   const data = JSON.parse(await backupFor(page, '旧版本学生'));
   data.records[0].catalogVersion = 'old-catalog';
@@ -186,11 +215,13 @@ test('denied storage leaves the library with a readable status and working retur
 }) }));
 
 test('an archive success message cannot claim a newly generated student report was archived', () => withPage(async page => {
+  await openSavedReport(page);
   await page.locator('#archiveReportBtn').click();
   assert.equal(await page.locator('#archiveReportStatus').isVisible(), true);
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#restartBtn').click();
-  await page.locator('#startBtn').click();
+  // 首页的「开始探索」会续答已保存的报告，必须显式进入基本信息重新填写
+  await page.locator('.step[data-step=info]').click();
   await page.locator('#inName').fill('尚未归档的新学生');
   await page.locator('#updateReportBtn').click();
   await page.locator('#screen-report.active').waitFor();
@@ -201,9 +232,10 @@ test('an archive success message cannot claim a newly generated student report w
 }, saved()));
 
 test('returning after a library reload gives keyboard focus to the home library entry', () => withPage(async page => {
-  await page.locator('#libraryBtn').click();
+  // 刷新后总是回到首页，首页的报告库入口仍可直接进入本机报告库
   await page.reload();
-  await page.locator('#screen-library.active').waitFor();
+  await page.locator('#screen-home.active').waitFor();
+  await page.locator('#libraryBtn').click();
   await page.locator('#libraryBackBtn').click();
   assert.equal(await page.locator('#libraryBtn').evaluate(el => el === document.activeElement), true);
 }));

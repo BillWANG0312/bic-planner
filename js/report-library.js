@@ -162,7 +162,9 @@
       try {
         const restored = requireStore().restore(id);
         const versionNote = restored.versionChanged ? '该归档的题库或目录版本已变化，将以当前版本重新生成，建议保留原 PDF。' : '';
-        if (options.hasProgress()) {
+        // 没有可被替换的作答、或当前作答并非本机保存的续答进度时直接打开；后者只是查看，不会覆盖任何进度。
+        const replacesProgress = options.hasSavedProgress ? options.hasSavedProgress() : options.hasProgress();
+        if (replacesProgress && options.hasProgressToReplace()) {
           if (!window.confirm('打开归档会替换当前作答与报告。请先归档当前报告或导出 PDF 留存。' + versionNote + '确定打开吗？')) return;
         } else if (versionNote && !window.confirm(versionNote + '确定打开吗？')) return;
         options.openState(restored.state);

@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
 
 async function draft(page) {
-  await page.locator('#startBtn').click();
+  // 打开网址默认停在首页；有进度时主按钮隐藏，改用「继续上次进度」进入当前流程
+  await page.locator('#screen-home.active').waitFor();
+  await page.evaluate(() => document.getElementById(document.getElementById('resumeBtn').hidden ? 'startBtn' : 'resumeBtn').click());
   await page.locator('#inName').fill('测试同学');
   await page.locator('#updateReportBtn').click();
   await page.locator('#screen-report.active').waitFor();
@@ -47,31 +49,31 @@ test('complete student journey reaches a saved report through all 103 questions'
   }
   assert.equal(await page.locator('#testTitle').textContent(), '专业规划测试');
   // 年级已在基本信息作答，规划模块从下一道未答题开始；含排序、飞镖、赛跑等小游戏。
-  for (let i = 0; i < 13 && await page.locator('#testTitle').textContent() === '专业规划测试'; i++) {
+  // 只按题数循环不可靠：未作答时「下一步」不会前进，所以循环到规划模块结束为止。
+  for (let i = 0; i < 40 && await page.locator('#testTitle').textContent() === '专业规划测试'; i++) {
     const body = page.locator('#testBody');
     if (await body.locator('.g-sorter').count()) {
-      // 点选卡片再点格子是最直观的触屏交互；每格有容量上限，自动选还有空位的格子。
+      // 卡片分格游戏：每格有容量上限，从第一张卡片开始依次放进还有空位的格子，全部放完即作答。
       const sorter = body.locator('.g-sorter');
       const cap = Number(await sorter.getAttribute('data-cap'));
-      // 排序卡片的格数可能少于卡片数：拿第一张放进还有空位的格子，格子都满了就换第二张。
       const state = () => body.locator('.g-lane').evaluateAll(ls => ls.map(l => l.querySelectorAll('.g-card').length));
-      const total = await body.locator('.g-card').count();
-      for (let placed = 0; placed <= total && await body.locator('.g-pool .g-card').count(); placed++) {
+      for (let placed = 0; placed < 12; placed++) {
         const card = body.locator('.g-pool .g-card').first();
+        if (!(await card.count())) break;
         const lane = (await state()).findIndex(n => n < cap);
-        if (lane < 0) { await card.click(); continue; } // 先收回，换到下一张卡片
+        if (lane < 0) break;
         await card.click();
         await body.locator('.g-lane').nth(lane).locator('.g-lane-head').click();
       }
     } else if (await body.locator('.dart-ring').count()) {
       await body.locator('.dart-ring').nth(2).click({ force: true });
-      await body.locator('.dart-ring').nth(1).click({ force: true });
     } else if (await body.locator('.race-item').count()) {
       await body.locator('.race-block').nth(0).locator('.race-item').first().click({ force: true });
       await body.locator('.race-block').nth(1).locator('.race-item').first().click({ force: true });
     } else {
-      await body.locator('.option, .tag-card').first().click();
+      await body.locator('.tag-card, .option').first().click();
     }
+    assert.equal(await page.locator('#testNext').isDisabled(), false, `规划第 ${i + 1} 题应已作答`);
     await page.locator('#testNext').click();
   }
   assert.equal(await page.locator('#testTitle').textContent(), '性格特质测评');
@@ -87,6 +89,9 @@ test('complete student journey reaches a saved report through all 103 questions'
   assert.equal(meta.coverage.mbti.answered, 30);
   assert.equal(await page.locator('#reportRoot .review-item').count(), 60);
   await page.reload();
+  // 打开网址停在首页，已保存的报告从续答入口进入
+  await page.locator('#screen-home.active').waitFor();
+  await page.locator('#resumeBtn').click();
   await page.locator('#screen-report.active').waitFor();
   assert.equal(await page.evaluate(() => window.__pathwise.state.report.meta.batchId), meta.batchId);
 }));

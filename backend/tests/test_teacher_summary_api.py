@@ -41,8 +41,8 @@ def test_selected_batch_returns_only_counts_and_one_closed_permission_rejects_ev
         assert set(item) == {'grant', 'report'}
         assert set(item['report']) == {'id', 'revision', 'report_ref', 'name', 'grade', 'bank_version', 'catalog_version', 'status', 'academic', 'planning', 'personality'}
         assert len(item['report']['academic']) == 4
-        assert item['report']['planning']['required_total'] == 13
-        assert item['report']['personality']['total'] == 24
+        assert item['report']['planning']['required_total'] == 12
+        assert item['report']['personality']['total'] == 30
     for private in ['"answers"', '"advisor"', '"history"', '"actor"', '"record"', '"token"', 'password_hash']:
         assert private not in response.text
     assert clients['owner'].delete('/api/reports/' + second['id'] + '/teacher-access/' + other['id'], headers=headers['owner']).status_code == 204

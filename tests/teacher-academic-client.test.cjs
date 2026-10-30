@@ -6,7 +6,7 @@ function fixture(scoring, version = 1) {
   const now = Math.floor(Date.now() / 1000);
   const grant = { id: 'grant-one', report_id: 'report-one', report_revision: 1, report_name: '版本核对学员', report_ref: 'REF-ONE', owner_username: 'owner.local', recipient_username: 'teacher.local', scope: 'full_report_read_only', created_at: now - 10, expires_at: now + 86400, revoked_at: null, status: 'active' };
   const report = { id: 'report-one', revision: 1, name: grant.report_name, report_ref: grant.report_ref, grade: '8', bank_version: '2026.10', catalog_version: null, status: 'draft',
-    academic: ['english', 'maths', 'physics', 'chemistry'].map((key, i) => ({ key, answered: version === 2 && i < 2 ? 15 : 0, total: 15 })), planning: { answered: 1, total: 14, required_answered: 1, required_total: 13 }, personality: { answered: 0, total: 24 } };
+    academic: ['english', 'maths', 'physics', 'chemistry'].map((key, i) => ({ key, answered: version === 2 && i < 2 ? 15 : 0, total: 15 })), planning: { answered: 1, total: 12, required_answered: 1, required_total: 12 }, personality: { answered: 0, total: 30 } };
   if (version === 2) report.performance = ['english', 'maths', 'physics', 'chemistry'].map((key, i) => ({ key, complete: i < 2, pct: i === 0 ? 0 : i === 1 ? 100 : null }));
   return { format: 'bic-teacher-completion-summary', version, items: [{ grant, report }], ...(version === 2 ? { scoring: plain(scoring) } : {}) };
 }

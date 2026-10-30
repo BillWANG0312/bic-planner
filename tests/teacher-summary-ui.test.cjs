@@ -14,7 +14,7 @@ function fixture() {
     report: { id: 'report-' + index, revision: 1, report_ref: 'AP-SUMMARY-' + index,
       name: index === 1 ? '<img src=x>同学' : '第二位同学', grade: '8', bank_version: '2026.10', catalog_version: null, status: 'draft',
       academic: ['english', 'maths', 'physics', 'chemistry'].map(key => ({ key, answered: index, total: 15 })),
-      planning: { answered: 1, total: 14, required_answered: 1, required_total: 13 }, personality: { answered: 0, total: 24 } }
+      planning: { answered: 1, total: 12, required_answered: 1, required_total: 12 }, personality: { answered: 0, total: 30 } }
   }));
   return { calls: [], flags: {}, items, reads: 0 };
 }

@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from .db import StorageError
 from .draft_models import DraftContext, DraftResponse, DraftSections
-from .models import ArchiveRecord, JS_WHITESPACE, bounded_text
+from .models import ArchiveRecord, JS_WHITESPACE, bounded_text, legacy_record
 
 
 _SECTIONS = ('summary', 'academic', 'plan', 'personality')
@@ -241,7 +241,8 @@ class AdviceDraftService:
                 # Validate without reserializing through model defaults: preserve all
                 # original grade, state, metadata, version and optional field values.
                 try:
-                    ArchiveRecord.model_validate(record)
+                    # 当前形状的存档写回前重新换算成旧版兼容字段；旧版形状的存档（None）原样写回。
+                    record = legacy_record(record) or record
                 except ValidationError:
                     raise self._invalid() from None
                 saved = self.db.update_report(owner_id, report_id, record, draft['source_revision'])

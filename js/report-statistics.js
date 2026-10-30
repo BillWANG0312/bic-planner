@@ -44,7 +44,7 @@
     if (!Array.isArray(records) || records.length < MIN_CELL || records.length > 100) {
       fail('请明确选择10–100份报告后生成本地汇总。');
     }
-    records.forEach(record => window.AssessmentProfiles?.requireLegacyRecord(record));
+    records.forEach(record => window.AssessmentProfiles?.requireRecord(record));
     const version = window.QUESTION_BANK_META?.version;
     if (typeof version !== 'string' || !version || version === 'unknown'
         || records.some(record => !record || record.bankVersion !== version)) {
@@ -59,7 +59,7 @@
     // checks, without reading or writing the user's browser storage.
     let raw = null;
     const store = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
-    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 1,
+    store.importBackup(JSON.stringify({ format: 'bic-report-library', version: 2,
       exportedAt: new Date().toISOString(), records }));
     const selected = store.list();
     const graded = selected.map(record => window.gradeAcademic(record.state.academic));

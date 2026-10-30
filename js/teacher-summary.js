@@ -18,6 +18,7 @@
     { key: 'preferredMajor', max: 2, ids: ['science', 'math', 'eng', 'tech', 'business', 'econ', 'med', 'social', 'humanities', 'art', 'media', 'unsure'] },
     { key: 'countries', max: 3, ids: ['uk', 'us', 'ca', 'au', 'hk', 'sg', 'eu', 'unsure'] }
   ];
+  const REQUIRED_PLAN = 12, TRAIT_COUNT = 30;
   const PERCENTAGES = new Set(Array.from({ length: 16 }, (_, correct) => Math.round(correct / 15 * 100)));
   const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
@@ -122,10 +123,11 @@
         if (!exact(subject, ['key', 'answered', 'total']) || subject.key !== SUBJECTS[index] || subject.total !== 15 || !count(subject.answered, 15)) fail();
       }
       const planning = report.planning, personality = report.personality;
-      if (!exact(planning, ['answered', 'total', 'required_answered', 'required_total']) || planning.total !== 14 || planning.required_total !== 13
-          || !count(planning.answered, 14) || !count(planning.required_answered, 13)
-          || ![0, 1].includes(planning.answered - planning.required_answered)
-          || !exact(personality, ['answered', 'total']) || personality.total !== 24 || !count(personality.answered, 24)) fail();
+      // 当前版本统一后：12 道必答规划题（选填的科目短板不计），30 道特质题。
+      if (!exact(planning, ['answered', 'total', 'required_answered', 'required_total']) || planning.total !== REQUIRED_PLAN || planning.required_total !== REQUIRED_PLAN
+          || !count(planning.answered, REQUIRED_PLAN) || !count(planning.required_answered, REQUIRED_PLAN)
+          || planning.answered !== planning.required_answered
+          || !exact(personality, ['answered', 'total']) || personality.total !== TRAIT_COUNT || !count(personality.answered, TRAIT_COUNT)) fail();
       const complete = report.academic.every(subject => subject.answered === subject.total)
         && planning.required_answered === planning.required_total && personality.answered === personality.total;
       if ((report.status === 'complete') !== complete || grants.has(grant.id) || reports.has(report.id) || references.has(report.report_ref)) fail();

@@ -62,8 +62,9 @@ def test_selected_batch_exact_minimal_contract_and_request_order(summary):
         assert row['status'] == 'draft'
         assert row['academic'] == [{'key': key, 'answered': int(key == 'english'), 'total': 15}
                                    for key in ['english', 'maths', 'physics', 'chemistry']]
-        assert row['planning'] == {'answered': 1, 'total': 14, 'required_answered': 1, 'required_total': 13}
-        assert row['personality'] == {'answered': 0, 'total': 24}
+        # 旧版空作答按当前引擎计数：只有资料里的年级算作答，其余规划题都没答。
+        assert row['planning'] == {'answered': 1, 'total': 12, 'required_answered': 1, 'required_total': 12}
+        assert row['personality'] == {'answered': 0, 'total': 30}
         assert db.get_report(users['owner'], saved['id']) == saved
     serialized = json.dumps(answer, ensure_ascii=False)
     for forbidden in ['answers', 'advisor', 'history', 'csrf', 'password', 'year', 'createdAt', 'updatedAt', 'date', '私密建议', '私密顾问']:
@@ -171,13 +172,17 @@ def test_corrupt_source_or_metadata_fails_closed_without_private_echo(summary, c
 
 
 def full_record(key):
+    """当前版本（games-traits-v1）写出的完整作答：规划题带分格 / 靶环 / 团队竞速，特质题 30 道。"""
     value = record(key)
     value['state']['academic']['answers'] = {q['id']: 0 for q in ASSESSMENT_SCHEMA['academic']}
-    plan = {q['key']: q['options'][0] if q['type'] == 'single' else [q['options'][0]]
-            for q in ASSESSMENT_SCHEMA['plan']}
-    plan['grade'] = '8'; plan.pop('weakSubjects')
-    value['state']['plan']['answers'] = plan
-    value['state']['mbti']['answers'] = [0] * 24
+    value['state']['plan']['answers'] = {
+        'grade': '8', 'interests': ['coding'], 'subjectBoard': {'like': ['数学'], 'try': [], 'avoid': []},
+        'career': ['ideas'], 'clubs': ['debate'], 'majorBoard': {'heart': ['cs'], 'watch': [], 'skip': []},
+        'team': {'pace': 'deep', 'partner': 'star'}, 'selfImage': ['rational'], 'freeTime': ['internet'],
+        'countries': ['uk'], 'subjectPerf': '0', 'preferredLength': 'short', 'weakSubjects': [],
+        'preferredMajor': ['tech'],
+    }
+    value['state']['mbti']['answers'] = [{'value': 3, 'ms': 900}] * 30
     return value
 
 
@@ -195,11 +200,12 @@ def test_counts_and_required_status_match_actual_browser_engine(summary, case):
         value['state']['info']['grade'] = ''
         value['state']['plan']['answers']['grade'] = '9'
     elif case == 'mbti_neutral':
-        value['state']['mbti']['answers'] = [2] * 24
+        value['state']['mbti']['answers'] = [{'value': 2, 'ms': None}] * 30
     elif case == 'zero_null':
         numeric_id = next(question['id'] for question in ASSESSMENT_SCHEMA['academic'] if question['type'] == 'numeric')
         value['state']['academic']['answers'] = {'en1': 0, 'ma3': 0, 'ma4': None, 'ph1': 0, 'ch1': None, numeric_id: '0'}
-        value['state']['mbti']['answers'] = [0, None, 0]
+        value['state']['mbti']['answers'] = [{'value': 0, 'ms': 900}, None, {'value': 0, 'ms': None}]
+        value['state']['mbti']['answers'] += [None] * 27
     elif case == 'academic_partial':
         value['state']['academic']['answers'].pop('en1')
     saved, chosen = create(summary, case, value)
@@ -217,7 +223,6 @@ console.log(JSON.stringify({grade:(w.PLAN_CONFIG.grade.find(g=>g.label===report.
     assert row['personality'] == expected['coverage']['mbti']
     assert row['status'] == expected['status']
     assert row['grade'] == expected['grade']
-    assert row['planning']['required_answered'] == (12 if case == 'required_empty' else 13)
 
 
 def test_one_join_snapshot_covers_all_selected_permissions_and_payloads(summary, monkeypatch):
