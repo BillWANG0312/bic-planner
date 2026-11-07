@@ -66,11 +66,29 @@ def test_only_dev_preview_explicitly_enables_same_origin_cloud_config(dev_app):
         prefix = 'window.BIC_CLOUD_CONFIG = '
         assert response.text.startswith(prefix)
         config = json.loads(response.text.removeprefix(prefix).strip().removesuffix(';'))
-        assert config == {'enabled': True, 'apiBase': '/api/'}
+        assert config == {'enabled': True, 'apiBase': '/api/', 'mode': 'testcode'}
         assert 'javascript' in response.headers['content-type']
         assert response.headers['cache-control'] == 'no-store'
         assert 'set-cookie' not in response.headers
         assert 'password' not in response.text and 'token' not in response.text
+
+
+def test_dev_cloud_mode_can_opt_into_the_legacy_account_flow(dev_module, tmp_path, monkeypatch):
+    monkeypatch.setenv('BIC_DEV_CLOUD_MODE', 'account')
+    app = dev_module.create_dev_app(Settings(database_path=tmp_path / 'private.sqlite3',
+                                              public_origin=ORIGIN, development=True))
+    with TestClient(app, base_url=ORIGIN) as client:
+        response = client.get('/js/cloud-config.js')
+        prefix = 'window.BIC_CLOUD_CONFIG = '
+        config = json.loads(response.text.removeprefix(prefix).strip().removesuffix(';'))
+        assert config == {'enabled': True, 'apiBase': '/api/'}
+
+
+def test_dev_cloud_mode_rejects_unknown_values(dev_module, tmp_path, monkeypatch):
+    monkeypatch.setenv('BIC_DEV_CLOUD_MODE', 'production')
+    with pytest.raises(ValueError, match='BIC_DEV_CLOUD_MODE'):
+        dev_module.create_dev_app(Settings(database_path=tmp_path / 'private.sqlite3',
+                                           public_origin=ORIGIN, development=True))
 
 
 @pytest.mark.parametrize('target', [

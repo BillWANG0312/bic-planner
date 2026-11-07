@@ -296,7 +296,7 @@ def test_twenty_selected_reports_preserve_explicit_order_without_persistent_writ
         assert connection.execute('SELECT * FROM reports ORDER BY id').fetchall() == original_reports
         assert connection.execute('SELECT * FROM teacher_grants ORDER BY id').fetchall() == original_grants
         assert connection.execute('SELECT * FROM advisor_edits ORDER BY id').fetchall() == original_audit
-        assert connection.execute('PRAGMA user_version').fetchone()[0] == 5
+        assert connection.execute('PRAGMA user_version').fetchone()[0] == 6
 
 
 def test_batch_never_mixes_snapshot_metadata_with_a_later_answer_sheet(summary, monkeypatch):

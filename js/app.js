@@ -22,6 +22,14 @@
   let S = blank();
   let reportLibrary = null;
   let cloudReports = null;
+  // 一次性测试码：线上启用 testcode 模式时，开始测评前必须凭码加入。
+  const testCodeConfig = window.BIC_CLOUD_CONFIG || {};
+  const testCodeRequired = testCodeConfig.enabled === true && testCodeConfig.mode === 'testcode'
+    && typeof location !== 'undefined' && location.protocol !== 'file:';
+  let testCodeClient = null;
+  let pendingStart = null;
+  let testCodeBusy = false;
+  let submittedBatch = null;
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const TEST_MODES = ['academic', 'plan', 'mbti'];
   // 原始字节：加载时读到的字节，供受保护进度导出/核对；正常续答的当前版进度为 null。
@@ -146,7 +154,7 @@
     S = blank(); progressRaw = null; recognizedProfile = null; saveLocked = false; progressReadFailed = false; cloudReadOnly = false;
     profileNotice(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true;
   }
-  $('#profileRestartBtn').onclick = startNew;
+  $('#profileRestartBtn').onclick = () => ensureTestCode(startNew);
 
   function archivedCount() {
     try { return window.ReportStore.create(window.localStorage).list().length; } catch (_) { return 0; }
@@ -584,6 +592,97 @@
     }
   });
 
+  /* ---------------- 一次性测试码 ---------------- */
+  if (testCodeRequired && window.CloudReports) {
+    testCodeClient = window.CloudReports.create({
+      config: testCodeConfig, location: window.location, fetch: window.fetch.bind(window)
+    });
+    for (const selector of ['#cloudBtn', '#openCloudBtn']) {
+      const button = $(selector);
+      if (button) button.hidden = true;
+    }
+  }
+  const testCodeJoined = () => {
+    try { return sessionStorage.getItem('bic.test.joined') === '1'; } catch (_) { return false; }
+  };
+  const markTestCodeJoined = () => { try { sessionStorage.setItem('bic.test.joined', '1'); } catch (_) {} };
+  function testCodeError(error) {
+    if (error?.status === 429 || error?.code === 'RATE_LIMIT') return '尝试次数过多，请稍后再试。';
+    if (error?.status === 409) return '这个测试码已经被使用，请向老师索取新的测试码。';
+    if (error?.status === 410) return '测试码已过期或已被撤销，请向老师索取新的测试码。';
+    if (error?.status === 404) return '测试码不存在，请核对后重试。';
+    if (error?.status === 422) return '请输入有效的测试码。';
+    if (error?.code === 'LOCAL_ONLY' || error?.code === 'CONFIG') return '当前网址无法连接测试码服务，请使用学校提供的网址。';
+    return '无法连接测试码服务，请检查网络后重试。';
+  }
+  function closeCodeGate() {
+    $('#codeGate').hidden = true;
+    $('#codeGateStatus').textContent = '';
+    $('#codeGateInput').value = '';
+  }
+  async function ensureTestCode(next) {
+    if (!testCodeRequired || !testCodeClient || testCodeJoined()) { next(); return; }
+    try {
+      const active = await testCodeClient.testCodeSession();
+      if (active) { markTestCodeJoined(); next(); return; }
+    } catch (_) { /* 无法确认时仍显示输入框。 */ }
+    pendingStart = next;
+    $('#codeGateStatus').textContent = '';
+    $('#codeGateInput').value = '';
+    $('#codeGate').hidden = false;
+    setTimeout(() => $('#codeGateInput').focus(), 0);
+  }
+  $('#codeGateCancel').onclick = () => { if (!testCodeBusy) { pendingStart = null; closeCodeGate(); } };
+  $('#codeGateForm').onsubmit = async event => {
+    event.preventDefault();
+    if (testCodeBusy || !testCodeClient) return;
+    const code = $('#codeGateInput').value;
+    testCodeBusy = true;
+    $('#codeGateSubmit').disabled = true;
+    $('#codeGateStatus').textContent = '正在校验测试码…';
+    try {
+      await testCodeClient.joinTestCode(code);
+      markTestCodeJoined();
+      const next = pendingStart;
+      pendingStart = null;
+      closeCodeGate();
+      if (next) next();
+    } catch (error) {
+      $('#codeGateStatus').textContent = testCodeError(error);
+    } finally {
+      testCodeBusy = false;
+      $('#codeGateSubmit').disabled = false;
+    }
+  };
+
+  function submitStatus(text, error = false) {
+    const element = $('#reportSubmitStatus');
+    if (!element) return;
+    element.hidden = !text;
+    element.textContent = text || '';
+    element.classList.toggle('is-error', !!error);
+  }
+  async function autoSubmitReport(force = false) {
+    if (!testCodeRequired || !testCodeClient || !testCodeJoined()) return;
+    const batch = S.report?.meta?.batchId;
+    if (!batch || !$('#reportSubmitStatus')) return;
+    if (!force && batch === submittedBatch) return;
+    const retry = $('#reportSubmitRetry');
+    if (retry) retry.hidden = true;
+    submitStatus('正在把报告提交到服务器…');
+    try {
+      // 与账号上传使用同一份校验后的归档记录，避免另造一种报告格式。
+      const memory = window.ReportStore.create({ getItem: () => null, setItem: () => {} });
+      const result = await testCodeClient.submitStudentReport(memory.save(S).record);
+      submittedBatch = batch;
+      submitStatus(result.created ? '报告已提交到服务器保存。你仍可导出 PDF 留存。' : '报告已在服务器上，无需重复提交。');
+    } catch (_) {
+      submitStatus('报告提交未成功。你仍可查看和导出 PDF；请检查网络后点击「重新提交报告」。', true);
+      if (retry) retry.hidden = false;
+    }
+  }
+  $('#reportSubmitRetry').onclick = () => autoSubmitReport(true);
+
   /* ---------------- 报告生成 ---------------- */
   function generate() {
     if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('原始进度尚不能识别，未生成报告。请先下载备份，再明确开始新版。'); return; }
@@ -611,6 +710,7 @@
           return;
         }
         renderReport(false);
+        autoSubmitReport();
       }
     }, 420);
   }
@@ -653,7 +753,7 @@
     toast('在打印窗口中选择「另存为 PDF」即可保存报告');
     setTimeout(() => window.print(), 350);
   };
-  $('#restartBtn').onclick = startNew;
+  $('#restartBtn').onclick = () => ensureTestCode(startNew);
 
   /* ---------------- 首页 ---------------- */
   function resumeProgress() {
@@ -664,8 +764,13 @@
     setScreen('info');
     renderInfo();
   }
-  $('#startBtn').onclick = resumeProgress;
-  $('#resumeBtn').onclick = resumeProgress;
+  function startFromHome() {
+    // 已生成的报告只是查看/打印，不再要求测试码；真正开始或续答测评才校验。
+    if (S.report) { renderReport(); return; }
+    ensureTestCode(resumeProgress);
+  }
+  $('#startBtn').onclick = startFromHome;
+  $('#resumeBtn').onclick = startFromHome;
   $$('[data-goto]').forEach(b => b.onclick = () => {
     const t = b.dataset.goto;
     setScreen(t);
@@ -791,5 +896,6 @@
   }
 
   // 暴露给调试
-  window.__pathwise = { get state() { return S; }, generate, startTest, reset() { S = blank(); setScreen('home'); profileNotice(); renderInfo(); $('#resumeBtn').hidden = true; } };
+  window.__pathwise = { get state() { return S; }, generate, startTest, openState: openReportState,
+    reset() { S = blank(); setScreen('home'); profileNotice(); renderInfo(); $('#resumeBtn').hidden = true; } };
 })();

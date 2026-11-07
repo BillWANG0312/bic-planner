@@ -11,14 +11,14 @@
 | 静态前端 | `/home/bill/nas/bic_website/academic-planner/`（线上目录即 GitHub 仓库克隆，无构建步骤） |
 | 网站进程 | `server.py`，`127.0.0.1:8086`，systemd `bic-website.service` |
 | 账号 API | `backend.bic_api`（FastAPI），`127.0.0.1:9001`，systemd `bic-account-api.service`；同源经 `server.py` 反向代理到 `/academic-planner/api/*` |
-| 数据库 | `/home/bill/nas/bic_account_data/accounts.sqlite3`（schema 5，权限 700，位于网站目录外） |
+| 数据库 | `/home/bill/nas/bic_account_data/accounts.sqlite3`（schema 6，权限 700，位于网站目录外） |
 | 运行时 | venv `/home/bill/nas/bic_account_venv`，Python 3.12 |
 | 入口 | Cloudflare → cloudflared → `127.0.0.1:8086`（边缘有缓存，见下） |
 | 自动部署 | cron `*/5 * * * *` 执行 `pull_academic_planner.sh`：`git fetch` + `merge --ff-only origin/main`，工作区有改动时跳过 |
 
 **更新流程**：一律开分支 → 推 GitHub → 开 PR → 由仓库所有者合并 → 5 分钟内 cron 自动拉取上线。不要直接在本地 `main` 上提交。协作细节见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-**脚本版本号（缓存）**：Cloudflare 边缘使用 Souin 缓存：缓存键只看路径，查询串基本被忽略，但实测不同 `?v=` 的版本会各自保留，因此**不带版本号的 URL 最长会被锁定为旧内容 1 小时**。为此 `index.html` 等页面引用的 JS 一律写成 `js/xxx.js?v=N`（当前 `cloud-config.js?v=2`，其余为 `?v=3`，`app.js?v=4`）。**每次修改某个 JS，就把它在引用页面里的 `?v=N` 加一**，否则线上可能继续发旧代码。改完脚本后在 `index.html` 等页面搜索 `?v=` 核对。
+**脚本版本号（缓存）**：Cloudflare 边缘使用 Souin 缓存：缓存键只看路径，查询串基本被忽略，但实测不同 `?v=` 的版本会各自保留，因此**不带版本号的 URL 最长会被锁定为旧内容 1 小时**。为此 `index.html` 等页面引用的 JS 一律写成 `js/xxx.js?v=N`（各页面以实际引用为准；`cloud-client.js?v=8`、`app.js?v=65`、`admin.js?v=2`）。**每次修改某个 JS，就把它在引用页面里的 `?v=N` 加一**，否则线上可能继续发旧代码。改完脚本后在 `index.html`、`admin.html` 等页面搜索 `?v=` 核对。
 
 ## 功能一览
 
@@ -36,6 +36,15 @@
 - **报告与 PDF**：展示作答完成度、学科表现、选科与专业建议；未完成时标注为探索草稿。点「导出 PDF」在打印窗口另存，逐题解析自动展开，打印后恢复。
 - **顾问本机编辑**：报告页「编辑建议」可修改四段建议文字，保存前后内容可恢复；重新生成时保留修改并提示复核。
 
+### 学校测试码流程（线上主流程）
+
+- 学校维护一个 `advisor` 角色的公共账号（部署示例为 `tlwl-bic`），在 `admin.html` 登录后逐个生成**一次性测试码**，默认有效 7 天。
+- 学生打开测评首页，点「开始测评」或「继续上次进度」时需输入测试码；输入框明确告知**作答与生成的报告会提交给学校/机构保存**。
+- 学生生成报告后自动提交一份到服务器，并可在当前页面继续查看、用浏览器打印为 PDF；**提交后没有事后查询入口**。
+- 管理员后台按测试码列出学生报告，可在线打开并打印；报告与测试码一一对应。
+- 一码一人，不能共用；已撤销、已过期或已完成的码不能再用。学生端使用独立的 HttpOnly Cookie，不创建学生账号。
+- 详见 [测试码与学校归档说明](docs/test-codes.md)。
+
 ### 本机续答与共用电脑
 
 - 同一浏览器、同一网址自动保存一份未完成进度；重新打开网址一律停在首页，点「继续上次进度」回到上次的模块、题号或报告。
@@ -47,9 +56,10 @@
 - 最多归档 100 份报告，按姓名 / 编号搜索，打开、导出 / 导入 JSON 备份；纯旧版库可下载原 CSV，新或混合库使用 JSON。
 - 重复归档需明确确认；配额或数据损坏不会静默覆盖原库。详见 [使用与恢复说明](docs/report-library.md)。
 
-### 账号与云端（线上已开启，用户主动连接）
+### 账号与云端（线上测试码模式）
 
-- 不自动联网、不自动同步；学生主动登录后逐份确认上传、读取、更新或删除自己的报告。
+- 线上测评页启用 `mode: 'testcode'`，学生走测试码流程，账号报告入口在测评页隐藏；家长分享、顾问授权、本人改密等独立页面仍按各自入口使用。
+- 不自动联网、不自动同步；账号登录后仍需逐份确认上传、读取、更新或删除自己的报告。
 - 账号由管理员离线创建，不开放自助注册；忘记密码请联系管理员。详见 [连接指南](docs/cloud-connection.md)。
 - **本人改密**：账号安全页验证旧密码后修改密码并撤销本人全部会话。详见 [改密与会话说明](docs/password-change.md)。
 - **家长只读分享**：所有者预览确认后生成有期限、可撤销的摘要链接，不含逐题答卷。详见 [分享说明](docs/parent-sharing.md)。
@@ -101,7 +111,13 @@ BIC_DEV=1 BIC_DATABASE_PATH=/绝对路径/网站目录外/accounts.sqlite3 BIC_P
 ../bic-account-venv/bin/python -m backend.bic_api.admin --database /绝对路径/accounts.sqlite3 create-user <用户名> --role student
 ```
 
-密码在终端隐藏输入并二次确认；不要写进命令参数或脚本。开发模式启动 `python -m backend.bic_api.dev`（同样读取上述环境变量，端口 `BIC_PORT`，默认 9001）后，访问它同源提供的页面即可联调，它会即时提供 `enabled: true` 的 `cloud-config.js`，不需改动仓库里的静态文件。服务默认只监听回环；线上的 `cloud-config.js` 已为 `enabled: true`。接口与配置见 [连接指南](docs/cloud-connection.md)。安装、接口约定与 schema 见 [后端说明](docs/backend.md)。
+密码在终端隐藏输入并二次确认；不要写进命令参数或脚本。创建管理员公共账号时加 `--role advisor`，再用同一个 CLI 交互式设置密码：
+
+```sh
+../bic-account-venv/bin/python -m backend.bic_api.admin --database /绝对路径/accounts.sqlite3 create-user tlwl-bic --role advisor
+```
+
+开发模式启动 `python -m backend.bic_api.dev`（同样读取上述环境变量，端口 `BIC_PORT`，默认 9001）后，访问它同源提供的页面即可联调，它会即时提供 `enabled: true`、`mode: 'testcode'` 的 `cloud-config.js`，不需改动仓库里的静态文件；浏览器集成测试可用 `BIC_DEV_CLOUD_MODE=account` 暂时沿用普通账号流程。服务默认只监听回环；线上的 `cloud-config.js` 已为 `enabled: true` 并启用测试码模式。接口与配置见 [连接指南](docs/cloud-connection.md)。安装、接口约定与 schema 见 [后端说明](docs/backend.md)。
 
 ## 测试
 
@@ -110,8 +126,9 @@ BIC_DEV=1 BIC_DATABASE_PATH=/绝对路径/网站目录外/accounts.sqlite3 BIC_P
 ```sh
 npm install
 npx playwright install chromium
-npm test            # 前端与浏览器回归（579 项）
-BIC_TEST_PYTHON=/home/bill/nas/bic_account_venv/bin/python npm run test:cloud   # 后端集成（34 项）
+npm test            # 前端与浏览器回归（582 项）
+BIC_TEST_PYTHON=/home/bill/nas/bic_account_venv/bin/python npm run test:cloud   # 后端浏览器集成（34 项；4 个顾问只读/编辑用例在本次基底上原本失败）
+/var/tmp/bicvenv/bin/python -m pytest backend/tests -q   # 后端单元与接口（821 项）
 ```
 
 也可用 `pnpm install --frozen-lockfile` 代替 `npm install`。浏览器测试优先使用 Playwright Chromium，未安装时回退本机 Chrome。测试覆盖评分、空白答卷、题库、编辑历史、存储异常、续答保护、共用电脑清空、移动端 375px、打印、分享 / 批注 / 顾问权限边界与后端集成。测试数量会随功能增加而变化；验证口径与历史日志见 [验证记录](docs/verification-2026-10-25.md)。
@@ -132,6 +149,7 @@ BIC_TEST_PYTHON=/home/bill/nas/bic_account_venv/bin/python npm run test:cloud   
 | `js/report-statistics*.js`、`css/statistics.css` | 本地学术 / 专业 / 地区聚合与预览导出 |
 | `js/outcome-review*.js`、`css/outcomes.css` | 本地后续成绩导入、人工配对与描述聚合 |
 | `js/cloud-config.js`、`js/cloud-client.js`、`js/cloud-ui.js` | 同源账号连接与主动报告操作（`enabled` 开关） |
+| `admin.html`、`js/admin.js`、`css/testcode.css`、`backend/bic_api/test_codes.py` | 一次性测试码、学生报告后台与匿名提交 |
 | `account.html`、`js/account.js`、`css/account.css` | 本人改密与全部会话撤销 |
 | `share.html`、`js/share-*.js`、`css/share.css` | 摘要生成、所有者分享管理与只读页面 |
 | `family.html`、`js/family.js`、`js/comment-owner.js`、`css/family.css` | 受邀账号的私有批注与所有者授权 |
@@ -152,14 +170,16 @@ BIC_TEST_PYTHON=/home/bill/nas/bic_account_venv/bin/python npm run test:cloud   
 ## 已知限制
 
 - **登录限流全站共享**：反代后后端看到的客户端都是 `127.0.0.1`，按 IP 20 次/分钟的全站共享配额；同时段集中登录（约 5 人以上）可能触发 429。Argon2 并发上限为 2。
-- **无自助注册与找回密码**：只能由管理员建号或联系所有者处理。
+- **无自助注册与找回密码**：只能由管理员建号或联系所有者处理；学生测试码不建立账号，也不支持事后取回报告。
+- **测试码是使用流程而非权限系统**：服务端仍以一次性令牌 Cookie 约束加入与提交；真正安全边界在 API，不在前端弹窗。
 - **题库与量表未完成外部审校与校准**：能力分数只反映本次题库，推荐指数是规则排序；统计仅用于描述与校准准备。
-- **数据库升级需停机备份**：任何可能触发迁移的入口或 CLI 运行前，先停服务并在网站目录外做私有一致备份。步骤见 [顾问编辑说明](docs/advisor-edit.md#schema5升级与回退)。
+- **数据库升级需停机备份**：任何可能触发迁移的入口或 CLI 运行前，先停服务并在网站目录外做私有一致备份。步骤见 [顾问编辑说明](docs/advisor-edit.md#schema5升级与回退) 与 [测试码升级说明](docs/test-codes.md)。
 
 ## 文档索引
 
 - 团队接手：[开发交接与下一步修改](docs/development-handoff.md)
 - 测评版本与保护：[测评版本与保护说明](docs/assessment-profiles.md)
+- 测试码与学校归档：[测试码与学校归档说明](docs/test-codes.md)
 - 接口与后端：[后端说明](docs/backend.md)
 - 验证记录：[验证记录](docs/verification-2026-10-25.md)
 - 协作与部署：[CONTRIBUTING.md](CONTRIBUTING.md)

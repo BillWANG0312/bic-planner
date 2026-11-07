@@ -14,6 +14,7 @@ const original = new Error('fixture failure: ' + stage);
 let server, serverCloses = 0, contextCloses = 0;
 const instrumentedHttp = { createServer(...args) { server = http.createServer(...args); server.on('close', () => serverCloses++); return server; } };
 const context = { async newPage() { return { setDefaultTimeout() {}, async goto() { if (stage === 'goto') throw original; } }; },
+  async route() {},
   async close() { contextCloses++; if (closeThrows) throw new Error('secondary close failure'); } };
 const browser = { async newContext() { if (stage === 'newContext') throw original; return context; } };
 const moduleObject = { exports: {} };

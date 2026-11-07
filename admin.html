@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <title>测试码管理 · BIC 学业规划系统</title>
+  <link rel="icon" href="img/favicon-128.png" type="image/png" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/account.css" />
+  <link rel="stylesheet" href="css/testcode.css" />
+</head>
+<body>
+  <header class="account-brand no-print">
+    <img src="img/bic-logo-blue.png" alt="BIC 湾区国际书院" />
+    <span>BIC 学业规划系统 · 测试码管理</span>
+    <a href="index.html">返回测评</a>
+  </header>
+
+  <main class="admin-body">
+    <div class="admin-header no-print">
+      <h1>测试码管理</h1>
+      <span id="adminIdentity" class="admin-status"></span>
+    </div>
+
+    <section id="adminLoginPanel" class="admin-panel" hidden>
+      <h2>管理员登录</h2>
+      <p>使用公共管理员账号登录，创建测试码并查看学生报告。</p>
+      <p id="adminConnectStatus" class="admin-status" role="status" aria-live="polite"></p>
+      <form id="adminLoginForm" class="admin-form" novalidate>
+        <label>账号<input id="adminUsername" autocomplete="username" maxlength="64" required /></label>
+        <label>密码<input id="adminPassword" type="password" autocomplete="current-password" maxlength="256" required /></label>
+        <button type="submit" class="btn primary" id="adminLoginBtn">登录</button>
+      </form>
+    </section>
+
+    <div id="adminWorkspace" hidden>
+      <section class="admin-panel no-print">
+        <h2>创建测试码</h2>
+        <form id="adminCreateForm" class="admin-form" novalidate>
+          <label>批次/备注<input id="adminCodeLabel" type="text" maxlength="80" placeholder="例如 2026 秋季 8 年级" required /></label>
+          <label>有效期
+            <select id="adminCodeHours">
+              <option value="24">24 小时</option>
+              <option value="72">72 小时</option>
+              <option value="168" selected>7 天</option>
+              <option value="336">14 天</option>
+              <option value="720">30 天</option>
+            </select>
+          </label>
+          <button type="submit" class="btn primary" id="adminCreateBtn">生成一个测试码</button>
+        </form>
+        <p id="adminCreateStatus" class="admin-status" role="status" aria-live="polite"></p>
+        <p id="adminNewCode" class="admin-code" hidden></p>
+      </section>
+
+      <section class="admin-panel no-print">
+        <h2>测试码 <button type="button" class="btn ghost sm" id="adminRefreshBtn">刷新</button></h2>
+        <p id="adminListStatus" class="admin-status" role="status" aria-live="polite"></p>
+        <div id="adminCodes"></div>
+      </section>
+
+      <section class="admin-panel no-print">
+        <h2>学生报告</h2>
+        <div id="adminReports"></div>
+      </section>
+
+      <section class="admin-panel admin-report-panel" id="adminReportPanel" hidden>
+        <div class="admin-report-toolbar no-print">
+          <h2 id="adminReportHeading">报告</h2>
+          <div class="admin-form">
+            <button type="button" class="btn primary sm" id="adminPrintBtn">打印 / 导出 PDF</button>
+            <button type="button" class="btn ghost sm" id="adminCloseReportBtn">关闭报告</button>
+          </div>
+        </div>
+        <div id="adminReportRoot" class="report admin-report-view"></div>
+      </section>
+
+      <p class="no-print"><button type="button" class="btn ghost sm" id="adminLogoutBtn">退出账号</button></p>
+    </div>
+  </main>
+
+  <script src="js/bank.js?v=3"></script>
+  <script src="js/mbti.js?v=3"></script>
+  <script src="data/universities.js"></script>
+  <script src="js/majors.js?v=3"></script>
+  <script src="js/plan.js?v=3"></script>
+  <script src="js/personality.js?v=3"></script>
+  <script src="js/games.js?v=4"></script>
+  <script src="js/assessment-profile.js?v=6"></script>
+  <script src="js/legacy-assessment.js?v=5"></script>
+  <script src="js/report.js?v=5"></script>
+  <script src="js/report-editing.js?v=3"></script>
+  <script src="js/report-view.js?v=3"></script>
+  <script src="js/cloud-config.js?v=3"></script>
+  <script src="js/cloud-client.js?v=8"></script>
+  <script src="js/admin.js?v=2"></script>
+</body>
+</html>

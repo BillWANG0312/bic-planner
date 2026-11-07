@@ -688,7 +688,119 @@
       } catch (_) { throw protocolError(); }
     }
 
+    // ---- 一次性测试码：管理员后台与学生匿名加入 ----
+
+    function requireOperator() {
+      requireConnection(true);
+      if (user.role !== 'advisor') throw new CloudError('FORBIDDEN', '此入口需要管理员公共账号。', 403);
+    }
+    const codePattern = /^[2-9A-HJ-NP-Z]{10}$/;
+    function codeMeta(value) {
+      if (!exactKeys(value, ['id', 'code', 'label', 'created_at', 'expires_at', 'revoked_at', 'report_id'])
+          || !identifier(value.id) || typeof value.code !== 'string' || !codePattern.test(value.code)
+          || !boundedText(value.label, 80, true)
+          || !Number.isSafeInteger(value.created_at) || value.created_at <= 0
+          || !Number.isSafeInteger(value.expires_at) || value.expires_at <= value.created_at
+          || value.revoked_at !== null && (!Number.isSafeInteger(value.revoked_at) || value.revoked_at <= 0)
+          || value.report_id !== null && !identifier(value.report_id)) throw protocolError();
+      return value;
+    }
+    function codeList(value) {
+      if (!exactKeys(value, ['items', 'total', 'limit', 'offset']) || !Array.isArray(value.items)
+          || value.items.length > 100 || !Number.isInteger(value.total) || value.total < 0
+          || !Number.isInteger(value.limit) || !Number.isInteger(value.offset)) throw protocolError();
+      const seen = new Set();
+      value.items.forEach(item => {
+        const keys = ['id', 'code', 'label', 'status', 'created_at', 'expires_at', 'revoked_at', 'redeemed_at', 'completed_at', 'report_id'];
+        if (!exactKeys(item, keys) || seen.has(item.id)
+            || !['unused', 'in_progress', 'completed', 'expired', 'revoked'].includes(item.status)
+            || item.redeemed_at !== null && (!Number.isSafeInteger(item.redeemed_at) || item.redeemed_at <= 0)
+            || item.completed_at !== null && (!Number.isSafeInteger(item.completed_at) || item.completed_at <= 0)) throw protocolError();
+        codeMeta({ id: item.id, code: item.code, label: item.label, created_at: item.created_at,
+          expires_at: item.expires_at, revoked_at: item.revoked_at, report_id: item.report_id });
+        seen.add(item.id);
+      });
+      return value;
+    }
+    function studentRow(value) {
+      if (!exactKeys(value, ['id', 'created_at', 'updated_at', 'report_ref', 'name', 'grade', 'year', 'test_code_id', 'code', 'label'])
+          || !identifier(value.id) || !identifier(value.test_code_id) || !boundedText(value.name, 24, true)
+          || !boundedText(value.report_ref, 100, true) || !boundedText(value.label, 80, true)
+          || typeof value.code !== 'string' || !codePattern.test(value.code)
+          || !boundedText(value.created_at, 40, true) || !Number.isFinite(Date.parse(value.created_at))) throw protocolError();
+      return value;
+    }
+    function studentList(value) {
+      if (!exactKeys(value, ['items', 'total', 'limit', 'offset']) || !Array.isArray(value.items)
+          || value.items.length > 100 || !Number.isInteger(value.total) || value.total < 0) throw protocolError();
+      value.items.forEach(studentRow);
+      return value;
+    }
+    async function adminCreateTestCode(label, expiresInHours) {
+      requireOperator();
+      if (!boundedText(label, 80, true) || !Number.isInteger(expiresInHours) || expiresInHours < 1 || expiresInHours > 720) {
+        throw new CloudError('VALIDATION', '请填写 1–80 字的批次名，并选择 1–720 小时的有效期。', 422);
+      }
+      return codeMeta(await request('admin/test-codes', { method: 'POST', authenticated: true,
+        body: { label: label.trim(), expires_in_hours: expiresInHours } }));
+    }
+    async function adminListTestCodes() {
+      requireOperator();
+      return codeList(await request('admin/test-codes?limit=100&offset=0', { authenticated: true }));
+    }
+    async function adminRevokeTestCode(id) {
+      requireOperator();
+      return codeMeta(await request('admin/test-codes/' + reportId(id) + '/revoke',
+        { method: 'POST', body: {}, authenticated: true }));
+    }
+    async function adminListReports() {
+      requireOperator();
+      return studentList(await request('admin/reports?limit=100&offset=0', { authenticated: true }));
+    }
+    async function adminGetReport(id) {
+      requireOperator();
+      const value = await request('admin/reports/' + reportId(id), { authenticated: true });
+      if (!exactKeys(value, ['id', 'revision', 'created_at', 'updated_at', 'record', 'code', 'label', 'test_code_id'])
+          || !identifier(value.id) || !revisionNumber(value.revision) || !object(value.record)
+          || typeof value.code !== 'string' || !codePattern.test(value.code) || !boundedText(value.label, 80, true)
+          || !identifier(value.test_code_id)) throw protocolError();
+      requireRecord(value.record);
+      return value;
+    }
+    async function joinTestCode(code) {
+      if (typeof code !== 'string' || !code.trim() || code.length > 40) {
+        throw new CloudError('VALIDATION', '请输入有效的测试码。', 422);
+      }
+      const value = await request('public/join', { method: 'POST', body: { code } });
+      if (!exactKeys(value, ['label', 'expires_at', 'resumed']) || !boundedText(value.label, 80, true)
+          || !Number.isSafeInteger(value.expires_at) || value.expires_at <= 0
+          || typeof value.resumed !== 'boolean') throw protocolError();
+      return value;
+    }
+    async function testCodeSession() {
+      try {
+        const value = await request('public/session');
+        if (!exactKeys(value, ['id', 'label', 'expires_at']) || !identifier(value.id)
+            || !boundedText(value.label, 80, true) || !Number.isSafeInteger(value.expires_at)) throw protocolError();
+        return value;
+      } catch (error) {
+        if (error.status === 401) return null;
+        throw error;
+      }
+    }
+    async function submitStudentReport(record) {
+      if (!object(record)) throw new CloudError('VALIDATION', '请先生成当前学生的报告。', 422);
+      requireRecord(record);
+      const value = await request('public/report', { method: 'POST', body: { record } });
+      if (!exactKeys(value, ['id', 'created_at', 'created', 'label']) || !identifier(value.id)
+          || !boundedText(value.created_at, 40, true) || !Number.isFinite(Date.parse(value.created_at))
+          || typeof value.created !== 'boolean' || !boundedText(value.label, 80, true)) throw protocolError();
+      return value;
+    }
+
     return { connect, login, changePassword, list, get, create: createReport, update, remove, logout, disconnect,
+      adminCreateTestCode, adminListTestCodes, adminRevokeTestCode, adminListReports, adminGetReport,
+      joinTestCode, testCodeSession, submitStudentReport,
       createShare, listShares, revokeShare,
       createParentAccess, listParentAccess, revokeParentAccess, listFamilyAccess, familyThread, addFamilyComment,
       createAdviceDraft, applyAdviceDraft,

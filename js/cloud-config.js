@@ -1,2 +1,2 @@
-/* 由网站维护者配置同源服务。默认关闭；开启后仍需使用者主动连接和逐份上传。 */
-window.BIC_CLOUD_CONFIG = { enabled: true, apiBase: './api/' };
+/* 由网站维护者配置同源服务。testcode 模式下学生必须凭一次性测试码开始测评。 */
+window.BIC_CLOUD_CONFIG = { enabled: true, apiBase: './api/', mode: 'testcode' };

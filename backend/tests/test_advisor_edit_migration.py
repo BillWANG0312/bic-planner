@@ -40,7 +40,7 @@ def test_edit_upgrade_preserves_exact_old_rows_declarations_hashes_and_sessions(
     before = snapshot(path)
     Database(path)
     after = snapshot(path)
-    assert after['version'] == 5
+    assert after['version'] == 6
     assert after['application'] == before['application']
     for table, rows in before['rows'].items():
         assert after['rows'][table] == rows
@@ -66,7 +66,7 @@ def test_edit_migration_every_failed_step_rolls_back_exact_original(tmp_path, mo
             blocked = (failure == 'grant' and action == sqlite3.SQLITE_CREATE_TABLE and name == 'advisor_edit_grants'
                        or failure == 'audit' and action == sqlite3.SQLITE_CREATE_TABLE and name == 'advisor_edits'
                        or failure == 'index' and action == sqlite3.SQLITE_CREATE_INDEX and name == 'advisor_edits_report_idx'
-                       or failure == 'version' and action == sqlite3.SQLITE_PRAGMA and name == 'user_version' and argument == '5')
+                       or failure == 'version' and action == sqlite3.SQLITE_PRAGMA and name == 'user_version' and argument == '6')
             return sqlite3.SQLITE_DENY if blocked else sqlite3.SQLITE_OK
 
         connection.set_authorizer(deny)

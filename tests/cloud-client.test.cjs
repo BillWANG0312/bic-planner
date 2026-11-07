@@ -145,6 +145,74 @@ test('report methods cannot be called before explicit connection or login', asyn
   assert.equal(f.calls.length, 2);
 });
 
+test('test-code admin methods keep the exact wire contract and reject non-operator roles before any call', async () => {
+  const CODE = { id: 'code-1', code: '23456789AB', label: '2026 秋季 8 年级', created_at: 1_000,
+    expires_at: 2_000, revoked_at: null, report_id: null };
+  const revoke = { ...CODE, revoked_at: 1_500 };
+  const list = { items: [{ ...CODE, status: 'unused', redeemed_at: null, completed_at: null }],
+    total: 1, limit: 100, offset: 0 };
+  const student = { id: 'report-1', created_at: '2026-11-08T10:00:00Z', updated_at: '2026-11-08T10:00:00Z',
+    report_ref: 'BIC-2026-001', name: '张三', grade: '8', year: 2026,
+    test_code_id: CODE.id, code: CODE.code, label: CODE.label };
+  const full = { id: student.id, revision: 1, created_at: student.created_at, updated_at: student.updated_at,
+    record: REPORT.record, code: CODE.code, label: CODE.label, test_code_id: CODE.id };
+  const f = await signedIn([response(CODE, 201), response(list), response(revoke),
+    response({ items: [student], total: 1, limit: 100, offset: 0 }), response(full)]);
+  assert.deepEqual(plain(await f.client.adminCreateTestCode('  2026 秋季 8 年级  ', 168)), CODE);
+  assert.deepEqual(plain(await f.client.adminListTestCodes()), list);
+  assert.deepEqual(plain(await f.client.adminRevokeTestCode('code-1')), revoke);
+  assert.equal((await f.client.adminListReports()).items[0].id, student.id);
+  assert.deepEqual(plain(await f.client.adminGetReport('report-1')), full);
+  assert.deepEqual(f.calls.slice(3).map(call => [call.init.method, call.url]), [
+    ['POST', 'https://school.test/planner/api/admin/test-codes'],
+    ['GET', 'https://school.test/planner/api/admin/test-codes?limit=100&offset=0'],
+    ['POST', 'https://school.test/planner/api/admin/test-codes/code-1/revoke'],
+    ['GET', 'https://school.test/planner/api/admin/reports?limit=100&offset=0'],
+    ['GET', 'https://school.test/planner/api/admin/reports/report-1']]);
+  assert.deepEqual(JSON.parse(f.calls[3].init.body), { label: '2026 秋季 8 年级', expires_in_hours: 168 });
+  assert.deepEqual(JSON.parse(f.calls[5].init.body), {});
+  for (const index of [3, 4, 5, 6, 7]) assert.equal(f.calls[index].init.headers['X-CSRF-Token'], SESSION.csrf_token);
+  for (const index of [4, 6, 7]) assert.equal(f.calls[index].init.body, undefined);
+  await assert.rejects(f.client.adminCreateTestCode('', 0), error => error.code === 'VALIDATION');
+  await assert.rejects(f.client.adminCreateTestCode('x', 721), error => error.code === 'VALIDATION');
+  await assert.rejects(f.client.adminCreateTestCode('x', 1.5), error => error.code === 'VALIDATION');
+  assert.equal(f.calls.length, 8, 'Invalid admin input must not reach the network');
+
+  const studentSession = { ...SESSION, user: { ...USER, role: 'student' } };
+  const denied = setup({ replies: [response({ status: 'ok', api_version: '2' }), absent(), response(studentSession)] });
+  await denied.client.connect();
+  await denied.client.login('student.local', 'synthetic-test-password');
+  await assert.rejects(denied.client.adminListReports(), error => error.code === 'FORBIDDEN' && error.status === 403);
+  assert.equal(denied.calls.length, 3);
+});
+
+test('test-code public methods never send account CSRF and validate join/session/submit responses', async () => {
+  const joined = { label: '2026 秋季 8 年级', expires_at: 2_000, resumed: false };
+  const session = { id: 'code-1', label: joined.label, expires_at: 2_000 };
+  const saved = { id: 'report-1', created_at: '2026-11-08T10:00:00Z', created: true, label: joined.label };
+  const f = setup({ replies: [response(joined), response(session), response(saved, 201), absent()] });
+  assert.deepEqual(plain(await f.client.joinTestCode('2345-6789AB')), joined);
+  assert.deepEqual(plain(await f.client.testCodeSession()), session);
+  assert.deepEqual(plain(await f.client.submitStudentReport(REPORT.record)), saved);
+  assert.equal(await f.client.testCodeSession(), null);
+  assert.deepEqual(f.calls.map(call => [call.init.method, call.url]), [
+    ['POST', 'https://school.test/planner/api/public/join'],
+    ['GET', 'https://school.test/planner/api/public/session'],
+    ['POST', 'https://school.test/planner/api/public/report'],
+    ['GET', 'https://school.test/planner/api/public/session']]);
+  assert.deepEqual(JSON.parse(f.calls[0].init.body), { code: '2345-6789AB' });
+  assert.deepEqual(JSON.parse(f.calls[2].init.body), { record: REPORT.record });
+  for (const call of f.calls) {
+    assert.equal(call.init.headers['X-CSRF-Token'], undefined);
+    assert.equal(call.init.headers.Origin, undefined);
+    assert.equal(call.init.credentials, 'same-origin');
+  }
+  await assert.rejects(f.client.joinTestCode(''), error => error.code === 'VALIDATION');
+  await assert.rejects(f.client.joinTestCode('x'.repeat(41)), error => error.code === 'VALIDATION');
+  await assert.rejects(f.client.submitStudentReport({ state: { report: {} } }), error => error.code === 'PROFILE');
+  assert.equal(f.calls.length, 4, 'Invalid public input must not reach the network');
+});
+
 test('session expiry and CSRF rejection clear identity without echoing rejected secrets', async () => {
   for (const status of [401, 403]) {
     const f = await signedIn([response({ detail: 'synthetic-test-password and ' + SESSION.csrf_token }, status)]);

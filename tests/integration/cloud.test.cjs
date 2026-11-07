@@ -40,7 +40,7 @@ before(async () => {
   const port = reservation.address().port;
   await new Promise(resolve => reservation.close(resolve));
   origin = `http://127.0.0.1:${port}`;
-  const env = { ...process.env, BIC_DEV: '1', BIC_DRAFT_MODE: 'local_mock', BIC_PORT: String(port),
+  const env = { ...process.env, BIC_DEV: '1', BIC_DEV_CLOUD_MODE: 'account', BIC_DRAFT_MODE: 'local_mock', BIC_PORT: String(port),
     BIC_PUBLIC_ORIGIN: origin, BIC_DATABASE_PATH: path.join(directory, 'private.sqlite3'),
     TEMP: directory, TMP: directory, TMPDIR: directory };
   const bootstrap = `from pathlib import Path; import os; from backend.bic_api.db import Database; from backend.bic_api.security import AuthService; auth=AuthService(Database(Path(os.environ['BIC_DATABASE_PATH']))); [auth.create_user('browser.'+str(i),'${password}') for i in range(10)]`;
