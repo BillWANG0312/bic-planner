@@ -18,7 +18,7 @@
 
 **更新流程**：一律开分支 → 推 GitHub → 开 PR → 由仓库所有者合并 → 5 分钟内 cron 自动拉取上线。不要直接在本地 `main` 上提交。协作细节见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-**脚本版本号（缓存）**：Cloudflare 边缘使用 Souin 缓存：缓存键只看路径，查询串基本被忽略，但实测不同 `?v=` 的版本会各自保留，因此**不带版本号的 URL 最长会被锁定为旧内容 1 小时**。为此 `index.html` 等页面引用的 JS 一律写成 `js/xxx.js?v=N`（各页面以实际引用为准；`cloud-client.js?v=8`、`app.js?v=65`、`admin.js?v=2`）。**每次修改某个 JS，就把它在引用页面里的 `?v=N` 加一**，否则线上可能继续发旧代码。改完脚本后在 `index.html`、`admin.html` 等页面搜索 `?v=` 核对。
+**脚本版本号（缓存）**：Cloudflare 边缘使用 Souin 缓存：缓存键只看路径，查询串基本被忽略，但实测不同 `?v=` 的版本会各自保留，因此**不带版本号的 URL 最长会被锁定为旧内容 1 小时**。为此 `index.html` 等页面引用的 JS 一律写成 `js/xxx.js?v=N`（各页面以实际引用为准；`cloud-config.js?v=5`、`cloud-client.js?v=8`、`app.js?v=66`、`admin.js?v=2`）。**每次修改某个 JS，就把它在引用页面里的 `?v=N` 加一**，否则线上可能继续发旧代码。改完脚本后在 `index.html`、`admin.html` 等页面搜索 `?v=` 核对。
 
 ## 功能一览
 
