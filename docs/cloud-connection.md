@@ -24,15 +24,15 @@
 
 ## 开通与本地演示
 
-安装、账号、TLS、数据库权限和私有备份见 [后端说明](backend.md)。客户端要求健康接口 `api_version: '2'`，因为 v2 增加认证读取的会话绑定。旧 v1 在恢复会话或发送口令前被拒绝，前后端须同时更新。数据库当前为schema5，已知精确v1/v2/v3/v4事务升级前先停服务私有备份，任何新版入口或账号CLI都可能触发迁移，详见 [顾问编辑与schema5升级说明](advisor-edit.md)。
+安装、账号、TLS、数据库权限和私有备份见 [后端说明](backend.md)。客户端要求健康接口 `api_version: '2'`，因为 v2 增加认证读取的会话绑定。旧 v1 在恢复会话或发送口令前被拒绝，前后端须同时更新。数据库当前为schema6，已知精确v1/v2/v3/v4/v5事务升级前先停服务私有备份，任何新版入口或账号CLI都可能触发迁移，详见 [顾问编辑与schema5升级说明](advisor-edit.md) 与 [测试码升级说明](test-codes.md)。
 
-`js/cloud-config.js` 默认不含凭据且关闭：
+`js/cloud-config.js` 不含凭据；线上已启用测试码模式：
 
 ```js
-window.BIC_CLOUD_CONFIG = { enabled: false, apiBase: './api/' };
+window.BIC_CLOUD_CONFIG = { enabled: true, apiBase: './api/', mode: 'testcode' };
 ```
 
-维护者开通后将 enabled 改 true，并将 apiBase 指向已配置的同源 API 目录。要求 HTTPS，拒绝跨域、URL 凭据、查询或片段。例如网页 `/academic-planner/` 的 `./api/` 对应 `/academic-planner/api/`，代理改写为内部 `/api/`，Cookie 路径配置 `/academic-planner/api`。开启后仍需用户主动连接和逐份确认上传。
+`mode: 'testcode'` 时，测评首页要求先输入一次性测试码，并隐藏账号报告入口；家长分享、顾问授权、本人改密等独立页面不受影响。去掉 `mode` 则回到普通账号连接流程。`apiBase` 指向已配置的同源 API 目录。要求 HTTPS，拒绝跨域、URL 凭据、查询或片段。例如网页 `/academic-planner/` 的 `./api/` 对应 `/academic-planner/api/`，代理改写为内部 `/api/`，Cookie 路径配置 `/academic-planner/api`。测试码流程见 [测试码与学校归档说明](test-codes.md)。
 
 本地开发采用同源入口，避免放开 CORS。安装依赖、交互创建账号后，从完整源码根目录运行：
 
@@ -44,13 +44,13 @@ $env:BIC_PORT = '9001'
 & D:\Codex\work\bic-backend-venv\Scripts\python.exe -m backend.bic_api.dev
 ```
 
-访问 `http://127.0.0.1:9001/`。此入口临时返回启用配置，未修改磁盘默认配置；只公开显式测评/家长/顾问页面及 css/js/img/data，不公开后端、文档、Git 或数据库。没有开发标志或非回环来源则拒绝启动。正式环境仍使用 API 入口 `python -m backend.bic_api` 和独立 HTTPS 静态服务器/反代，本地演示不等于上线。
+访问 `http://127.0.0.1:9001/`。此入口临时返回启用配置（默认 `mode: 'testcode'`，与线上一致），未修改磁盘默认配置；设 `BIC_DEV_CLOUD_MODE=account` 可临时沿用普通账号流程，供浏览器集成测试使用。它只公开显式测评/家长/顾问页面及 css/js/img/data，不公开后端、文档、Git 或数据库。没有开发标志或非回环来源则拒绝启动。正式环境仍使用 API 入口 `python -m backend.bic_api` 和独立 HTTPS 静态服务器/反代，本地演示不等于上线。
 
 原owner面板中student/advisor都只管理自己的原始记录；角色本身不授全校权限。另有 [家长只读摘要](parent-sharing.md) 和 [单报告批注](family-comments.md)，这两者不授原始答卷权限。[指定顾问只读](teacher-access.md) 是独立的所有者确认，明确包含完整答卷/历史，限指定账号和修订，原写接口仍不扩权。已读报告的 [可选建议草稿](advice-drafts.md) 默认关闭，人工选段应用只更新服务端；打开到本机仍需独立确认。另有独立的[顾问建议编辑](advisor-edit.md)授权，仅四段文字及服务端登录账号审计，旧只读不扩权。本人改密已提供，详见 [账号安全](password-change.md)；公开注册、忘记密码和管理员找回尚未实现。
 
 ## 测试
 
-[顾问完成度清单](teacher-summary.md) 是独立主动入口，需逐份选择有效只读授权，预览并在确认前后复查后才能保存含姓名/编号的校内CSV。只返回完成度摘要，不向页面传原始答卷或审计；不写原报告、浏览器存储或数据库新状态，schema5/API2沿用。
+[顾问完成度清单](teacher-summary.md) 是独立主动入口，需逐份选择有效只读授权，预览并在确认前后复查后才能保存含姓名/编号的校内CSV。只返回完成度摘要，不向页面传原始答卷或审计；不写原报告、浏览器存储或数据库新状态，schema6/API2沿用。
 
 `pnpm test` 或 `npm test` 验证前端、协议和模拟服务的真实 Chromium UI，不需要 Python 服务。实际浏览器到 FastAPI/SQLite 集成需后端开发依赖，另行执行：
 

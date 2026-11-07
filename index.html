@@ -7,6 +7,7 @@
   <link rel="icon" href="img/favicon-128.png" type="image/png" />
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/testcode.css" />
   <link rel="stylesheet" href="css/statistics.css" />
   <link rel="stylesheet" href="css/outcomes.css" />
 </head>
@@ -166,6 +167,8 @@
         </div>
       </div>
       <p id="archiveReportStatus" class="library-inline-status no-print" role="status" hidden></p>
+      <p id="reportSubmitStatus" class="library-inline-status no-print" role="status" aria-live="polite" hidden></p>
+      <button id="reportSubmitRetry" class="btn ghost sm no-print" type="button" hidden>重新提交报告</button>
       <aside id="reportEditor" class="report-editor no-print" aria-label="顾问报告编辑" hidden></aside>
       <div id="reportRoot" class="report"></div>
     </section>
@@ -360,6 +363,24 @@
     </section>
   </main>
 
+  <!-- 一次性测试码 -->
+  <div class="code-gate" id="codeGate" hidden>
+    <div class="code-gate-panel" role="dialog" aria-modal="true" aria-labelledby="codeGateTitle">
+      <h2 id="codeGateTitle">输入测试码</h2>
+      <p>请输入老师提供的一次性测试码。每个测试码只能使用一次，默认有效期 7 天。</p>
+      <p class="code-gate-notice">开始后，你的作答与生成的报告会提交给学校/机构保存。</p>
+      <form id="codeGateForm" novalidate>
+        <label for="codeGateInput">测试码</label>
+        <input id="codeGateInput" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="例如 ABCD-EFGH-JK" />
+        <p id="codeGateStatus" class="code-gate-status" role="status" aria-live="polite"></p>
+        <div class="code-gate-actions">
+          <button type="submit" class="btn primary" id="codeGateSubmit">开始测试</button>
+          <button type="button" class="btn ghost" id="codeGateCancel">取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- 未作答提示 -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -386,8 +407,8 @@
   <script src="js/outcome-review.js?v=5"></script>
   <script src="js/outcome-review-ui.js?v=3"></script>
   <script src="js/report-library.js?v=5"></script>
-  <script src="js/cloud-config.js?v=2"></script>
-  <script src="js/cloud-client.js?v=6"></script>
+  <script src="js/cloud-config.js?v=3"></script>
+  <script src="js/cloud-client.js?v=8"></script>
   <script src="js/share-summary.js?v=6"></script>
   <script src="js/advice-draft.js?v=4"></script>
   <script src="js/share-owner.js?v=3"></script>
@@ -395,6 +416,6 @@
   <script src="js/teacher-owner.js?v=3"></script>
   <script src="js/advisor-edit-owner.js?v=4"></script>
   <script src="js/cloud-ui.js?v=7"></script>
-  <script src="js/app.js?v=64"></script>
+  <script src="js/app.js?v=65"></script>
 </body>
 </html>

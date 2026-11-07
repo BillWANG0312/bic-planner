@@ -39,6 +39,14 @@ async function openApp(browser, options = {}) {
     context = await browser.newContext({ viewport: options.viewport || { width: 1280, height: 900 }, ...(options.storageState ? { storageState: options.storageState } : {}) });
     const page = await context.newPage();
     page.setDefaultTimeout(4000);
+    // 默认隔离网站维护者的云端配置；需要真实模式的测试显式传入 cloudConfig。
+    if (options.cloudConfig !== false) {
+      const config = options.cloudConfig || { enabled: false, apiBase: './api/' };
+      await context.route('**/js/cloud-config.js*', route => route.fulfill({
+        contentType: 'application/javascript; charset=utf-8',
+        body: 'window.BIC_CLOUD_CONFIG = ' + JSON.stringify(config) + ';'
+      }));
+    }
     if (options.prepare) await options.prepare(context);
     if (options.beforeLoad) await options.beforeLoad(page);
     const origin = `http://127.0.0.1:${server.address().port}`;

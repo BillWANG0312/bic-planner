@@ -35,7 +35,7 @@ def test_change_password_revokes_all_own_sessions_and_preserves_other_users_and_
         assert result.status_code == 200 and result.json()['user'] == one['user']
         assert first.get('/api/reports/' + saved['id']).json() == saved
         with sqlite3.connect(app.state.db.path) as connection:
-            assert connection.execute('PRAGMA user_version').fetchone()[0] == 5
+            assert connection.execute('PRAGMA user_version').fetchone()[0] == 6
 
 
 @pytest.mark.parametrize('change', [

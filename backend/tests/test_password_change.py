@@ -84,7 +84,7 @@ def test_success_replaces_real_argon_hash_revokes_all_own_sessions_and_preserves
     failure(lambda: auth.login('student', PASSWORD, '192.0.2.4'), 401)
     output = capsys.readouterr(); assert PASSWORD not in output.out + output.err and NEW_PASSWORD not in output.out + output.err
     with sqlite3.connect(db.path) as connection:
-        assert connection.execute('PRAGMA user_version').fetchone()[0] == 5
+        assert connection.execute('PRAGMA user_version').fetchone()[0] == 6
 
 
 @pytest.mark.parametrize('new', ['short', 'x' * 129, '😀' * 129, ' ' * 12, '\u2002' * 12, '\ud800' + 'a' * 12, None, 123, PASSWORD],

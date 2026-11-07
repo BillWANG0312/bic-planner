@@ -16,6 +16,7 @@ from .current_profile import AnswerError
 from .models import LEGACY_PROFILE, stored_record
 from .security import AuthError, AuthService
 from .settings import Settings
+from .test_codes import TestCodeService
 from .share_models import ShareContent
 from .sharing import ShareService
 from .comment_models import CommentText, RequestId
@@ -46,6 +47,15 @@ class CreateReportBody(StrictBody):
     record: Any
     # 当前版本的存档在写入边界换算成旧版兼容字段；读取时由服务换回当前形状并补上标记。缺省按旧版存档保存。
     assessmentProfile: Literal[LEGACY_PROFILE, CURRENT_PROFILE] | None = None
+
+
+class CreateTestCodeBody(StrictBody):
+    label: Annotated[StrictStr, Field(min_length=1, max_length=80)]
+    expires_in_hours: Annotated[StrictInt, Field(ge=1, le=720)] = 168
+
+
+class JoinTestCodeBody(StrictBody):
+    code: Annotated[StrictStr, Field(min_length=1, max_length=40)]
 
 
 class UpdateReportBody(CreateReportBody):
@@ -207,6 +217,8 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     app.state.advisor_edits = advisor_edits
     teacher_summaries = TeacherSummaryService(db, clock=clock)
     app.state.teacher_summaries = teacher_summaries
+    test_codes = TestCodeService(db, clock=clock)
+    app.state.test_codes = test_codes
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[settings.hostname], www_redirect=False)
     app.add_middleware(ApiBoundary, settings=settings)
 
@@ -245,6 +257,17 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     def writable_session(request: Request, session=Depends(current_session)):
         if not auth.verify_csrf(session, request.headers.get('X-CSRF-Token')):
             raise HTTPException(403, 'A valid CSRF token is required.')
+        return session
+
+    def operator_session(session=Depends(current_session)):
+        # 新流程只保留一个 advisor 角色的公共账号；不额外引入管理员表。
+        if session['user']['role'] != 'advisor':
+            raise HTTPException(403, 'Operator access is required.')
+        return session
+
+    def writable_operator(session=Depends(writable_session)):
+        if session['user']['role'] != 'advisor':
+            raise HTTPException(403, 'Operator access is required.')
         return session
 
     def serialize_record(record, profile):
@@ -424,6 +447,60 @@ def create_app(settings: Settings, *, clock=time.time, draft_provider=None):
     @app.put('/api/advisor-edit-access/{grant_id}')
     def apply_advisor_edit(grant_id: str, body: ApplyAdvisorEditBody, session=Depends(writable_session)):
         return advisor_edits.apply(session['user']['id'], grant_id, body.revision, body.changes)
+
+    # ---- 一次性测试码：管理员创建，学生匿名加入 ----
+
+    @app.post('/api/admin/test-codes', status_code=201)
+    def create_test_code(body: CreateTestCodeBody, session=Depends(writable_operator)):
+        return test_codes.create(session['user']['id'], body.label, body.expires_in_hours)
+
+    @app.get('/api/admin/test-codes')
+    def list_test_codes(session=Depends(operator_session), limit: int = Query(default=50, ge=1, le=100),
+                        offset: int = Query(default=0, ge=0, le=2 ** 63 - 1)):
+        return test_codes.list(limit=limit, offset=offset)
+
+    @app.post('/api/admin/test-codes/{code_id}/revoke')
+    def revoke_test_code(code_id: str, session=Depends(writable_operator)):
+        return test_codes.revoke(code_id)
+
+    @app.get('/api/admin/reports')
+    def admin_reports(session=Depends(operator_session), limit: int = Query(default=20, ge=1, le=100),
+                      offset: int = Query(default=0, ge=0, le=2 ** 63 - 1)):
+        return db.list_student_reports(limit=limit, offset=offset)
+
+    @app.get('/api/admin/reports/{report_id}')
+    def admin_report(report_id: str, session=Depends(operator_session)):
+        result = db.get_student_report(report_id)
+        if result is None:
+            raise HTTPException(404, 'Report not found.')
+        return result
+
+    @app.get('/api/public/session')
+    def test_code_session(request: Request):
+        result = test_codes.session(request.cookies.get('bic_test_code'))
+        if result is None:
+            raise HTTPException(401, 'No active test code session.')
+        return result
+
+    @app.post('/api/public/join')
+    def join_test_code(body: JoinTestCodeBody, request: Request, response: Response):
+        result = test_codes.join(body.code, request.client.host if request.client else 'unknown',
+                                 request.cookies.get('bic_test_code'))
+        expires_at = int(result['expires_at'])
+        response.set_cookie('bic_test_code', result['token'], max_age=max(1, expires_at - int(test_codes.clock())),
+                            path=settings.cookie_path, secure=settings.public_origin.startswith('https://'),
+                            httponly=True, samesite='lax')
+        return {key: value for key, value in result.items() if key != 'token'}
+
+    @app.post('/api/public/report', status_code=201)
+    def submit_student_report(body: CreateReportBody, request: Request, response: Response):
+        if not isinstance(body.record, dict):
+            raise HTTPException(422, 'The report record is invalid.')
+        result = test_codes.submit(request.cookies.get('bic_test_code'),
+                                   serialize_record(body.record, body.assessmentProfile))
+        response.delete_cookie('bic_test_code', path=settings.cookie_path,
+                               secure=settings.public_origin.startswith('https://'), httponly=True, samesite='lax')
+        return result
 
     return app
 

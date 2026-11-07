@@ -22,6 +22,10 @@ _PUBLIC_ROOT = Path(__file__).resolve().parents[2]
 def create_dev_app(settings: Settings):
     if not settings.development or settings.hostname not in ('127.0.0.1', 'localhost'):
         raise ValueError('The static preview requires explicit development mode and a loopback origin.')
+    # 默认与线上一致使用测试码；浏览器集成测试显式设 account 以沿用普通账号流程。
+    cloud_mode = os.environ.get('BIC_DEV_CLOUD_MODE', 'testcode')
+    if cloud_mode not in ('testcode', 'account'):
+        raise ValueError('BIC_DEV_CLOUD_MODE must be testcode or account.')
 
     app = create_app(settings)
 
@@ -56,11 +60,18 @@ def create_dev_app(settings: Settings):
     def account_security_portal():
         return FileResponse(_PUBLIC_ROOT / 'account.html', media_type='text/html')
 
+    @app.get('/admin.html', include_in_schema=False)
+    def test_code_admin_portal():
+        return FileResponse(_PUBLIC_ROOT / 'admin.html', media_type='text/html',
+                            headers={'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow, noarchive'})
+
     # This route precedes the /js mount. Only this explicit local preview turns
     # on the UI configuration; it does not edit the deployable static file.
     @app.get('/js/cloud-config.js', include_in_schema=False)
     def cloud_configuration():
         configuration = {'enabled': True, 'apiBase': '/api/'}
+        if cloud_mode == 'testcode':
+            configuration['mode'] = 'testcode'
         return Response('window.BIC_CLOUD_CONFIG = ' + json.dumps(configuration) + ';\n',
                         media_type='application/javascript', headers={'Cache-Control': 'no-store'})
 

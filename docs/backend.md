@@ -2,11 +2,21 @@
 
 当前测评范围：本页报告操作沿用旧版14道规划/24道数字量表合同；新版游戏/30题特质尚未适配，明确拒绝进入旧云端或投影，不截断或混用分母。新旧档案与续答操作见 [测评版本说明](assessment-profiles.md)。
 
-本目录提供独立 FastAPI 服务；静态测评仍能直接打开 index.html。可选登录和逐份上传默认关闭，不自动传送浏览器报告，详见 [连接指南](cloud-connection.md)。已有 [家长摘要](parent-sharing.md)、[受控批注](family-comments.md)、[指定顾问只读](teacher-access.md) 与 [可选文案草稿](advice-drafts.md)，尚未部署公司生产。顾问必须获得单报告明确授权，角色不开放全校，另有[单报告建议文字编辑](advisor-edit.md)，需另行确认授权，旧只读不扩权。草稿默认禁用，仅有本地模拟与供应商注入协议，没有真实模型适配器、密钥或外部请求。
+本目录提供独立 FastAPI 服务；静态测评仍能直接打开 index.html。线上测评主流程已改为[一次性测试码](test-codes.md)：一个 `advisor` 公共账号建码，学生匿名加入并提交，报告按码归档；账号登录和逐份上传仍作为独立入口保留。已有 [家长摘要](parent-sharing.md)、[受控批注](family-comments.md)、[指定顾问只读](teacher-access.md) 与 [可选文案草稿](advice-drafts.md)。顾问必须获得单报告明确授权，角色不开放全校，另有[单报告建议文字编辑](advisor-edit.md)，需另行确认授权，旧只读不扩权。草稿默认禁用，仅有本地模拟与供应商注入协议，没有真实模型适配器、密钥或外部请求。
+
+## 一次性测试码（schema 6）
+
+- `test_codes`：10 位一次性码、批次名、创建者、有效期、撤销/兑换/完成时间、参与者令牌 SHA-256 摘要。
+- `student_reports`：每个测试码最多一份完整归档；另有姓名/年级/年份/报告编号用于后台列表。
+- 管理员接口只接受 `advisor` 角色（部署中只保留一个公共账号），写请求仍需 Origin 与 CSRF；学生接口不使用账号 Cookie，只使用独立的 `bic_test_code`。
+- 一码一人：同一码第二次加入返回 409；过期/撤销/完成返回 410；加入按码 10 次/分钟、按 IP 30 次/分钟限流。
+- 同一记录重复提交幂等；不同记录返回 409。提交成功后服务端删除参与者 Cookie，不提供学生事后查询接口。
+- 默认有效期 168 小时（1–720 小时可配置）；参与者 Cookie 最长 12 小时。
+- 前端门禁只是流程，真正约束在服务端令牌与提交边界。完整流程、部署与旧数据清理见 [测试码与学校归档说明](test-codes.md)。
 
 ## 安装与本地试运行
 
-新增 [指定顾问完成度清单](teacher-summary.md) 只读取操作者选择的1–20个有效只读授权，用单次JOIN快照返回必要计数，`POST /api/teacher-summaries`仍需Origin/CSRF身份绑定。旧只读权限不变，编辑授权不能用于此入口；数据库沿用schema5，没有新表、迁移或导出缓存。
+新增 [指定顾问完成度清单](teacher-summary.md) 只读取操作者选择的1–20个有效只读授权，用单次JOIN快照返回必要计数，`POST /api/teacher-summaries`仍需Origin/CSRF身份绑定。旧只读权限不变，编辑授权不能用于此入口；该功能本身不新增表；当前数据库为 schema 6，测试码表见下。
 
 使用 Python 3.12（本次验证为 3.12.14）。从完整源码根目录执行，虚拟环境及数据库都放在网站目录外。下面以 Windows PowerShell 为例：
 
@@ -41,6 +51,14 @@ $env:BIC_PUBLIC_ORIGIN = 'http://127.0.0.1:9001'
 | `GET /api/reports/{id}` | 当前账号拥有的单份归档 |
 | `PUT /api/reports/{id}` | `{record: 单份本机归档, revision: 最近读取的修订号}`；成功修订号加 1 |
 | `DELETE /api/reports/{id}?revision=当前修订号` | 删除自己的归档，成功返回 204 |
+| `POST /api/admin/test-codes` | advisor 创建一次性码 `{label, expires_in_hours}`，201 |
+| `GET /api/admin/test-codes?limit=&offset=` | advisor 查看测试码及状态 |
+| `POST /api/admin/test-codes/{id}/revoke` | advisor 撤销测试码，幂等 |
+| `GET /api/admin/reports?limit=&offset=` | advisor 查看按码归档的学生报告列表 |
+| `GET /api/admin/reports/{id}` | advisor 读取单份学生报告归档 |
+| `GET /api/public/session` | 参与者 Cookie 的当前测试码会话，无则 401 |
+| `POST /api/public/join` | `{code}`；设置 `bic_test_code`，返回批次与到期时间 |
+| `POST /api/public/report` | `{record}`；写入学生报告并清除 Cookie，201 |
 
 登录后所有写操作另需 `X-CSRF-Token` 请求头，值取自登录或会话响应。Cookie 默认路径 `/api`、SameSite=Lax，HTTPS 始终 Secure；服务器保存随机令牌的 SHA-256 摘要，原始令牌只在 Cookie 中交付。密码使用 pwdlib 的 Argon2id。会话默认 8 小时固定过期，注销或禁用账号会撤销；不会把令牌写进报告、响应 JSON 或日志。
 
@@ -66,7 +84,7 @@ $env:BIC_PUBLIC_ORIGIN = 'http://127.0.0.1:9001'
 & D:\Codex\work\bic-backend-venv\Scripts\python.exe -m backend.bic_api.admin --database $env:BIC_DATABASE_PATH disable-user advisor.local
 ```
 
-备份时先正常停止进程，再完整复制到私有目录；恢复前保留原文件，停服务后恢复匹配版本，再重启验证。不要在写入中仅复制主文件并假设一致。数据库带版本和应用标识；未知/篡改结构拒绝、不清库。当前已知精确v1/v2/v3/v4→5事务迁移保留原账号哈希/会话/报告/分享/批注/只读授权，任何新版入口或账号CLI前先备份；失败回滚和不可直接降级边界见[顾问编辑与schema5说明](advisor-edit.md)，没有通用迁移工具。
+备份时先正常停止进程，再完整复制到私有目录；恢复前保留原文件，停服务后恢复匹配版本，再重启验证。不要在写入中仅复制主文件并假设一致。数据库带版本和应用标识；未知/篡改结构拒绝、不清库。当前已知精确v1/v2/v3/v4/v5→6事务迁移保留原账号哈希/会话/报告/分享/批注/只读授权，并新增测试码与学生报告表；任何新版入口或账号CLI前先备份；失败回滚和不可直接降级边界见[顾问编辑与schema5说明](advisor-edit.md)和[测试码升级说明](test-codes.md)，没有通用迁移工具。
 
 ## 开发验证与来源
 
@@ -86,7 +104,7 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 
 ## 本人改密增量接口
 
-现有API2/schema5增加POST /api/auth/password：本人有效会话+Origin/CSRF，旧密码验证、新密码确认、事务CAS替换哈希并撤销全部本人会话，204空响应清Cookie。登录会话创建同时核对被验证哈希，关闭改密与旧登录竞态；没有本轮迁移。限流与哈希资源上限保持。操作、Unicode长度、未知结果及边界见 [改密说明](password-change.md)。管理员找回/身份复核仍未实现，不能用新建同名账号替代恢复。
+现有API2（当前schema6）的POST /api/auth/password：本人有效会话+Origin/CSRF，旧密码验证、新密码确认、事务CAS替换哈希并撤销全部本人会话，204空响应清Cookie。登录会话创建同时核对被验证哈希，关闭改密与旧登录竞态；没有本轮迁移。限流与哈希资源上限保持。操作、Unicode长度、未知结果及边界见 [改密说明](password-change.md)。管理员找回/身份复核仍未实现，不能用新建同名账号替代恢复。
 
 v1.16.0已恢复旧报告原义与新旧profile隔离，完整本地回归1377项通过；新游戏/特质报告仍不能通过现有严格云归档模型，前端明确阻止发送，后端保持拒绝。完整回归通过不表示新版云归档/分享/摘要已实现，见 [测评版本说明](assessment-profiles.md) 和 [兼容性记录](upstream-assessment-compatibility.md)。
 
