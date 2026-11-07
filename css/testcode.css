@@ -6,7 +6,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(10, 20, 40, .55);
+  background: rgba(15, 23, 42, .35);
   backdrop-filter: blur(4px);
 }
 .code-gate[hidden] { display: none; }
@@ -28,6 +28,8 @@
   border: 1px solid #c7d2e0;
   border-radius: 10px;
   font: inherit;
+  color: #111827;
+  background: #fff;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -35,6 +37,19 @@
 .code-gate-status { min-height: 22px; margin: 10px 0 4px !important; font-size: 14px; color: #b42318 !important; }
 .code-gate-actions { display: flex; gap: 10px; margin-top: 6px; }
 
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 32px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  color: #111827;
+}
+.admin-brand img { height: 30px; width: auto; display: block; }
+.admin-brand span { font-weight: 600; }
+.admin-brand a { margin-left: auto; color: #2563eb; text-decoration: none; font-size: 14px; }
+.admin-brand a:hover { text-decoration: underline; }
 .admin-body { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
 .admin-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .admin-header h1 { margin: 0; font-size: 24px; }
