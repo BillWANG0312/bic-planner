@@ -49,7 +49,7 @@
     if (!value.items.length) { root.append(node('p', 'admin-empty', '还没有测试码。')); return; }
     const table = node('table', 'admin-table');
     const head = node('tr');
-    for (const label of ['测试码', '批次', '状态', '创建时间', '过期时间', '操作']) head.append(node('th', '', label));
+    for (const label of ['测试码', '备注', '状态', '创建时间', '过期时间', '操作']) head.append(node('th', '', label));
     const header = node('thead');
     header.append(head);
     table.append(header);
@@ -83,7 +83,7 @@
     if (!value.items.length) { root.append(node('p', 'admin-empty', '还没有学生提交报告。')); return; }
     const table = node('table', 'admin-table');
     const head = node('tr');
-    for (const label of ['学生', '年级', '目标入学', '报告编号', '测试码', '批次', '提交时间', '操作']) head.append(node('th', '', label));
+    for (const label of ['学生', '年级', '目标入学', '报告编号', '测试码', '备注', '提交时间', '操作']) head.append(node('th', '', label));
     const header = node('thead');
     header.append(head);
     table.append(header);
