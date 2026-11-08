@@ -739,7 +739,7 @@
     async function adminCreateTestCode(label, expiresInHours) {
       requireOperator();
       if (!boundedText(label, 80, true) || !Number.isInteger(expiresInHours) || expiresInHours < 1 || expiresInHours > 720) {
-        throw new CloudError('VALIDATION', '请填写 1–80 字的批次名，并选择 1–720 小时的有效期。', 422);
+        throw new CloudError('VALIDATION', '请填写 1–80 字的备注，并选择 1–720 小时的有效期。', 422);
       }
       return codeMeta(await request('admin/test-codes', { method: 'POST', authenticated: true,
         body: { label: label.trim(), expires_in_hours: expiresInHours } }));

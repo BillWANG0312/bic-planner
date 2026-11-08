@@ -6,7 +6,7 @@
 
 ## 一次性测试码（schema 6）
 
-- `test_codes`：10 位一次性码、批次名、创建者、有效期、撤销/兑换/完成时间、参与者令牌 SHA-256 摘要。
+- `test_codes`：10 位一次性码、备注、创建者、有效期、撤销/兑换/完成时间、参与者令牌 SHA-256 摘要。
 - `student_reports`：每个测试码最多一份完整归档；另有姓名/年级/年份/报告编号用于后台列表。
 - 管理员接口只接受 `advisor` 角色（部署中只保留一个公共账号），写请求仍需 Origin 与 CSRF；学生接口不使用账号 Cookie，只使用独立的 `bic_test_code`。
 - 一码一人：同一码第二次加入返回 409；过期/撤销/完成返回 410；加入按码 10 次/分钟、按 IP 30 次/分钟限流。
@@ -57,7 +57,7 @@ $env:BIC_PUBLIC_ORIGIN = 'http://127.0.0.1:9001'
 | `GET /api/admin/reports?limit=&offset=` | advisor 查看按码归档的学生报告列表 |
 | `GET /api/admin/reports/{id}` | advisor 读取单份学生报告归档 |
 | `GET /api/public/session` | 参与者 Cookie 的当前测试码会话，无则 401 |
-| `POST /api/public/join` | `{code}`；设置 `bic_test_code`，返回批次与到期时间 |
+| `POST /api/public/join` | `{code}`；设置 `bic_test_code`，返回备注与到期时间 |
 | `POST /api/public/report` | `{record}`；写入学生报告并清除 Cookie，201 |
 
 登录后所有写操作另需 `X-CSRF-Token` 请求头，值取自登录或会话响应。Cookie 默认路径 `/api`、SameSite=Lax，HTTPS 始终 Secure；服务器保存随机令牌的 SHA-256 摘要，原始令牌只在 Cookie 中交付。密码使用 pwdlib 的 Argon2id。会话默认 8 小时固定过期，注销或禁用账号会撤销；不会把令牌写进报告、响应 JSON 或日志。
