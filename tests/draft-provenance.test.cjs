@@ -124,7 +124,7 @@ test('editor history and printable advice disclose reviewed local simulation sou
   const { value } = fixture();
   return withPage(async page => {
     // 打开网址停在首页，已保存的报告从续答入口进入
-    await page.locator('#resumeBtn').click();
+    await page.locator('#startBtn').click();
     await page.locator('#screen-report.active').waitFor();
     await page.locator('#editReportBtn').click();
     assert.match(await page.locator('#reportEditor').textContent(), /顾问核对·本地模拟草稿/);

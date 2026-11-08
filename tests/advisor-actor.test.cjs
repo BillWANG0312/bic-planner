@@ -100,7 +100,7 @@ test('school account history shows the full account/revisions and keeps portable
   const { value } = fixture();
   return withPage(async page => {
     // 打开网址停在首页，已保存的报告从续答入口进入
-    await page.locator('#resumeBtn').click();
+    await page.locator('#startBtn').click();
     await page.locator('#screen-report.active').waitFor();
     await page.locator('#editReportBtn').click();
     const text = await page.locator('#reportEditor').textContent();

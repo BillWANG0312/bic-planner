@@ -47,13 +47,9 @@ async function ownerPage(label) {
   value.ui = { screen: 'report', idx: 0, resumeScreen: 'academic' };
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await useConfirmHooks(context);
   const page = await context.newPage(); page.setDefaultTimeout(7000); const confirm = useConfirm(page);
-  // 每次打开页面都写入同一份旧版进度：旧版进度不再续答，只能「重新测试」，随后打开只读的旧版报告。
+  // 页面不保存本机进度；直接用内存记录打开只读报告并上传。
   const savedValue = JSON.parse(JSON.stringify(value));
-  await page.addInitScript(value => { try { localStorage.clear(); localStorage.setItem('pathwise.state.v1', JSON.stringify(value)); } catch (_) {} }, savedValue);
   await page.goto(origin);
-  await confirm.confirmAt(true);
-  await page.evaluate(() => document.getElementById('profileRestartBtn').click());
-  await page.locator('#profileNotice').waitFor({ state: 'hidden' });
   await page.evaluate(value => window.__pathwise.openState(value), savedValue);
   await page.locator('#screen-report.active').waitFor();
   await page.locator('#openCloudBtn').click();

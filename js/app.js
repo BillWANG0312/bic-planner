@@ -4,7 +4,6 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'pathwise.state.v1';
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,7 +19,6 @@
     report: null
   });
   let S = blank();
-  let reportLibrary = null;
   let cloudReports = null;
   // 一次性测试码：线上启用 testcode 模式时，开始测评前必须凭码加入。
   const testCodeConfig = window.BIC_CLOUD_CONFIG || {};
@@ -32,156 +30,53 @@
   let submittedBatch = null;
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const TEST_MODES = ['academic', 'plan', 'mbti'];
-  // 原始字节：加载时读到的字节，供受保护进度导出/核对；正常续答的当前版进度为 null。
-  let progressRaw = null, saveLocked = false, recognizedProfile = null, progressReadFailed = false;
   const legacyMode = () => S.assessmentProfile === window.AssessmentProfiles.LEGACY;
   const planQuestions = () => legacyMode() ? window.LegacyAssessment.planQuestions : window.PLAN_QUESTIONS;
-  // 账号面板打开的记录只在页面上查看，属于账号资料而不是本机续答进度。
+  // 账号面板打开的记录只在页面上查看，不属于本机进度。
   let cloudReadOnly = false;
-  // 原始字节：打开页面时读取的字节；保存失败时用于导出与核对，保存成功后由本次写入替换。
   function profileNotice() {
-    const notice = $('#profileNotice');
-    // 只读查看的账号记录不写入本机进度（续答标记为“不保存”），不构成需要保护的原始进度。
-    const nh = cloudReadOnly || !saveLocked && !legacyMode() && !progressReadFailed;
-    notice.hidden = nh;
-    $('#profileRawDownloadBtn').hidden = progressRaw === null;
-    $('#profileContinueBtn').hidden = cloudReadOnly || !saveLocked || !recognizedProfile;
-    $('#profileNoticeText').textContent = progressReadFailed ? '无法读取浏览器原进度，未覆盖。本次仍可在内存中作答，但不会自动保存；尚未取得原始JSON，不能提供原始导出。请恢复读取后重新载入并核对，再决定继续或重测。' : saveLocked
-      ? `无法识别浏览器里保存的是哪个版本（旧版、损坏、混合或已转换），已停止自动保存，不能续答。请先下载原始JSON保留资料；当前统一使用新版${recognizedProfile === window.AssessmentProfiles.LEGACY ? '，旧版作答不会载入或按位置转换为新版特质' : ''}。可点击「重新测试」明确开始新版。`
-      : legacyMode() ? '当前按旧版14道规划、24道数字量表继续，已允许保存；原答案不转换为新版特质。可保留原始JSON，另行确认开始新版。' : '';
     $('#startBtn').textContent = legacyMode() ? '继续旧版测评' : '开始测评';
     $('#restartBtn').textContent = legacyMode() ? '开始新版测评' : '重新测试';
     $('.step[data-step="mbti"] span').textContent = legacyMode() ? '旧版性格24题' : '性格特质';
     $('[data-g="3"]').textContent = legacyMode() ? '整合旧版MBTI性格偏好' : '整合性格特质与职业优势';
   }
 
+  // 本机不保存作答、进度或报告。下面的内存种子只供自动化测试和调试在页面启动前注入状态，
+  // 用户正常打开页面时不存在，也不会写入浏览器存储。
   function load() {
+    const saved = window.__BIC_SEED_STATE__;
+    if (!isObject(saved)) return;
     try {
-      // A failed read does not establish that the key is empty: writes may
-      // still succeed, so lock before attempting to read any existing bytes.
-      saveLocked = true;
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw === null) { saveLocked = false; return; }
-      progressRaw = raw; saveLocked = true;
-      const saved = JSON.parse(raw);
-      if (!isObject(saved) || Object.keys(saved).some(key => !['info', 'academic', 'plan', 'mbti', 'ui', 'report', 'assessmentProfile', 'reportMeta', 'advisor'].includes(key))) throw new Error('Unsupported saved state');
+      if (Object.keys(saved).some(key => !['info', 'academic', 'plan', 'mbti', 'ui', 'report', 'assessmentProfile', 'reportMeta', 'advisor'].includes(key))) return;
       const profile = window.AssessmentProfiles.stateProfile(saved);
       const answers = { info: saved.info, academic: saved.academic, plan: saved.plan, mbti: saved.mbti,
         ...(Object.hasOwn(saved, 'assessmentProfile') ? { assessmentProfile: saved.assessmentProfile } : {}) };
       const restored = window.ReportStore.validateState(answers, profile, { allowBlankName: true });
       restored.assessmentProfile = profile;
       restored.ui = Object.assign(blank().ui, isObject(saved.ui) ? saved.ui : {});
-      if (!['home', 'info', 'test', 'generating', 'report', 'library', 'cloud', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
+      if (!['home', 'info', 'test', 'generating', 'report', 'cloud', ...TEST_MODES].includes(restored.ui.screen)) restored.ui.screen = 'home';
       if (!TEST_MODES.includes(restored.ui.resumeScreen)) restored.ui.resumeScreen = TEST_MODES.includes(restored.ui.screen) ? restored.ui.screen : 'academic';
       restored.ui.idx = Number.isInteger(restored.ui.idx) && restored.ui.idx >= 0 ? restored.ui.idx : 0;
       restored.report = isObject(saved.report) && ['meta', 'academic', 'plan', 'mbti'].every(key => isObject(saved.report[key])) ? saved.report : null;
       S = restored;
-      recognizedProfile = profile;
-      // 统一用新版：旧版或未知版本的进度不载入、不续答，只保留原始JSON由提示条处理；
-      // 未标记的当前版作答继续按当前版本校验后恢复。
-      saveLocked = profile !== window.AssessmentProfiles.CURRENT;
-      if (saveLocked) S = blank();
-    } catch (e) { if (progressRaw === null) progressReadFailed = true; /* 不能把读取失败当作空进度。 */ }
-    // 识别出的已保存当前版进度可直接从首页续答，不需要原始字节导出。
-    if (!saveLocked && !progressReadFailed) progressRaw = null;
+    } catch (_) { S = blank(); }
   }
-  let saveTimer = null;
   let autoAdvanceTimer = null;
   let itemStartAt = 0;
   let generationTimer = null;
   function cancelAutoAdvance() { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
-  function flush() {
-    clearTimeout(saveTimer);
-    if (saveLocked || progressCleared) return false;
-    const notice = $('#storageNotice');
-    try {
-      const stored = JSON.stringify(S);
-      localStorage.setItem(STORAGE_KEY, stored);
-      // 首次加载未标记的当前版进度后写入版本标记：此后一律按已保存的标记判定保护状态，
-      // 与重新打开网址时的判断保持一致。
-      if (!stored.includes('"assessmentProfile"')) {
-        localStorage.setItem(STORAGE_KEY, stored.replace(/^\{/, '{' + '"assessmentProfile":' + JSON.stringify(S.assessmentProfile) + ','));
-      }
-      // 唯一能走到这里的受保护情形是续答入口：用户下载原始JSON并确认按原义继续后才解除保护。
-      saveLocked = false; progressRaw = null;
-      if (notice) notice.hidden = true;
-      // 新进度已写入：原始进度保护提示与续答入口按最新保存状态重新判断，
-      // 明确重测替换旧版/异常进度后提示条随之收起。
-      profileNotice();
-      return true;
-    } catch (e) {
-      if (notice) {
-        notice.textContent = '浏览器暂时无法保存进度。你仍可继续作答，请保持页面打开，并导出 PDF 留存报告。';
-        notice.hidden = false;
-      }
-      return false;
-    }
-  }
-  // 清空本机进度后不清空存储、只跳过写入，直到出现新的作答；避免离开页面时把空进度写回。
-  let progressCleared = false;
-  function save() {
-    // 清空后（例如只剩基本信息）用户的新输入也视为新的进度，恢复自动保存。
-    progressCleared = false;
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(flush, 120);
-  }
-  const persistPending = () => { if (progressCleared) return; clearTimeout(saveTimer); flush(); };
-  window.addEventListener('beforeunload', persistPending);
-  window.addEventListener('pagehide', persistPending);
-
-  function sourceUnchanged() {
-    if (!saveLocked) return true;
-    try { if (localStorage.getItem(STORAGE_KEY) === progressRaw) return true; } catch (_) {}
-    toast('浏览器原始进度已变化或暂时无法核对，未覆盖。请先保留备份并刷新页面。');
-    return false;
-  }
-  $('#profileRawDownloadBtn').onclick = () => {
-    if (progressRaw === null) return;
-    const link = document.createElement('a'), url = URL.createObjectURL(new Blob([progressRaw], { type: 'application/json;charset=utf-8' }));
-    link.href = url; link.download = 'bic-original-progress.json'; document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
-  };
-  $('#profileContinueBtn').onclick = () => {
-    if (!saveLocked || !recognizedProfile) return;
-    if (!confirm('请先下载原始JSON备份。确认按当前游戏与30道特质量表原义继续，并允许自动更新此浏览器的进度？原始作答不会按位置转换到另一版本。')
-        || !sourceUnchanged()) return;
-    saveLocked = false; profileNotice(); flush();
-  };
+  // 页面只在内存中保留当前作答和报告；刷新或关闭后无法恢复。
   function startNew() {
-    if (!confirm('开始新版游戏/30题特质测评将替换本浏览器的当前续答进度。请先归档报告或下载原始JSON备份。确认已保留需要的资料并开始新版？')) return;
-    clearTimeout(saveTimer); cancelAutoAdvance();
-    if (!sourceUnchanged()) { profileNotice(); return; }
-    clearTimeout(saveTimer); saveTimer = null; cancelAutoAdvance();
-    S = blank(); progressRaw = null; recognizedProfile = null; saveLocked = false; progressReadFailed = false; cloudReadOnly = false;
-    profileNotice(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true;
+    cancelAutoAdvance();
+    S = blank(); cloudReadOnly = false;
+    profileNotice(); setScreen('home'); renderInfo();
   }
-  $('#profileRestartBtn').onclick = () => ensureTestCode(startNew);
-
-  function archivedCount() {
-    try { return window.ReportStore.create(window.localStorage).list().length; } catch (_) { return 0; }
-  }
-  function clearProgress() {
-    if (!progressReadFailed && progressRaw === null && !hasProgress()) { toast('本机没有未完成的进度需要清空。'); return; }
-    if (!window.confirm(`清空后本浏览器里${hasProgress() ? '未完成的作答' : '原始进度'}会被删除，不能恢复；本机报告库中的归档和账号登录状态不受影响。确定清空吗？`)) return;
-    try { localStorage.removeItem(STORAGE_KEY); }
-    catch (_) { toast('浏览器暂时无法删除本机进度，请关闭浏览器或手动清除本站数据。'); return; }
-    // 先停掉待写入与自动跳题，避免计时器把旧进度写回刚清空的存储。
-    clearTimeout(saveTimer); saveTimer = null; cancelAutoAdvance();
-    if (S.ui.screen === 'library') reportLibrary?.onScreenLeft();
-    S = blank(); progressRaw = null; recognizedProfile = null; saveLocked = false; progressReadFailed = false; progressCleared = true;
-    profileNotice(); setScreen('home'); renderInfo(); $('#resumeBtn').hidden = true;
-    const archived = archivedCount();
-    toast(archived ? `已清空本机进度。本机报告库仍有 ${archived} 份归档，离开前请确认已导出。` : '已清空本机进度。');
-  }
-  $('#clearProgressBtn').onclick = clearProgress;
-  $('#libraryClearProgressBtn').onclick = clearProgress;
 
   function isPlanAnswered(q, v) {
     if (typeof q.isAnswered === 'function') return q.isAnswered(v);
     return Array.isArray(v) ? v.length > 0 : v != null && v !== '';
   }
 
-  // 统一用新版：旧版或未知版本的进度不能续答，只保留原始JSON由提示条处理。
-  const resumable = () => !saveLocked && hasProgress();
   function hasProgress() {
     return Object.keys(S.academic.answers).length > 0 || S.mbti.answers.some(v => v != null)
       || planQuestions().some(q => isPlanAnswered(q, S.plan.answers[q.key]))
@@ -202,7 +97,6 @@
   function setScreen(name, resume) {
     cancelAutoAdvance();
     if (S.ui.screen === 'cloud' && name !== 'cloud') cloudReports?.onScreenLeft();
-    if (S.ui.screen === 'library' && name !== 'library') reportLibrary?.onScreenLeft();
     if (name !== 'generating' && generationTimer !== null) { clearInterval(generationTimer); generationTimer = null; }
     S.ui.screen = name;
     // 临时查看基本信息或首页时，保留原测试模块及题号。
@@ -220,8 +114,6 @@
     });
     // 测试页由 test-shell 自身负责上下空白，不再留出首页 hero 的顶部空间
     document.body.classList.toggle('in-test', ['test', ...TEST_MODES, 'generating'].includes(name));
-    flush();
-    $('#resumeBtn').hidden = !resumable();
     window.scrollTo(0, 0);
   }
 
@@ -251,11 +143,9 @@
       S.info.grade = b.dataset.v;
       S.plan.answers.grade = S.info.grade;
       $$('#inGrade button').forEach(x => x.setAttribute('aria-checked', x === b));
-      save();
     };
     $('#inName').oninput = () => {
       S.info.name = $('#inName').value.trim(); // 实时同步，刷新后仍可直达报告
-      save();
       const upd = $('#updateReportBtn');
       if (S.info.name && !upd) renderInfo(); else if (upd) upd.hidden = !S.info.name;
     };
@@ -263,7 +153,6 @@
       const b = e.target.closest('button'); if (!b) return;
       S.info.year = b.dataset.v;
       $$('#inYear button').forEach(x => x.setAttribute('aria-checked', x === b));
-      save();
     };
   }
 
@@ -317,7 +206,6 @@
               const v = Number(btn.dataset.v);
               $$('#testBody .option').forEach(x => x.classList.toggle('selected', x === btn));
               this.set(this.idx, v);
-              save();
               updateFoot();
             };
           });
@@ -328,7 +216,7 @@
           inp.oninput = () => {
             const v = inp.value.trim();
             this.set(this.idx, v === '' ? null : Number(v));
-            save(); updateFoot();
+            updateFoot();
           };
           inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); goNext(); } };
         }
@@ -383,7 +271,7 @@
           window.Games[item.game](mount, this.get(this.idx), (value) => {
             this.set(this.idx, value);
             window.mergeBoard(item.key, value)(S.plan.answers);
-            save(); updateFoot();
+            updateFoot();
           });
           return;
         }
@@ -393,7 +281,7 @@
             btn.onclick = () => {
               $$('.option', body).forEach(x => x.classList.toggle('selected', x === btn));
               this.set(this.idx, btn.dataset.v);
-              save(); updateFoot();
+              updateFoot();
             };
           });
         } else {
@@ -407,7 +295,6 @@
                 cur.push(v);
               }
               this.set(this.idx, cur);
-              save();
               // 重新渲染以更新禁用状态
               renderItem();
             };
@@ -453,7 +340,7 @@
             $$('.likert button').forEach(x => x.setAttribute('aria-checked', x === btn));
             const started = performance.now();
             this.set(this.idx, legacyMode() ? Number(btn.dataset.v) : { value: Number(btn.dataset.v), ms: Math.round(started - itemStartAt) });
-            save(); updateFoot();
+            updateFoot();
             // 自动进入下一题；若期间用户改了选择则取消
             const pick = this.idx;
             cancelAutoAdvance();
@@ -471,8 +358,6 @@
   const total = () => items().length;
 
   function startTest(m) {
-    if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('原始进度尚不能识别，请先下载原始JSON，再明确开始新版。'); return; }
-    progressCleared = false;
     mode = m;
     const e = engine[m];
     e.idx = Math.min(S.ui.idx || 0, total() - 1);
@@ -510,7 +395,6 @@
     $('#testTip').textContent = legacyMode() && mode !== 'academic' ? '旧版原题继续作答，不转换为新版游戏或特质结论。' : e.tip;
     $('#testBack').disabled = e.idx === 0 && mode === 'academic';
     updateFoot();
-    save();
   }
 
   function updateFoot() {
@@ -602,10 +486,9 @@
       if (button) button.hidden = true;
     }
   }
-  const testCodeJoined = () => {
-    try { return sessionStorage.getItem('bic.test.joined') === '1'; } catch (_) { return false; }
-  };
-  const markTestCodeJoined = () => { try { sessionStorage.setItem('bic.test.joined', '1'); } catch (_) {} };
+  // 只在当前页面内存中记住已加入，不写入 sessionStorage；刷新后重新向服务端确认会话。
+  let testCodeJoined = false;
+  const markTestCodeJoined = () => { testCodeJoined = true; };
   function testCodeError(error) {
     if (error?.status === 429 || error?.code === 'RATE_LIMIT') return '尝试次数过多，请稍后再试。';
     if (error?.status === 409) return '这个测试码已经被使用，请向老师索取新的测试码。';
@@ -621,7 +504,7 @@
     $('#codeGateInput').value = '';
   }
   async function ensureTestCode(next) {
-    if (!testCodeRequired || !testCodeClient || testCodeJoined()) { next(); return; }
+    if (!testCodeRequired || !testCodeClient || testCodeJoined) { next(); return; }
     try {
       const active = await testCodeClient.testCodeSession();
       if (active) { markTestCodeJoined(); next(); return; }
@@ -663,7 +546,7 @@
     element.classList.toggle('is-error', !!error);
   }
   async function autoSubmitReport(force = false) {
-    if (!testCodeRequired || !testCodeClient || !testCodeJoined()) return;
+    if (!testCodeRequired || !testCodeClient) return;
     const batch = S.report?.meta?.batchId;
     if (!batch || !$('#reportSubmitStatus')) return;
     if (!force && batch === submittedBatch) return;
@@ -675,7 +558,9 @@
       const memory = window.ReportStore.create({ getItem: () => null, setItem: () => {} });
       const result = await testCodeClient.submitStudentReport(memory.save(S).record);
       submittedBatch = batch;
-      submitStatus(result.created ? '报告已提交到服务器保存。你仍可导出 PDF 留存。' : '报告已在服务器上，无需重复提交。');
+      // 测试码已随报告完成；之后重新开始必须重新向服务端确认或输入新码。
+      testCodeJoined = false;
+      submitStatus(result.created ? '报告已提交到服务器保存。请立即导出 PDF 留存。' : '报告已在服务器上，无需重复提交。请立即导出 PDF 留存。');
     } catch (_) {
       submitStatus('报告提交未成功。你仍可查看和导出 PDF；请检查网络后点击「重新提交报告」。', true);
       if (retry) retry.hidden = false;
@@ -685,7 +570,6 @@
 
   /* ---------------- 报告生成 ---------------- */
   function generate() {
-    if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('原始进度尚不能识别，未生成报告。请先下载备份，再明确开始新版。'); return; }
     if (generationTimer !== null) return;
     setScreen('generating');
     const lis = $$('.gen-steps li');
@@ -744,33 +628,34 @@
     $('#reportId').textContent = r.meta.batchId;
     setScreen('report');
     window.animateReport($('#reportRoot'));
-    reportLibrary?.onReportRendered(r);
     cloudReports?.onReportRendered(r);
-    window.reportEditing?.mount(r, () => { const persisted = flush(); renderReport(false); return persisted; });
+    window.reportEditing?.mount(r, () => { renderReport(false); return true; });
   }
 
   $('#pdfBtn').onclick = () => {
     toast('在打印窗口中选择「另存为 PDF」即可保存报告');
     setTimeout(() => window.print(), 350);
   };
-  $('#restartBtn').onclick = () => ensureTestCode(startNew);
+  $('#restartBtn').onclick = () => {
+    if (!confirm('重新测试会清除当前页面上的报告，关闭后无法再次查看。请先导出 PDF。确定继续吗？')) return;
+    ensureTestCode(startNew);
+  };
 
   /* ---------------- 首页 ---------------- */
+  // 只在同一个页面内回到上次的模块和题号；刷新或关闭页面后没有任何本机进度。
   function resumeProgress() {
-    if (saveLocked && !recognizedProfile && !progressReadFailed) { toast('请先下载原始JSON，再点击保护提示中的开始新版。'); return; }
     if (S.report) { renderReport(); return; }
     const s = S.ui.resumeScreen;
-    if (S.info.name && TEST_MODES.includes(s)) { startTest(s); return; }
+    if (S.info.name && TEST_MODES.includes(s) && hasProgress()) { startTest(s); return; }
     setScreen('info');
     renderInfo();
   }
   function startFromHome() {
-    // 已生成的报告只是查看/打印，不再要求测试码；真正开始或续答测评才校验。
+    // 已生成的报告只在当前页面查看/打印；刷新或关闭后不会保留。
     if (S.report) { renderReport(); return; }
     ensureTestCode(resumeProgress);
   }
   $('#startBtn').onclick = startFromHome;
-  $('#resumeBtn').onclick = startFromHome;
   $$('[data-goto]').forEach(b => b.onclick = () => {
     const t = b.dataset.goto;
     setScreen(t);
@@ -786,64 +671,23 @@
   function boot() {
     load();
     profileNotice();
-    // 打开网址一律停在首页：上次进度只通过续答入口或本机报告库回到，不自动跳转。
+    // 打开网址一律停在首页，不自动恢复任何本机内容。
     setScreen("home", true);
     renderInfo();
-    $('#resumeBtn').hidden = !resumable();
   }
   boot();
 
-  /* ---------------- 本机报告库 ---------------- */
-  let libraryReturnScreen = 'home';
-  reportLibrary = window.ReportLibrary?.init({
-    getState: () => S,
-    // 空白的初始作答没有可被替换的内容，打开归档时不必再确认。
-    hasProgressToReplace: () => Object.keys(S.academic.answers).length > 0 || S.mbti.answers.some(v => v != null)
-      || planQuestions().some(q => isPlanAnswered(q, S.plan.answers[q.key])) || !!S.report,
-    // 当前作答是否是自己保存的续答进度：从账号面板只读打开的归档没有写入本机进度。
-    hasSavedProgress() { return !saveLocked && !progressCleared && !cloudReadOnly; },
-    showLibrary() {
-      if (S.ui.screen !== 'library') libraryReturnScreen = S.ui.screen;
-      setScreen('library');
-    },
-    closeLibrary() {
-      if (libraryReturnScreen === 'report' && S.report) renderReport();
-      else if (libraryReturnScreen === 'info') { setScreen('info'); renderInfo(); }
-      else setScreen('home');
-    },
-    openState: openReportState
-  });
-  // 报告库列表在进入时再渲染：重新打开网址停在首页。
-  reportLibrary?.render();
-
-  function openReportState(next, { persist = true } = {}) {
+  // 账号面板读取的报告只在当前页面内存中查看。
+  function openReportState(next) {
     const previous = S;
     const profile = window.AssessmentProfiles.stateProfile(next);
     const checked = window.ReportStore.validateState({ info: next.info, academic: next.academic, plan: next.plan, mbti: next.mbti,
       ...(Object.hasOwn(next, 'assessmentProfile') ? { assessmentProfile: next.assessmentProfile } : {}) }, profile, { allowBlankName: true });
-    // 受保护的本机进度（无法核对的原文字节，或等待核对的可识别作答）需要先保留原始JSON再确认替换。
-    const protectedText = saveLocked && !recognizedProfile;
-    if (saveLocked && persist && (!confirm(protectedText ? '打开报告会替换无法核对的原始续答进度。请先下载原始JSON备份，确认继续打开并允许保存？'
-        : '打开报告会替换本浏览器里尚未核对的续答进度（可从本机报告库找回）。请先下载原始JSON备份，确认继续打开并允许保存？') || !sourceUnchanged())) throw new Error('已取消替换受保护的续答进度。');
-    const previousLock = saveLocked;
-    // 写入失败时保留当前学生的内存和磁盘进度；云端读取也复用此边界。
-    // 打开记录是新的作答内容：先停掉待写入的计时器，否则旧作答会在打开后被写回浏览器形成受保护的进度。
-    clearTimeout(saveTimer); saveTimer = null;
-    S = { ...next, ...checked, assessmentProfile: profile, ui: previous.ui }; saveLocked = false;
-    // persist 为 false 时只在页面上查看（账号记录），不写本机续答进度。
-    if (persist && !flush()) {
-      S = previous; saveLocked = previousLock;
-      throw new Error('无法保存打开的报告，当前作答未替换。请先导出备份并释放本地空间。');
-    }
-    // 运行中按当前题库和目录重建报告，沿用归档的编号与日期；顾问修改随记录进入报告。
-    // 报告库已按归档重建好报告时直接沿用，避免不同的报告来源产生不一致的内容。
+    S = { ...next, ...checked, assessmentProfile: profile, ui: previous.ui };
     const report = next.report && typeof next.report === 'object' ? next.report : window.generateReport(S);
     Object.assign(report.meta, { batchId: next.reportMeta?.batchId || report.meta.batchId, date: next.reportMeta?.date || report.meta.date });
     S.report = next.advisor && !next.report ? { ...report, advisor: next.advisor } : report;
-    // 由报告库打开的归档沿原来的返回路径；账号面板打开的记录不把作答写进本机续答进度，
-    // 关闭面板后若停留在这份只读报告上，本机作答也不能被当作它保存。
     if (previous.ui?.screen === 'cloud') cloudReports?.onScreenLeft({ keepStatus: true });
-    else if (previous.ui.screen === 'library') reportLibrary?.onScreenLeft();
     profileNotice();
     renderInfo();
     renderReport(false);
@@ -859,25 +703,25 @@
       client,
       getState: () => S,
       getCurrentRecord() {
-        if (!S.report) throw new Error('请先生成当前学生的报告，或选择一份本机归档。');
+        if (!S.report) throw new Error('请先生成当前学生的报告。');
         refreshCurrentReport();
         let raw = null;
         const memory = window.ReportStore.create({ getItem: () => raw, setItem: (_, value) => { raw = value; } });
         return memory.save(S).record;
       },
       hasProgress,
-      // 只读打开的账号记录可以再次作为「当前报告」上传；已保存的本机进度永远优先。
+      // 只读打开的账号记录可以再次作为「当前报告」上传。
       readOnlyRecord(profile) {
         if (!cloudReadOnly || !S.report) return null;
         const memory = window.ReportStore.create({ getItem: () => null, setItem: () => {} });
         const record = memory.save({ ...S, assessmentProfile: profile || S.assessmentProfile || window.AssessmentProfiles.CURRENT }).record;
         return record;
       },
-      // 打开账号记录：页面显示这份报告，但作答不写入本机续答进度，关闭面板后仍按原来的本机进度继续。
+      // 打开账号记录：只在当前页面内存中显示这份报告。
       openState(next) {
-        const previous = S, previousLock = saveLocked;
-        try { const restored = openReportState(next, { persist: false }); cloudReadOnly = !!restored; return restored; }
-        catch (error) { S = previous; saveLocked = previousLock; cloudReadOnly = false; throw error; }
+        const previous = S;
+        try { const restored = openReportState(next); cloudReadOnly = !!restored; return restored; }
+        catch (error) { S = previous; cloudReadOnly = false; throw error; }
       },
       isActive: () => S.ui.screen === 'cloud',
       showCloud() {
@@ -889,7 +733,6 @@
         refreshCurrentReport();
         if (cloudReturnScreen === 'report' && S.report) renderReport();
         else if (cloudReturnScreen === 'info') { setScreen('info'); renderInfo(); }
-        else if (cloudReturnScreen === 'library') { setScreen('library'); reportLibrary?.render(); }
         else setScreen('home');
       }
     });
@@ -897,5 +740,5 @@
 
   // 暴露给调试
   window.__pathwise = { get state() { return S; }, generate, startTest, openState: openReportState,
-    reset() { S = blank(); setScreen('home'); profileNotice(); renderInfo(); $('#resumeBtn').hidden = true; } };
+    reset() { S = blank(); cloudReadOnly = false; setScreen('home'); profileNotice(); renderInfo(); } };
 })();

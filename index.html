@@ -6,8 +6,8 @@
   <title>BIC 学业规划系统 · BIC Academic Planner</title>
   <link rel="icon" href="img/favicon-128.png" type="image/png" />
   <link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/style.css?v=1" />
-  <link rel="stylesheet" href="css/testcode.css?v=1" />
+  <link rel="stylesheet" href="css/style.css?v=2" />
+  <link rel="stylesheet" href="css/testcode.css?v=2" />
   <link rel="stylesheet" href="css/statistics.css" />
   <link rel="stylesheet" href="css/outcomes.css" />
 </head>
@@ -34,12 +34,6 @@
   </header>
 
   <main id="app">
-    <p id="storageNotice" class="storage-notice no-print" role="status" hidden></p>
-    <section id="profileNotice" class="storage-notice no-print" aria-label="原始进度保护" hidden>
-      <p id="profileNoticeText" role="status"></p>
-      <div class="hero-actions"><button id="profileRawDownloadBtn" type="button" class="btn ghost sm">下载原始JSON备份</button><button id="profileContinueBtn" type="button" class="btn primary sm">确认继续原版本并允许保存</button><button id="profileRestartBtn" type="button" class="btn ghost sm">重新测试</button></div>
-    </section>
-
     <!-- ============ 首页 ============ -->
     <section class="screen hero" id="screen-home" style="display:grid">
       <div class="hero-copy">
@@ -51,10 +45,7 @@
         </p>
         <div class="hero-actions">
           <button class="btn primary lg" id="startBtn">开始探索 <span class="arrow">→</span></button>
-          <button class="btn ghost lg" id="resumeBtn" hidden>继续上次进度</button>
-          <button class="btn ghost lg" id="libraryBtn">本机报告库</button>
           <button class="btn ghost lg" id="cloudBtn">账号报告服务</button>
-          <button class="btn ghost lg" id="clearProgressBtn">清空本机进度</button>
         </div>
         <div class="hero-stats">
           <div><b>3</b><span>互动模块</span></div>
@@ -90,7 +81,7 @@
         <div class="page-head">
           <span class="kicker">Step 1 / 5</span>
           <h2>先认识一下你</h2>
-          <p>信息默认保存在此浏览器中；仅在你主动上传报告时发送至本校服务。</p>
+          <p>信息只用于本次报告，不会保存在此浏览器中；生成的报告会提交给学校/机构存档。</p>
         </div>
         <form class="card form-card" id="infoForm" autocomplete="off">
           <label class="field">
@@ -159,64 +150,16 @@
         <div class="toolbar-title">学术规划报告 <small id="reportId"></small></div>
         <div class="toolbar-actions">
           <button class="btn ghost sm" id="editReportBtn" aria-expanded="false" aria-controls="reportEditor">编辑建议</button>
-          <button class="btn ghost sm" id="archiveReportBtn">归档报告</button>
-          <button class="btn ghost sm" id="openLibraryBtn">本机报告库</button>
           <button class="btn ghost sm" id="openCloudBtn">账号报告服务</button>
           <button class="btn ghost sm" id="restartBtn">重新测试</button>
           <button class="btn primary sm" id="pdfBtn">导出 PDF</button>
         </div>
       </div>
-      <p id="archiveReportStatus" class="library-inline-status no-print" role="status" hidden></p>
+      <p id="reportOneTimeNotice" class="one-time-report-notice no-print" role="note">请现在导出 PDF 留存。关闭或刷新本页后，这份报告将无法再次查看。</p>
       <p id="reportSubmitStatus" class="library-inline-status no-print" role="status" aria-live="polite" hidden></p>
       <button id="reportSubmitRetry" class="btn ghost sm no-print" type="button" hidden>重新提交报告</button>
       <aside id="reportEditor" class="report-editor no-print" aria-label="顾问报告编辑" hidden></aside>
       <div id="reportRoot" class="report"></div>
-    </section>
-
-    <!-- ============ 本机报告库 ============ -->
-    <section class="screen no-print" id="screen-library" aria-labelledby="libraryHeading">
-      <div class="wrap library-wrap">
-        <div class="library-heading">
-          <div>
-            <span class="kicker">Local reports</span>
-            <h2 id="libraryHeading" tabindex="-1">本机报告库</h2>
-          </div>
-          <button class="btn ghost" id="libraryBackBtn">返回</button>
-        </div>
-        <p class="library-privacy">本机归档保存在当前设备的此浏览器中，不会自动上传或在设备间同步。若需要服务端保存，请在「账号报告服务」中单独选择并确认上传。清除浏览器数据可能丢失归档，请定期导出 JSON 备份并妥善保管含学生资料的文件。</p>
-        <div class="library-tools">
-          <button class="btn ghost sm" id="libraryExportBtn">导出 JSON 备份</button>
-          <button class="btn ghost sm" id="libraryCsvBtn">导出 CSV 汇总</button>
-          <button class="btn ghost sm" id="libraryStatisticsBtn">学术汇总与校准准备</button>
-          <button class="btn ghost sm" id="libraryOutcomesBtn">后续成绩配对</button>
-          <label class="btn ghost sm library-file-button" for="libraryImportFile">导入 JSON 备份
-            <input id="libraryImportFile" type="file" accept=".json,application/json" />
-          </label>
-          <button class="btn ghost sm" id="libraryRawBackupBtn" hidden>下载原始数据备份</button>
-          <button class="btn ghost sm" id="libraryClearProgressBtn">清空本机未完成进度</button>
-        </div>
-        <p class="library-help">JSON 只备份已归档报告的作答及顾问修改，请先归档当前报告；可在本系统导入恢复。CSV 仅供查看汇总。导入前会校验并预览，归档编号或报告编号重复时默认跳过。</p>
-        <p id="libraryStatus" class="library-status" role="status" aria-live="polite"></p>
-        <div id="libraryStatistics" hidden></div>
-        <div id="libraryOutcomes" hidden></div>
-        <section id="libraryImportPreview" class="library-import" aria-labelledby="libraryImportHeading" hidden>
-          <h3 id="libraryImportHeading" tabindex="-1">确认导入内容</h3>
-          <p id="libraryImportSummary"></p>
-          <label class="library-replace"><input id="libraryImportReplace" type="checkbox" />明确替换所有编号重复的归档（旧归档将被覆盖）</label>
-          <p class="library-help">替换前建议先导出当前 JSON 备份。尚未点击确认导入时，本机归档不会改变。</p>
-          <div class="library-import-actions">
-            <button class="btn primary sm" id="libraryImportCommitBtn">确认导入</button>
-            <button class="btn ghost sm" id="libraryImportCancelBtn">取消</button>
-          </div>
-        </section>
-        <div class="library-search-row">
-          <label class="library-search" for="librarySearch">搜索姓名或报告编号
-            <input type="search" id="librarySearch" maxlength="120" placeholder="输入姓名或报告编号" autocomplete="off" />
-          </label>
-          <p id="libraryCount" aria-live="polite"></p>
-        </div>
-        <div id="libraryList" class="library-list"></div>
-      </div>
     </section>
 
     <!-- ============ 显式连接的账号报告服务 ============ -->
@@ -226,7 +169,7 @@
           <h2 id="cloudHeading" tabindex="-1">账号报告服务</h2>
           <button type="button" class="btn ghost" id="cloudBackBtn">返回</button>
         </div>
-        <p class="cloud-privacy">连接本校服务后，可查看自己账号中的报告。每次上传都会先让你选择并确认一份报告，包含姓名、作答及顾问修改；本机报告库不会自动上传。此处操作不会删除本机归档。<a href="account.html">账号安全：修改本人密码</a></p>
+        <p class="cloud-privacy">连接本校服务后，可查看自己账号中的报告。每次上传都会先让你选择并确认当前报告，包含姓名、作答及顾问修改；不会自动上传。<a href="account.html">账号安全：修改本人密码</a></p>
         <p id="cloudStatus" class="cloud-status" role="status" aria-live="polite"></p>
         <section id="cloudConnection" class="cloud-connect" aria-label="连接本校服务">
           <p>本机模式始终可用。网站开通报告服务后，点击连接可恢复现有会话或登录；返回本页不会自动重连。</p>
@@ -288,7 +231,7 @@
                   <button type="button" class="btn primary sm" id="adviceApplyBtn" disabled>确认应用到服务端</button>
                   <button type="button" class="btn ghost sm" id="adviceDiscardBtn" disabled>关闭草稿</button>
                 </div>
-                <p class="cloud-help">只更新这份服务端报告所选段落，并保留来源和修改记录。本机当前报告及本机报告库不会自动替换。</p>
+                <p class="cloud-help">只更新这份服务端报告所选段落，并保留来源和修改记录。当前页面报告不会自动替换。</p>
               </div>
             </section>
             <section class="owner-share" aria-labelledby="teacherOwnerHeading">
@@ -402,11 +345,6 @@
   <script src="js/report-print.js?v=3"></script>
   <script src="js/report-view.js?v=3"></script>
   <script src="js/report-store.js?v=8"></script>
-  <script src="js/report-statistics.js?v=5"></script>
-  <script src="js/report-statistics-ui.js?v=3"></script>
-  <script src="js/outcome-review.js?v=5"></script>
-  <script src="js/outcome-review-ui.js?v=3"></script>
-  <script src="js/report-library.js?v=5"></script>
   <script src="js/cloud-config.js?v=5"></script>
   <script src="js/cloud-client.js?v=8"></script>
   <script src="js/share-summary.js?v=6"></script>
@@ -416,6 +354,6 @@
   <script src="js/teacher-owner.js?v=3"></script>
   <script src="js/advisor-edit-owner.js?v=4"></script>
   <script src="js/cloud-ui.js?v=7"></script>
-  <script src="js/app.js?v=66"></script>
+  <script src="js/app.js?v=67"></script>
 </body>
 </html>

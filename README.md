@@ -1,6 +1,6 @@
 # BIC 学业规划系统
 
-面向 8–11 年级学生的 A-Level 学术规划互动测评：学生在本机完成学术、规划与性格特质三部分测评，生成报告，可导出 PDF、归档到本机报告库，或主动连接到同源账号服务保存、分享给家长与指定顾问。
+面向 8–11 年级学生的 A-Level 学术规划互动测评：学生凭学校发放的一次性测试码完成学术、规划与性格特质三部分测评，生成报告后可当场导出 PDF；报告同时提交给学校/机构存档，本机不保存进度或报告。旧版账号服务仍保留给既有独立入口使用。
 
 线上地址：<https://tlwl-bic.com/academic-planner/>（账号服务已开启）。本地也可以在完全不联网的情况下使用。
 
@@ -39,22 +39,18 @@
 ### 学校测试码流程（线上主流程）
 
 - 学校维护一个 `advisor` 角色的公共账号（部署示例为 `tlwl-bic`），在 `admin.html` 登录后逐个生成**一次性测试码**，默认有效 7 天。
-- 学生打开测评首页，点「开始测评」或「继续上次进度」时需输入测试码；输入框明确告知**作答与生成的报告会提交给学校/机构保存**。
-- 学生生成报告后自动提交一份到服务器，并可在当前页面继续查看、用浏览器打印为 PDF；**提交后没有事后查询入口**。
+- 学生打开测评首页，点「开始测评」时需输入测试码；输入框明确告知**作答与生成的报告会提交给学校/机构保存**。
+- 学生生成报告后自动提交一份到服务器，并可在当前页面继续查看、用浏览器打印为 PDF；**关闭或刷新页面后报告无法再次查看，也没有事后查询入口**。
 - 管理员后台按测试码列出学生报告，可在线打开并打印；报告与测试码一一对应。
 - 一码一人，不能共用；已撤销、已过期或已完成的码不能再用。学生端使用独立的 HttpOnly Cookie，不创建学生账号。
 - 详见 [测试码与学校归档说明](docs/test-codes.md)。
 
-### 本机续答与共用电脑
+### 一次性测试与隐私
 
-- 同一浏览器、同一网址自动保存一份未完成进度；重新打开网址一律停在首页，点「继续上次进度」回到上次的模块、题号或报告。
-- 首页与报告库页各有一个**「清空本机进度」**按钮，供公用电脑使用：只删除未完成进度，**本机报告库归档和账号登录状态不受影响**；清空前二次确认，若本机还有归档会提醒先导出。
-- 保存不可用时（如隐私模式）会提示，当前页面仍可继续答题。
-
-### 本机报告库
-
-- 最多归档 100 份报告，按姓名 / 编号搜索，打开、导出 / 导入 JSON 备份；纯旧版库可下载原 CSV，新或混合库使用 JSON。
-- 重复归档需明确确认；配额或数据损坏不会静默覆盖原库。详见 [使用与恢复说明](docs/report-library.md)。
+- 作答进度、基本信息和报告只保留在当前页面的内存中，不写入 `localStorage`、`sessionStorage` 或任何本机报告库。
+- 同一页面内可以返回首页再继续；刷新、关闭标签页或更换设备后，作答进度和报告都不会恢复。
+- 报告生成后请立即用「导出 PDF」保存；页面会持续提示关闭或刷新后无法再次查看。
+- 测试码提交后完成，不能再用同一个码重新测试；需要重测时请联系老师生成新的测试码。
 
 ### 账号与云端（线上测试码模式）
 
@@ -69,11 +65,6 @@
 - **顾问完成度清单**：选择 1–20 份有效授权，预览后导出 21 列校内 CSV；可选 v2（学科表现）或 v3（学生自选专业 / 地区）。详见 [完成度](docs/teacher-summary.md)、[学科](docs/teacher-academic.md)、[偏好](docs/teacher-preferences.md)。
 - **建议草稿**：默认关闭，仅有本地模拟与逐段人工确认，未接入真实模型。详见 [草稿说明](docs/advice-drafts.md)。
 
-### 本地统计与分析
-
-- **本机汇总**：主动选择同题库版本的 10–100 份报告，预览四科与逐题统计后导出；可选专业 / 地区扩展。详见 [学术统计](docs/academic-statistics.md)、[规划统计](docs/planning-statistics.md)。
-- **后续成绩配对**：导入校内百分制成绩，手动配对并确认测评日期后导出必要聚合。详见 [配对与描述复核](docs/outcome-review.md)。
-
 所有汇总 / 摘要均**不承诺充分匿名、不是正式成绩、不是录取概率、未经过样本校准**。
 
 ### 两代测评共存（重要）
@@ -81,7 +72,7 @@
 | 使用范围 | `legacy-2026.10` | `games-traits-v1`（当前） |
 |---|---|---|
 | 规划 / 性格 | 14 题、13 必答 / 24 个数字 | 13 题、12 必答 / 30 个对象 |
-| 本机续答、报告 / PDF、本机编辑 | 按原含义支持 | 支持 |
+| 报告 / PDF、本机编辑 | 按原含义支持 | 支持 |
 | 云归档、分享、顾问协作与摘要、本地统计 | 可打开；直接上传按旧版存档 | 支持；账号服务写入时换算为旧版兼容字段，读取按存档题数换回当前形状 |
 
 账号服务只保存旧版兼容字段：写请求在顶层带 `assessmentProfile`，当前版本的作答在写入边界换算（30 道特质题 → 旧版 24 题整数，团队竞速 → 节奏与搭档人数）；读取时 30 题的对象作答换回当前形状并带当前标记，旧版 24 题数字原样返回、不带标记。客户端写回时按报告自身版本带上该标记。旧进度保护与备份规则见 [测评版本与保护说明](docs/assessment-profiles.md)。
@@ -94,7 +85,7 @@
 python -m http.server 8765
 ```
 
-访问 `http://localhost:8765/`。也可以直接打开 `index.html`，但直接打开文件与通过 HTTP 访问的进度不共享，续答需使用同一网址。
+访问 `http://localhost:8765/`。也可以直接打开 `index.html`；页面不在本机保存进度，刷新后从空白首页重新开始。
 
 可选后端（API 开发 / 本地试运行）：
 
@@ -126,12 +117,12 @@ BIC_DEV=1 BIC_DATABASE_PATH=/绝对路径/网站目录外/accounts.sqlite3 BIC_P
 ```sh
 npm install
 npx playwright install chromium
-npm test            # 前端与浏览器回归（582 项）
-BIC_TEST_PYTHON=/home/bill/nas/bic_account_venv/bin/python npm run test:cloud   # 后端浏览器集成（34 项；4 个顾问只读/编辑用例在本次基底上原本失败）
+npm test            # 前端与浏览器回归（533 项）
+BIC_TEST_PYTHON=/var/tmp/bicvenv/bin/python npm run test:cloud   # 后端浏览器集成（19 项；4 个顾问只读/编辑用例在本次基底上原本失败）
 /var/tmp/bicvenv/bin/python -m pytest backend/tests -q   # 后端单元与接口（821 项）
 ```
 
-也可用 `pnpm install --frozen-lockfile` 代替 `npm install`。浏览器测试优先使用 Playwright Chromium，未安装时回退本机 Chrome。测试覆盖评分、空白答卷、题库、编辑历史、存储异常、续答保护、共用电脑清空、移动端 375px、打印、分享 / 批注 / 顾问权限边界与后端集成。测试数量会随功能增加而变化；验证口径与历史日志见 [验证记录](docs/verification-2026-10-25.md)。
+也可用 `pnpm install --frozen-lockfile` 代替 `npm install`。浏览器测试优先使用 Playwright Chromium，未安装时回退本机 Chrome。测试覆盖评分、空白答卷、题库、编辑历史、一次性测试码、刷新后不保留本机数据、移动端 375px、打印、分享 / 批注 / 顾问权限边界与后端集成。测试数量会随功能增加而变化；验证口径与历史日志见 [验证记录](docs/verification-2026-10-25.md)。
 
 ## 目录
 
@@ -143,11 +134,9 @@ BIC_TEST_PYTHON=/home/bill/nas/bic_account_venv/bin/python npm run test:cloud   
 | `js/personality.js`、`js/games.js` | 10 项特质、30 道情境题、计分与 MBTI 对照；互动小游戏 |
 | `js/report.js`、`js/report-view.js`、`js/report-print.js` | 按 profile 分派的报告计算、展示与打印 |
 | `js/assessment-profile.js`、`js/legacy-assessment.js`、`js/legacy/` | 两代测评识别、固定旧引擎与原始进度保护 |
-| `js/app.js` | 流程、路由、本地持久化、续答与清空本机进度 |
+| `js/app.js` | 流程、路由、测试码门禁与内存中的作答 / 报告 |
 | `js/report-editing.js` | 顾问本机编辑与修改记录 |
-| `js/report-store.js`、`js/report-library.js` | 本机多报告管理、严格备份导入与导出 |
-| `js/report-statistics*.js`、`css/statistics.css` | 本地学术 / 专业 / 地区聚合与预览导出 |
-| `js/outcome-review*.js`、`css/outcomes.css` | 本地后续成绩导入、人工配对与描述聚合 |
+| `js/report-store.js` | 报告记录的严格校验与序列化（供提交和账号服务使用） |
 | `js/cloud-config.js`、`js/cloud-client.js`、`js/cloud-ui.js` | 同源账号连接与主动报告操作（`enabled` 开关） |
 | `admin.html`、`js/admin.js`、`css/testcode.css`、`backend/bic_api/test_codes.py` | 一次性测试码、学生报告后台与匿名提交 |
 | `account.html`、`js/account.js`、`css/account.css` | 本人改密与全部会话撤销 |

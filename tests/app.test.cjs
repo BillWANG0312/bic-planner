@@ -5,13 +5,6 @@ const { withPage } = require('./helpers/browser.cjs');
 function state(screen = 'academic', idx = 0) {
   return { assessmentProfile: 'games-traits-v1', info: { name: '测试学生', grade: '9', year: '2028 年秋季' }, academic: { answers: {} }, plan: { answers: {} }, mbti: { answers: Array(30).fill(null) }, ui: { screen: 'test', resumeScreen: screen, idx }, report: null };
 }
-// 归档当前作答：界面位置不进入归档，姓名沿用首页上已保存的学生。
-function archive(page) {
-  return page.evaluate(() => window.ReportStore.create(localStorage).save({ ...window.__pathwise.state, ui: { screen: 'home', idx: 0 } }));
-}
-function blankProgress(page) {
-  return page.evaluate(() => { __pathwise.reset(); return !window.__pathwise.state.report; });
-}
 function saved(value, entered = true) {
   // 只写入首次加载；重新打开网址要看到应用自己保存的进度，而不是被夹具覆盖成初始存档。
   return { beforeLoad: page => page.addInitScript(({ value, entered }) => {
@@ -23,18 +16,31 @@ function saved(value, entered = true) {
   }, { value, entered }) };
 }
 
-test('unfinished answers survive a fresh browser session', () => withPage(async page => {
+test('answers and reports are not retained in the browser after a fresh session', () => withPage(async page => {
   assert.equal(await page.evaluate(() => __pathwise.state.ui.idx), 2);
   assert.equal(await page.evaluate(() => __pathwise.state.info.name), '测试学生');
-  // 重新打开网址：一律停在首页，由续答入口回到上次停留的题目（第 3 题）。
+  // 应用从不写回本机进度；清掉测试夹具的种子后刷新，页面必须回到空白首页。
+  await page.evaluate(() => localStorage.removeItem('pathwise.state.v1'));
   await page.reload();
   assert.equal(await page.locator('#screen-home').evaluate(el => el.classList.contains('active')), true);
-  assert.equal(await page.locator('#resumeBtn').isVisible(), true);
-  await page.locator('#resumeBtn').click();
-  assert.equal(await page.locator('#screen-test').evaluate(el => el.classList.contains('active')), true);
-  assert.match(await page.locator('#testMeta').innerText(), /^3 \/ \d+$/);
-  assert.equal(await page.evaluate(() => __pathwise.state.info.name), '测试学生');
+  assert.equal(await page.locator('#resumeBtn').count(), 0);
+  assert.equal(await page.evaluate(() => __pathwise.state.info.name), '');
+  assert.equal(await page.evaluate(() => localStorage.getItem('pathwise.state.v1')), null);
 }, saved(state('academic', 2), false)));
+
+test('the assessment never writes answers or reports to browser storage', () => withPage(async page => {
+  await page.locator('#startBtn').click();
+  await page.locator('#inName').fill('无存储同学');
+  await page.locator('#inGrade button').first().click();
+  await page.locator('#inYear button').first().click();
+  await page.locator('#infoForm button[type=submit]').click();
+  await page.locator('#testBody .option').first().click();
+  await page.locator('#testNext').click();
+  assert.deepEqual(await page.evaluate(() => ({
+    local: localStorage.length, session: sessionStorage.length,
+    keys: [...Array(localStorage.length)].map((_, i) => localStorage.key(i))
+  })), { local: 0, session: 0, keys: [] });
+}));
 
 test('selected academic answers remain visible after returning to a question', () => withPage(async page => {
   await page.evaluate(() => __pathwise.startTest('academic'));
@@ -125,13 +131,13 @@ test('grade is consistent between the information and planning forms', () => wit
   assert.equal(await page.locator('#inGrade button[aria-checked=true]').getAttribute('data-v'), '10');
 }, saved(state('plan'))));
 
-test('resume returns to the same module and question after visiting home', () => withPage(async page => {
+test('returning home within the same page resumes the same module and question', () => withPage(async page => {
   await page.locator('.step[data-step=info]').click();
   await page.locator('#infoForm [data-goto=home]').click();
-  await page.locator('#resumeBtn').click();
+  await page.locator('#startBtn').click();
   assert.equal(await page.locator('#screen-test').evaluate(el => el.classList.contains('active')), true);
   assert.equal(await page.locator('#testTitle').innerText(), '专业规划测试');
-  // 续答回到上次停留的题号（第 5 题），未作答的题目由下一步按钮判断
+  // 同一页面内回到上次停留的题号（第 5 题），未作答的题目由下一步按钮判断
   assert.equal(await page.locator('#testMeta').innerText(), '5 / 13');
 }, saved(state('plan', 4))));
 
@@ -141,7 +147,7 @@ test('a saved report opens from the home resume entry', () => withPage(async pag
   assert.equal(await page.locator('#reportRoot .paper').count(), 1);
 }, saved({ ...state('mbti', 29) })));
 
-test('regenerating a report carries advisor edits and persists them across reloads', () => withPage(async page => {
+test('regenerating a report carries advisor edits within the current page', () => withPage(async page => {
   await page.evaluate(() => __pathwise.startTest('academic'));
   await page.evaluate(() => __pathwise.generate());
   await page.waitForFunction(() => document.querySelector('#screen-report').classList.contains('active'), null, { timeout: 15000 });
@@ -158,39 +164,6 @@ test('regenerating a report carries advisor edits and persists them across reloa
   assert.equal(advisor.sections.summary, '建议每周复盘两次学习笔记。');
   assert.equal(advisor.history.length, 1);
   assert.equal(advisor.carriedFrom, oldId);
-  await archive(page);
-  await blankProgress(page);
-  await page.reload();
-  // 重开网址停在首页，从本机报告库打开那份归档：顾问修改随报告保留。
-  assert.equal(await page.locator('#screen-home').evaluate(el => el.classList.contains('active')), true);
-  await page.locator('#libraryBtn').click();
-  await page.locator('[data-library-open]').first().click();
-  await page.locator('#screen-report.active').waitFor();
-  assert.match(await page.locator('#reportRoot').innerText(), /建议每周复盘两次学习笔记。/);
-}, saved(state())));
-
-test('legacy report scoring is refreshed while its identifier and date are preserved', () => withPage(async page => {
-  await page.evaluate(() => __pathwise.generate());
-  await page.waitForFunction(() => document.querySelector('#screen-report').classList.contains('active'), null, { timeout: 15000 });
-  const identity = await page.evaluate(() => {
-    const current = window.__pathwise.state;
-    const identity = { batchId: current.report.meta.batchId, date: current.report.meta.date };
-    delete current.report.meta.coverage;
-    current.report.academic.subjects[0].pct = 97;
-    return identity;
-  });
-  // 报告从本机报告库打开时按已保存作答重新生成，编号和日期沿用归档。
-  await archive(page);
-  await blankProgress(page);
-  await page.reload();
-  await page.locator('#libraryBtn').click();
-  await page.locator('[data-library-open]').first().click();
-  await page.locator('#screen-report.active').waitFor();
-  const report = await page.evaluate(() => window.__pathwise.state.report);
-  assert.ok(report.meta.coverage);
-  assert.equal(report.meta.batchId, identity.batchId);
-  assert.equal(report.meta.date, identity.date);
-  assert.notEqual(report.academic.subjects[0].pct, 97);
 }, saved(state())));
 
 test('academic questions show their difficulty and data version', () => withPage(async page => {
@@ -206,44 +179,3 @@ test('going back across a module boundary opens the preceding final question', (
   assert.equal(current, total);
   assert.match(await page.locator('#testTitle').innerText(), /学术/);
 }, saved(state('plan'))));
-
-test('full browser storage shows a nonblocking warning while answers remain usable', () => withPage(async page => {
-  assert.equal(await page.locator('#storageNotice').isVisible(), true);
-  assert.match(await page.locator('#storageNotice').innerText(), /无法保存进度/);
-  await page.locator('#startBtn').click();
-  await page.locator('#inName').fill('存储已满');
-  await page.locator('#inGrade button').first().click();
-  await page.locator('#inYear button').first().click();
-  await page.locator('#infoForm button[type=submit]').click();
-  await page.locator('#testBody .option').first().click();
-  await page.locator('#testNext').click();
-  assert.match(await page.locator('#testMeta').innerText(), /^2 \/ \d+$/);
-}, { beforeLoad: page => page.addInitScript(() => {
-  Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); };
-}) }));
-
-test('damaged cached report is rebuilt from answers while valid advisor edits survive', () => withPage(async page => {
-  await page.evaluate(() => __pathwise.generate());
-  await page.waitForFunction(() => document.querySelector('#screen-report').classList.contains('active'), null, { timeout: 15000 });
-  await page.locator('#editReportBtn').click();
-  await page.locator('#advisorAuthor').fill('王老师');
-  await page.locator('#advisorText').fill('保持每周复盘。');
-  await page.locator('#advisorForm button[type=submit]').click();
-  const batchId = await page.evaluate(() => {
-    const report = window.__pathwise.state.report;
-    report.academic.subjects = null;
-    report.meta.coverage = { academic: { answered: 999, total: 1 } };
-    return report.meta.batchId;
-  });
-  // 报告缓存已损坏：从本机报告库打开同一份归档时按作答重建，顾问修改保留。
-  await archive(page);
-  await blankProgress(page);
-  await page.reload();
-  await page.locator('#libraryBtn').click();
-  await page.locator('[data-library-open]').first().click();
-  await page.locator('#screen-report.active').waitFor();
-  const report = await page.evaluate(() => window.__pathwise.state.report);
-  assert.equal(report.meta.batchId, batchId);
-  assert.equal(report.meta.coverage.academic.total, 60);
-  assert.equal(report.advisor.sections.summary, '保持每周复盘。');
-}, saved(state())));
