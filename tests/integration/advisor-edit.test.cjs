@@ -47,12 +47,8 @@ async function ownerPage(label) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await useConfirmHooks(context);
   const page = await context.newPage(); page.setDefaultTimeout(7000); const confirm = useConfirm(page);
   const savedValue = JSON.parse(JSON.stringify(value));
-  await page.addInitScript(value => { try { localStorage.clear(); localStorage.setItem('pathwise.state.v1', JSON.stringify(value)); } catch (_) {} }, savedValue);
   await page.goto(origin);
-  // 旧版进度不再续答：只能「重新测试」；随后打开只读的旧版报告（不写回续答进度）。
-  await confirm.confirmAt(true);
-  await page.evaluate(() => document.getElementById('profileRestartBtn').click());
-  await page.locator('#profileNotice').waitFor({ state: 'hidden' });
+  // 页面不保存本机进度；直接打开内存中的只读旧版报告。
   await page.evaluate(value => window.__pathwise.openState(value), savedValue);
   await page.locator('#screen-report.active').waitFor();
   await page.locator('#openCloudBtn').click();
@@ -106,7 +102,7 @@ async function typeSummary(editor, text) {
 test('owner separately confirms edit scope; advisor selected text is audited once and original answers stay unchanged', async () => {
   const owner = await ownerPage('ONE'); let editor;
   try {
-    const localBefore = await owner.page.evaluate(() => localStorage.getItem('pathwise.state.v1'));
+    const localBefore = await owner.page.evaluate(() => localStorage.length + sessionStorage.length);
     await owner.page.locator('#editRecipient').fill('edit.advisor'); await owner.page.locator('#editPreviewBtn').click();
     await owner.page.locator('#editOwnerPreview').waitFor({ state: 'visible' });
     // The confirmation is what sends the request: declining it must leave no grant behind.
@@ -138,7 +134,7 @@ test('owner separately confirms edit scope; advisor selected text is audited onc
     assert.equal(current.record.advisor.sections.summary, '<b>顾问已核对的新建议</b>');
     assert.equal(current.record.advisor.history.at(-1).actor.username, 'edit.advisor');
     assert.equal(current.record.advisor.history.at(-1).before, '所有者确认的原核心建议');
-    assert.equal(await owner.page.evaluate(() => localStorage.getItem('pathwise.state.v1')), localBefore);
+    assert.equal(await owner.page.evaluate(() => localStorage.length + sessionStorage.length), localBefore);
     await owner.page.locator('#editAuditBtn').click(); await owner.page.waitForFunction(() => document.querySelector('#editOwnerAudit').textContent.includes('edit.advisor'));
     assert.match(await owner.page.locator('#editOwnerAudit').textContent(), /顾问已核对的新建议/); assert.equal(await owner.page.locator('#editOwnerAudit b').count(), 0);
     assert.equal((await editor.context.request.put(origin + '/api/reports/' + owner.saved.id, { headers: await csrf(editor.context), data: { revision: 2, record: current.record } })).status(), 404);

@@ -47,7 +47,6 @@ function seedComplete(options = {}) {
   const value = completeState();
   return pageOptions({ ...options, beforeLoad: page => page.addInitScript(raw => {
     localStorage.setItem('pathwise.state.v1', raw);
-    sessionStorage.setItem('bic.test.joined', '1');
   }, JSON.stringify(value)) });
 }
 
@@ -61,7 +60,7 @@ test('start asks for a test code and the notice says work is submitted to the sc
   assert.deepEqual(await page.evaluate(() => window.__testCode.calls), [['session']]);
 }, pageOptions()));
 
-test('a valid code starts the assessment and records the joined marker', () => withPage(async page => {
+test('a valid code starts the assessment and keeps the joined marker only in memory', () => withPage(async page => {
   await page.locator('#startBtn').click();
   await page.locator('#codeGateInput').fill('abcd-234567');
   await page.locator('#codeGateSubmit').click();
@@ -70,7 +69,7 @@ test('a valid code starts the assessment and records the joined marker', () => w
   assert.equal(await page.locator('#codeGate').isVisible(), false);
   assert.deepEqual(await page.evaluate(() => window.__testCode.calls),
     [['session'], ['join', 'abcd-234567']]);
-  assert.equal(await page.evaluate(() => sessionStorage.getItem('bic.test.joined')), '1');
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('bic.test.joined')), null);
 }, pageOptions()));
 
 test('an already active code session skips the gate', () => withPage(async page => {
@@ -79,7 +78,7 @@ test('an already active code session skips the gate', () => withPage(async page 
   await page.locator('#screen-info').waitFor({ state: 'visible' });
   assert.equal(await page.locator('#codeGate').isVisible(), false);
   assert.deepEqual(await page.evaluate(() => window.__testCode.calls), [['session']]);
-  assert.equal(await page.evaluate(() => sessionStorage.getItem('bic.test.joined')), '1');
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('bic.test.joined')), null);
 }, pageOptions()));
 
 test('cancelling the gate does not start or join', () => withPage(async page => {
@@ -124,6 +123,17 @@ test('a generated report is submitted automatically and the page stays viewable'
   assert.equal(calls[0][0], 'submit');
   assert.equal(calls[0][1].state.info.name, '测试同学');
   assert.equal(calls[0][1].reportMeta.batchId, await page.evaluate(() => window.__pathwise.state.report.meta.batchId));
+}, seedComplete()));
+
+test('a completed report disappears on reload and the used code cannot show it again', () => withPage(async page => {
+  await page.evaluate(() => window.__pathwise.generate());
+  await page.locator('#reportSubmitStatus').filter({ hasText: '报告已提交到服务器保存' }).waitFor();
+  assert.match(await page.locator('#reportOneTimeNotice').innerText(), /关闭或刷新本页后.*无法再次查看/);
+  await page.reload();
+  assert.equal(await page.evaluate(() => window.__pathwise.state.report), null);
+  await page.locator('#startBtn').click();
+  assert.equal(await page.locator('#codeGate').isVisible(), true);
+  assert.equal(await page.locator('#screen-report.active').count(), 0);
 }, seedComplete()));
 
 test('a failed submission offers an explicit retry without blocking the report', () => withPage(async page => {

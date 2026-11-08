@@ -49,6 +49,15 @@ async function openApp(browser, options = {}) {
     }
     if (options.prepare) await options.prepare(context);
     if (options.beforeLoad) await options.beforeLoad(page);
+    // The application itself no longer reads browser storage. Test fixtures still
+    // seed their starting state through the old storage key, so copy it into the
+    // in-memory seed the app understands. This runs only in the test browser.
+    if (typeof page.addInitScript === 'function') await page.addInitScript(() => {
+      try {
+        const raw = localStorage.getItem('pathwise.state.v1');
+        if (raw !== null) window.__BIC_SEED_STATE__ = JSON.parse(raw);
+      } catch (_) {}
+    });
     const origin = `http://127.0.0.1:${server.address().port}`;
     await page.goto(origin + (options.path || '/'));
     return { context, page, origin, async close() { await context.close(); await new Promise(resolve => server.close(resolve)); } };

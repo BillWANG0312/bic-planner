@@ -3,9 +3,8 @@ const assert = require('node:assert/strict');
 const { withPage } = require('./helpers/browser.cjs');
 
 async function draft(page) {
-  // 打开网址默认停在首页；有进度时主按钮隐藏，改用「继续上次进度」进入当前流程
   await page.locator('#screen-home.active').waitFor();
-  await page.evaluate(() => document.getElementById(document.getElementById('resumeBtn').hidden ? 'startBtn' : 'resumeBtn').click());
+  await page.locator('#startBtn').click();
   await page.locator('#inName').fill('测试同学');
   await page.locator('#updateReportBtn').click();
   await page.locator('#screen-report.active').waitFor();
@@ -36,7 +35,7 @@ test('advisor editor and report fit a narrow phone screen and editor stays out o
   assert.equal(await page.locator('#reportRoot').isVisible(), true);
 }, { viewport: { width: 375, height: 812 } }));
 
-test('complete student journey reaches a saved report through all 103 questions', () => withPage(async page => {
+test('complete student journey reaches a report through all 103 questions', () => withPage(async page => {
   await page.locator('#startBtn').click();
   await page.locator('#inName').fill('完整流程同学');
   await page.locator('#inGrade button[data-v="8"]').click();
@@ -89,9 +88,8 @@ test('complete student journey reaches a saved report through all 103 questions'
   assert.equal(meta.coverage.mbti.answered, 30);
   assert.equal(await page.locator('#reportRoot .review-item').count(), 60);
   await page.reload();
-  // 打开网址停在首页，已保存的报告从续答入口进入
+  // 报告只在当前页面内存在；刷新后回到首页且没有可恢复的报告。
   await page.locator('#screen-home.active').waitFor();
-  await page.locator('#resumeBtn').click();
-  await page.locator('#screen-report.active').waitFor();
-  assert.equal(await page.evaluate(() => window.__pathwise.state.report.meta.batchId), meta.batchId);
+  assert.equal(await page.locator('#resumeBtn').count(), 0);
+  assert.equal(await page.evaluate(() => window.__pathwise.state.report), null);
 }));
